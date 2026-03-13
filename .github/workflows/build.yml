@@ -12,14 +12,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
+
       - name: Set up Dart
-        uses: dart-lang/setup-dart@v1
+        # Uses dart-lang/setup-dart@v1.6.5
+        uses: dart-lang/setup-dart@d6a63f8d349f10adbf480221a37c02b851978f6c
+
       - name: Build
         working-directory: citesched_server
         run: |
           dart pub get
+
       - name: SonarQube Scan
+        # ... (rest of your SonarQube configuration)
         uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
