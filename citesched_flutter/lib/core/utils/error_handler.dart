@@ -28,7 +28,8 @@ class AppErrorDialog {
   static String _friendlyMessage(dynamic error) {
     if (error is ServerpodClientException) {
       final cleaned = _cleanMessage(error.message);
-      if (cleaned.isNotEmpty && cleaned.toLowerCase() != 'internal server error') {
+      if (cleaned.isNotEmpty &&
+          cleaned.toLowerCase() != 'internal server error') {
         return cleaned;
       }
 
@@ -104,3 +105,4 @@ class AppErrorDialog {
     );
   }
 }
+//testing
