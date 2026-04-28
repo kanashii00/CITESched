@@ -22,6 +22,15 @@ class TimetableEndpoint extends Endpoint {
     return schedules.where((s) => s.schedule.subject?.program == program).toList();
   }
 
+  List<ScheduleInfo> _preferProgramMatches(
+    List<ScheduleInfo> schedules,
+    Program? program,
+  ) {
+    if (schedules.isEmpty || program == null) return schedules;
+    final filtered = _filterByProgram(schedules, program);
+    return filtered.isNotEmpty ? filtered : schedules;
+  }
+
   Future<Student?> _findCurrentStudent(
     Session session,
     dynamic authInfo,
@@ -145,7 +154,7 @@ class TimetableEndpoint extends Endpoint {
         student.sectionId!,
         fallbackSectionCode: student.section,
       );
-      return _filterByProgram(schedules, studentProgram);
+      return _preferProgramMatches(schedules, studentProgram);
     }
 
     if (student.section != null && student.section!.isNotEmpty) {
@@ -163,7 +172,7 @@ class TimetableEndpoint extends Endpoint {
           resolvedSectionId,
           fallbackSectionCode: student.section,
         );
-        return _filterByProgram(schedules, studentProgram);
+        return _preferProgramMatches(schedules, studentProgram);
       }
     }
 
@@ -178,7 +187,7 @@ class TimetableEndpoint extends Endpoint {
         program: studentProgram,
       ),
     );
-    return _filterByProgram(schedules, studentProgram);
+    return _preferProgramMatches(schedules, studentProgram);
   }
 
   Future<List<ScheduleInfo>> _getFacultyPersonalSchedule(
