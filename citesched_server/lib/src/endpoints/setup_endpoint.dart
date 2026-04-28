@@ -1,5 +1,9 @@
 import 'package:serverpod/serverpod.dart';
 import 'package:serverpod_auth_server/serverpod_auth_server.dart';
+import 'package:serverpod_auth_core_server/serverpod_auth_core_server.dart'
+    as auth_core;
+import 'package:serverpod_auth_idp_server/src/generated/providers/google/models/google_account.dart'
+    as auth_google;
 import '../generated/protocol.dart';
 
 class SetupEndpoint extends Endpoint {
@@ -96,6 +100,61 @@ class SetupEndpoint extends Endpoint {
       );
     }
     return userInfo;
+  }
+
+  Future<UserInfo> _ensureLegacyUserInfoForAuthUser(
+    Session session, {
+    required String authIdentifier,
+    required String email,
+    required String? fallbackName,
+  }) async {
+    final normalizedEmail = email.trim().toLowerCase();
+
+    final byIdentifier = await UserInfo.db.findFirstRow(
+      session,
+      where: (t) => t.userIdentifier.equals(authIdentifier),
+    );
+    if (byIdentifier != null) {
+      if (byIdentifier.email != normalizedEmail) {
+        byIdentifier.email = normalizedEmail;
+        await UserInfo.db.updateRow(session, byIdentifier);
+      }
+      return byIdentifier;
+    }
+
+    final byEmail = await UserInfo.db.findFirstRow(
+      session,
+      where: (t) => t.email.equals(normalizedEmail),
+    );
+    if (byEmail != null) {
+      if (byEmail.userIdentifier != authIdentifier) {
+        byEmail.userIdentifier = authIdentifier;
+      }
+      if ((byEmail.userName?.trim().isEmpty ?? true) && fallbackName != null) {
+        byEmail.userName = fallbackName.trim();
+      }
+      await UserInfo.db.updateRow(session, byEmail);
+      return byEmail;
+    }
+
+    final displayName = (fallbackName?.trim().isNotEmpty ?? false)
+        ? fallbackName!.trim()
+        : normalizedEmail.split('@').first;
+
+    return await UserInfo.db.insertRow(
+      session,
+      UserInfo(
+        userIdentifier: authIdentifier,
+        userName: displayName,
+        fullName: fallbackName?.trim().isNotEmpty == true
+            ? fallbackName!.trim()
+            : displayName,
+        email: normalizedEmail,
+        scopeNames: const [],
+        blocked: false,
+        created: DateTime.now(),
+      ),
+    );
   }
 
   Future<void> _ensureEmailAuth(
@@ -512,6 +571,20 @@ class SetupEndpoint extends Endpoint {
     if (normalizedEmail.isEmpty) return null;
 
     final authIdentifier = authInfo.userIdentifier.toString();
+    auth_core.UserProfile? authCoreProfile;
+    auth_google.GoogleAccount? googleAccount;
+    try {
+      final authUserId = UuidValue.withValidation(authIdentifier);
+      authCoreProfile = await auth_core.UserProfile.db.findFirstRow(
+        session,
+        where: (t) => t.authUserId.equals(authUserId),
+      );
+      googleAccount = await auth_google.GoogleAccount.db.findFirstRow(
+        session,
+        where: (t) => t.authUserId.equals(authUserId),
+      );
+    } catch (_) {}
+
     UserInfo? currentUserInfo = await UserInfo.db.findFirstRow(
       session,
       where: (t) => t.userIdentifier.equals(authIdentifier),
@@ -519,6 +592,12 @@ class SetupEndpoint extends Endpoint {
     currentUserInfo ??= await UserInfo.db.findFirstRow(
       session,
       where: (t) => t.email.equals(normalizedEmail),
+    );
+    currentUserInfo ??= await _ensureLegacyUserInfoForAuthUser(
+      session,
+      authIdentifier: authIdentifier,
+      email: authCoreProfile?.email ?? googleAccount?.email ?? normalizedEmail,
+      fallbackName: authCoreProfile?.fullName,
     );
     if (currentUserInfo == null) {
       return null;

@@ -2,6 +2,8 @@ import 'package:serverpod/serverpod.dart';
 import 'package:serverpod_auth_server/serverpod_auth_server.dart';
 import 'package:serverpod_auth_core_server/serverpod_auth_core_server.dart'
     as auth_core;
+import 'package:serverpod_auth_idp_server/src/generated/providers/google/models/google_account.dart'
+    as auth_google;
 import '../generated/protocol.dart';
 
 class DebugEndpoint extends Endpoint {
@@ -16,6 +18,7 @@ class DebugEndpoint extends Endpoint {
     UserInfo? userInfo;
     UserRole? userRole;
     auth_core.UserProfile? authCoreProfile;
+    auth_google.GoogleAccount? googleAccount;
 
     if (userId != null) {
       final userIdentifier = userId.toString();
@@ -33,6 +36,10 @@ class DebugEndpoint extends Endpoint {
 
       if (authUserId != null) {
         authCoreProfile = await auth_core.UserProfile.db.findFirstRow(
+          session,
+          where: (t) => t.authUserId.equals(authUserId),
+        );
+        googleAccount = await auth_google.GoogleAccount.db.findFirstRow(
           session,
           where: (t) => t.authUserId.equals(authUserId),
         );
@@ -55,6 +62,13 @@ class DebugEndpoint extends Endpoint {
         );
       }
 
+      if (userInfo == null && googleAccount?.email != null) {
+        userInfo = await UserInfo.db.findFirstRow(
+          session,
+          where: (t) => t.email.equals(googleAccount!.email.toLowerCase()),
+        );
+      }
+
       if (userInfo?.id != null) {
         userRole = await UserRole.db.findFirstRow(
           session,
@@ -68,7 +82,8 @@ class DebugEndpoint extends Endpoint {
       );
     }
 
-    final resolvedEmail = userInfo?.email ?? authCoreProfile?.email;
+    final resolvedEmail =
+        userInfo?.email ?? authCoreProfile?.email ?? googleAccount?.email;
     final resolvedUserName =
         userInfo?.userName ??
         authCoreProfile?.fullName ??
@@ -80,6 +95,7 @@ class DebugEndpoint extends Endpoint {
       'scopes': scopes ?? const <String>[],
       'authCoreProfileEmail': authCoreProfile?.email,
       'authCoreProfileFullName': authCoreProfile?.fullName,
+      'googleAccountEmail': googleAccount?.email,
       'userInfoId': userInfo?.id,
       'email': resolvedEmail,
       'userName': resolvedUserName,
