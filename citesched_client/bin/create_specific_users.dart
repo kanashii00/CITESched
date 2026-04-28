@@ -20,13 +20,13 @@ const _adminAccounts = <_AdminSeedAccount>[
   _AdminSeedAccount(
     userName: 'Admin Test Account',
     email: 'admin.user@jmc.edu.ph',
-    password: 'admin12345',
+    password: 'password123',
     facultyId: '12345',
   ),
   _AdminSeedAccount(
     userName: 'Admin Support Account',
     email: 'admin.support@jmc.edu.ph',
-    password: 'admin54321',
+    password: 'password123',
     facultyId: '54321',
   ),
 ];
