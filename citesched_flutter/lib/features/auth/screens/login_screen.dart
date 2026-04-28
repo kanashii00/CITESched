@@ -184,11 +184,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       authNotifier.setSelectedRole(null);
 
       final sessionContext = await fetchSessionContext();
-      final email = sessionContext.email;
+      final email = sessionContext.email?.trim();
       final displayName = sessionContext.userName;
+      final fallbackRole =
+          sessionContext.resolvedRole ?? await _resolveExistingGoogleRole(null);
 
-      if (email == null || email.trim().isEmpty) {
-        throw Exception('Unable to resolve Google account email.');
+      if (email == null || email.isEmpty) {
+        if (fallbackRole != null) {
+          if (fallbackRole == 'faculty_pending') {
+            await _showAccountStatusModal(
+              title: 'Faculty Approval Pending',
+              message:
+                  'Your faculty registration is waiting for admin approval. You can sign in after approval.',
+            );
+            await authNotifier.signOut();
+            return;
+          }
+
+          await authNotifier.refreshCurrentUser();
+          authNotifier.setSelectedRole(fallbackRole);
+          return;
+        }
+
+        throw Exception(
+          'Unable to resolve Google account email. Please try again or continue with ID/password sign-in.',
+        );
       }
 
       final userInfo = await _loadUserInfoByEmail(email);

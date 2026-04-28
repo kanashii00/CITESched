@@ -2008,25 +2008,54 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Faculty Loading',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Manage faculty schedule assignments and workload',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.85),
-                  ),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.assignment_ind_rounded,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Faculty Loading',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Manage faculty schedule assignments and workload',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: Colors.white.withValues(alpha: 0.85),
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
@@ -2060,27 +2089,50 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
           : Row(
               children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      Text(
-                        'Faculty Loading',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.assignment_ind_rounded,
                           color: Colors.white,
+                          size: 32,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Manage faculty schedule assignments and workload',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          color: Colors.white.withValues(alpha: 0.85),
+                      const SizedBox(width: 24),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Faculty Loading',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.poppins(
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                letterSpacing: -1,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Manage faculty schedule assignments and workload',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                color: Colors.white.withValues(alpha: 0.85),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -2701,6 +2753,33 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
                                               ),
                                             ),
                                           ],
+                                          const SizedBox(width: 12),
+                                          TextButton.icon(
+                                            onPressed: filteredSchedules.isEmpty
+                                                ? null
+                                                : () =>
+                                                      _toggleSelectAllSchedules(
+                                                        filteredSchedules,
+                                                        !allSelected,
+                                                      ),
+                                            icon: Icon(
+                                              allSelected
+                                                  ? Icons.check_box_rounded
+                                                  : Icons
+                                                        .check_box_outline_blank_rounded,
+                                            ),
+                                            label: Text(
+                                              allSelected
+                                                  ? 'Clear Selection'
+                                                  : 'Select All',
+                                              style: GoogleFonts.poppins(
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            style: TextButton.styleFrom(
+                                              foregroundColor: maroonColor,
+                                            ),
+                                          ),
                                           const Spacer(),
                                           if (!_isShowingArchived &&
                                               _selectedScheduleIds
@@ -3893,6 +3972,10 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
     required bool isDark,
     required Color maroonColor,
   }) {
+    final allSelected =
+        filteredSchedules.isNotEmpty &&
+        _selectedScheduleIds.length == filteredSchedules.length;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
       child: Column(
@@ -3969,6 +4052,33 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
                         ),
                       ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: filteredSchedules.isEmpty
+                      ? null
+                      : () => _toggleSelectAllSchedules(
+                            filteredSchedules,
+                            !allSelected,
+                          ),
+                  icon: Icon(
+                    allSelected
+                        ? Icons.check_box_rounded
+                        : Icons.check_box_outline_blank_rounded,
+                    size: 18,
+                  ),
+                  label: Text(
+                    allSelected ? 'Clear Selection' : 'Select All',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: maroonColor,
+                    side: BorderSide(
+                      color: maroonColor.withValues(alpha: 0.3),
+                    ),
+                  ),
                 ),
                 if (_selectedScheduleIds.isNotEmpty) ...[
                   const SizedBox(height: 12),
