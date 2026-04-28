@@ -211,7 +211,10 @@ class ConflictService {
 
     var conflicts = await Schedule.db.find(
       session,
-      where: (t) => t.roomId.equals(roomId) & t.timeslotId.notEquals(null),
+      where: (t) =>
+          t.roomId.equals(roomId) &
+          t.timeslotId.notEquals(null) &
+          t.isActive.equals(true),
       include: Schedule.include(timeslot: Timeslot.include()),
     );
 
@@ -245,7 +248,9 @@ class ConflictService {
     var conflicts = await Schedule.db.find(
       session,
       where: (t) =>
-          t.facultyId.equals(facultyId) & t.timeslotId.notEquals(null),
+          t.facultyId.equals(facultyId) &
+          t.timeslotId.notEquals(null) &
+          t.isActive.equals(true),
       include: Schedule.include(timeslot: Timeslot.include()),
     );
 
@@ -279,9 +284,11 @@ class ConflictService {
 
     final whereClause = sectionId != null
         ? (Schedule.t.sectionId.equals(sectionId) &
-              Schedule.t.timeslotId.notEquals(null))
+              Schedule.t.timeslotId.notEquals(null) &
+              Schedule.t.isActive.equals(true))
         : (Schedule.t.section.equals(section) &
-              Schedule.t.timeslotId.notEquals(null));
+              Schedule.t.timeslotId.notEquals(null) &
+              Schedule.t.isActive.equals(true));
 
     var conflicts = await Schedule.db.find(
       session,
@@ -322,7 +329,7 @@ class ConflictService {
 
     var schedules = await Schedule.db.find(
       session,
-      where: (t) => t.facultyId.equals(facultyId),
+      where: (t) => t.facultyId.equals(facultyId) & t.isActive.equals(true),
     );
 
     if (excludeScheduleId != null) {

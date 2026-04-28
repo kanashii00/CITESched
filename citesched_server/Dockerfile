@@ -3,7 +3,8 @@
 # server binary and the Flutter web app from the same Git commit.
 FROM ghcr.io/cirruslabs/flutter:stable AS build
 
-ARG CITESCHED_SERVER_URL=https://citesched-server.onrender.com/
+ARG CITESCHED_SERVER_URL=https://citesched.onrender.com/
+ARG GOOGLE_WEB_CLIENT_ID=747757509128-4rqonmqfqp1s8i1f7pafedc7988jk48r.apps.googleusercontent.com
 
 WORKDIR /src
 COPY . .
@@ -18,6 +19,7 @@ RUN flutter build web \
     --base-href /app/ \
     --wasm \
     --dart-define=CITESCHED_SERVER_URL=${CITESCHED_SERVER_URL} \
+    --dart-define=GOOGLE_WEB_CLIENT_ID=${GOOGLE_WEB_CLIENT_ID} \
     --output /tmp/citesched-web
 
 # Final stage

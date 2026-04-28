@@ -498,7 +498,7 @@ class _SubjectManagementScreenState
       body: LayoutBuilder(
         builder: (context, constraints) {
           final useStackedHeader = constraints.maxWidth < 1100;
-          final useCompactList = constraints.maxWidth < 1280;
+          final useCompactList = constraints.maxWidth < 1400;
 
           return SingleChildScrollView(
           padding: EdgeInsets.all(useStackedHeader ? 16 : 32),
@@ -577,8 +577,8 @@ class _SubjectManagementScreenState
                               ],
                             ),
                             const SizedBox(height: 16),
-                            SizedBox(
-                              width: double.infinity,
+                            Align(
+                              alignment: Alignment.centerRight,
                               child: ElevatedButton.icon(
                                 onPressed: _showAddSubjectModal,
                                 icon: const Icon(Icons.add_rounded, size: 20),
@@ -664,34 +664,31 @@ class _SubjectManagementScreenState
                               ],
                             ),
                             ),
-                            const SizedBox(width: 16),
-                            Flexible(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                alignment: Alignment.centerRight,
-                                child: ElevatedButton.icon(
-                                  onPressed: _showAddSubjectModal,
-                                  icon: const Icon(Icons.add_rounded, size: 24),
-                                  label: Text(
-                                    kAddNewSubjectLabel,
-                                    style: GoogleFonts.poppins(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                      letterSpacing: 0.5,
-                                    ),
+                            const SizedBox(width: 24),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: ElevatedButton.icon(
+                                onPressed: _showAddSubjectModal,
+                                icon: const Icon(Icons.add_rounded, size: 24),
+                                label: Text(
+                                  kAddNewSubjectLabel,
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                    letterSpacing: 0.5,
                                   ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    foregroundColor: maroonColor,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 28,
-                                      vertical: 18,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    elevation: 0,
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: maroonColor,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 28,
+                                    vertical: 18,
                                   ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  elevation: 0,
                                 ),
                               ),
                             ),
@@ -901,53 +898,66 @@ class _SubjectManagementScreenState
                                   ],
                                 ),
                               ),
-                              SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: DataTable(
-                                  showCheckboxColumn: false,
-                                  headingRowColor: WidgetStateProperty.all(
-                                    maroonColor,
-                                  ),
-                                  headingTextStyle: GoogleFonts.poppins(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                    letterSpacing: 0.5,
-                                  ),
-                                  dataRowMinHeight: 65,
-                                  dataRowMaxHeight: 85,
-                                  columnSpacing: 32,
-                                  horizontalMargin: 24,
-                                  decoration: const BoxDecoration(
-                                    color: Colors.transparent,
-                                  ),
-                                  columns: [
-                                    DataColumn(
-                                      label: Checkbox(
-                                        value: allSelected,
-                                        onChanged: (value) =>
-                                            _toggleSelectAllSubjects(
-                                              filtered,
-                                              value,
-                                            ),
-                                        activeColor: Colors.white,
-                                        checkColor: maroonColor,
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  return SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        minWidth: constraints.maxWidth,
                                       ),
-                                    ),
-                                    const DataColumn(label: Text('CODE')),
-                                    const DataColumn(label: Text('TITLE')),
-                                    const DataColumn(label: Text('UNITS')),
-                                    const DataColumn(label: Text('PROGRAM')),
-                                    const DataColumn(
-                                      label: Text('YEAR/TERM'),
-                                    ),
-                                    const DataColumn(label: Text('TYPE')),
-                                    const DataColumn(label: Text('STUDENTS')),
-                                    const DataColumn(label: Text('ACTIONS')),
-                                  ],
-                                  rows: filtered.asMap().entries.map((
-                                    entry,
-                                  ) {
+                                      child: DataTable(
+                                        showCheckboxColumn: false,
+                                        headingRowColor:
+                                            WidgetStateProperty.all(
+                                              maroonColor,
+                                            ),
+                                        headingTextStyle: GoogleFonts.poppins(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                          letterSpacing: 0.5,
+                                        ),
+                                        dataRowMinHeight: 65,
+                                        dataRowMaxHeight: 85,
+                                        columnSpacing: 32,
+                                        horizontalMargin: 24,
+                                        decoration: const BoxDecoration(
+                                          color: Colors.transparent,
+                                        ),
+                                        columns: [
+                                          DataColumn(
+                                            label: Checkbox(
+                                              value: allSelected,
+                                              onChanged: (value) =>
+                                                  _toggleSelectAllSubjects(
+                                                    filtered,
+                                                    value,
+                                                  ),
+                                              activeColor: Colors.white,
+                                              checkColor: maroonColor,
+                                            ),
+                                          ),
+                                          const DataColumn(label: Text('CODE')),
+                                          const DataColumn(label: Text('TITLE')),
+                                          const DataColumn(label: Text('UNITS')),
+                                          const DataColumn(
+                                            label: Text('PROGRAM'),
+                                          ),
+                                          const DataColumn(
+                                            label: Text('YEAR/TERM'),
+                                          ),
+                                          const DataColumn(label: Text('TYPE')),
+                                          const DataColumn(
+                                            label: Text('STUDENTS'),
+                                          ),
+                                          const DataColumn(
+                                            label: Text('ACTIONS'),
+                                          ),
+                                        ],
+                                        rows: filtered.asMap().entries.map((
+                                          entry,
+                                        ) {
                                     final subject = entry.value;
                                     final index = entry.key;
 
@@ -1170,8 +1180,11 @@ class _SubjectManagementScreenState
                                         ),
                                       ],
                                     );
-                                  }).toList(),
-                                ),
+                                        }).toList(),
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
                             ],
                           ),

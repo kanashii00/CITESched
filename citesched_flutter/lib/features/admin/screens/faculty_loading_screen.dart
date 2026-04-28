@@ -1934,7 +1934,10 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
                     final useStackedHeader = constraints.maxWidth < 1100;
 
                     return SingleChildScrollView(
-                    padding: EdgeInsets.all(useStackedHeader ? 16 : 32),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: useStackedHeader ? 12 : 24,
+                      vertical: useStackedHeader ? 16 : 32,
+                    ),
                     child: ConstrainedBox(
                       constraints: BoxConstraints(
                         minHeight: constraints.maxHeight,
@@ -2058,8 +2061,8 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
+                Align(
+                  alignment: Alignment.centerRight,
                   child: ElevatedButton.icon(
                     onPressed: _showNewAssignmentModal,
                     icon: const Icon(Icons.add_rounded, size: 20),
@@ -2138,33 +2141,30 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(width: 16),
-                Flexible(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerRight,
-                    child: ElevatedButton.icon(
-                      onPressed: _showNewAssignmentModal,
-                      icon: const Icon(Icons.add_rounded, size: 20),
-                      label: Text(
-                        'Assign Subject',
-                        style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
-                        ),
+                const SizedBox(width: 24),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton.icon(
+                    onPressed: _showNewAssignmentModal,
+                    icon: const Icon(Icons.add_rounded, size: 20),
+                    label: Text(
+                      'Assign Subject',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
                       ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: maroonColor,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 18,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 0,
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: maroonColor,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 18,
                       ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      elevation: 0,
                     ),
                   ),
                 ),
@@ -2380,7 +2380,7 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final useCompactList = constraints.maxWidth < 1280;
+                        final useCompactList = constraints.maxWidth < 1400;
         return schedulesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stack) => Center(
@@ -3792,7 +3792,7 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final useCompactList = constraints.maxWidth < 1280;
+        final useCompactList = constraints.maxWidth < 1400;
         const maroonColor = Color(0xFF4f003b);
         final headerBg = isDark
             ? maroonColor.withValues(alpha: 0.22)
@@ -4054,29 +4054,39 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: filteredSchedules.isEmpty
-                      ? null
-                      : () => _toggleSelectAllSchedules(
-                            filteredSchedules,
-                            !allSelected,
-                          ),
-                  icon: Icon(
-                    allSelected
-                        ? Icons.check_box_rounded
-                        : Icons.check_box_outline_blank_rounded,
-                    size: 18,
-                  ),
-                  label: Text(
-                    allSelected ? 'Clear Selection' : 'Select All',
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w600,
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: filteredSchedules.isEmpty
+                        ? null
+                        : () => _toggleSelectAllSchedules(
+                              filteredSchedules,
+                              !allSelected,
+                            ),
+                    icon: Icon(
+                      allSelected
+                          ? Icons.check_box_rounded
+                          : Icons.check_box_outline_blank_rounded,
+                      size: 18,
                     ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: maroonColor,
-                    side: BorderSide(
-                      color: maroonColor.withValues(alpha: 0.3),
+                    label: Text(
+                      allSelected ? 'Clear Selection' : 'Select All',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: maroonColor,
+                      side: BorderSide(
+                        color: maroonColor.withValues(alpha: 0.3),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
                 ),

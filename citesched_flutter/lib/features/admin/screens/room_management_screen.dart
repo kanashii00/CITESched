@@ -491,7 +491,7 @@ class _RoomManagementScreenState extends ConsumerState<RoomManagementScreen> {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final useStackedHeader = constraints.maxWidth < 1100;
-          final useCompactList = constraints.maxWidth < 1280;
+          final useCompactList = constraints.maxWidth < 1400;
 
           return SingleChildScrollView(
             padding: EdgeInsets.all(useStackedHeader ? 16 : 32),
@@ -572,8 +572,8 @@ class _RoomManagementScreenState extends ConsumerState<RoomManagementScreen> {
                                 ],
                               ),
                               const SizedBox(height: 16),
-                              SizedBox(
-                                width: double.infinity,
+                              Align(
+                                alignment: Alignment.centerRight,
                                 child: ElevatedButton.icon(
                                   onPressed: _showAddRoomModal,
                                   icon: const Icon(Icons.add_rounded, size: 20),
@@ -661,37 +661,34 @@ class _RoomManagementScreenState extends ConsumerState<RoomManagementScreen> {
                                   ],
                                 ),
                               ),
-                              const SizedBox(width: 16),
-                              Flexible(
-                                child: FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  alignment: Alignment.centerRight,
-                                  child: ElevatedButton.icon(
-                                    onPressed: _showAddRoomModal,
-                                    icon: const Icon(
-                                      Icons.add_rounded,
-                                      size: 24,
+                              const SizedBox(width: 24),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: ElevatedButton.icon(
+                                  onPressed: _showAddRoomModal,
+                                  icon: const Icon(
+                                    Icons.add_rounded,
+                                    size: 24,
+                                  ),
+                                  label: Text(
+                                    kAddNewRoomLabel,
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                      letterSpacing: 0.5,
                                     ),
-                                    label: Text(
-                                      kAddNewRoomLabel,
-                                      style: GoogleFonts.poppins(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 15,
-                                        letterSpacing: 0.5,
-                                      ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: maroonColor,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 28,
+                                      vertical: 18,
                                     ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.white,
-                                      foregroundColor: maroonColor,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 28,
-                                        vertical: 18,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
                                     ),
+                                    elevation: 0,
                                   ),
                                 ),
                               ),
