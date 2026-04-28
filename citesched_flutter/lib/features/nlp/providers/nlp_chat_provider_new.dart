@@ -77,6 +77,20 @@ class NLPChatNotifier extends Notifier<NLPChatState> {
   String? _sessionId;
   String? _sessionTitle;
 
+  String? _selectedRole() => ref.read(authProvider.notifier).selectedRole;
+
+  String _effectiveRole() {
+    final selectedRole = _selectedRole();
+    if (selectedRole != null && selectedRole.isNotEmpty) return selectedRole;
+
+    final auth = ref.read(authProvider);
+    final scopes = auth?.scopeNames ?? const <String>[];
+    if (scopes.contains('admin')) return 'admin';
+    if (scopes.contains('faculty')) return 'faculty';
+    if (scopes.contains('student')) return 'student';
+    return 'chat';
+  }
+
   @override
   NLPChatState build() {
     Future.microtask(_initializeWelcome);
@@ -240,18 +254,18 @@ class NLPChatNotifier extends Notifier<NLPChatState> {
   void _ensureSession() {
     if (_sessionId != null && _sessionTitle != null) return;
     final now = DateTime.now();
-    _sessionId = 'chat_${now.microsecondsSinceEpoch}';
-    _sessionTitle = _generateSessionTitle(now);
+    final role = _effectiveRole();
+    _sessionId = '${role}_chat_${now.microsecondsSinceEpoch}';
+    _sessionTitle = _generateSessionTitle(now, role);
   }
 
-  String _generateSessionTitle(DateTime now) {
-    final auth = ref.read(authProvider);
-    final scopes = auth?.scopeNames ?? const [];
+  String _generateSessionTitle(DateTime now, [String? adoptedRole]) {
+    final role = adoptedRole ?? _effectiveRole();
     final dateLabel =
         '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-    if (scopes.contains('admin')) return 'Admin Chat $dateLabel';
-    if (scopes.contains('faculty')) return 'Faculty Chat $dateLabel';
-    if (scopes.contains('student')) return 'Student Chat $dateLabel';
+    if (role == 'admin') return 'Admin Chat $dateLabel';
+    if (role == 'faculty') return 'Faculty Chat $dateLabel';
+    if (role == 'student') return 'Student Chat $dateLabel';
     return 'Chat $dateLabel';
   }
 
