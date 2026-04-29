@@ -1057,12 +1057,11 @@ class _SubjectManagementScreenState
                                           Row(
                                             children: [
                                               if (!_isShowingArchived) ...[
-                                                IconButton(
-                                                  icon: Icon(
-                                                    Icons.open_in_new,
-                                                    color: maroonColor,
-                                                  ),
-                                                  onPressed: () => Navigator.push(
+                                                _buildActionIcon(
+                                                  icon: Icons.open_in_new,
+                                                  color: maroonColor,
+                                                  tooltip: 'Open details',
+                                                  onTap: () => Navigator.push(
                                                     context,
                                                     MaterialPageRoute(
                                                       builder: (_) =>
@@ -1072,107 +1071,48 @@ class _SubjectManagementScreenState
                                                     ),
                                                   ),
                                                 ),
-                                                IconButton(
-                                                  icon: Icon(
-                                                    Icons.edit,
-                                                    color: maroonColor,
-                                                  ),
-                                                  onPressed: () =>
+                                                const SizedBox(width: 6),
+                                                _buildActionIcon(
+                                                  icon: Icons.edit_outlined,
+                                                  color: maroonColor,
+                                                  tooltip: 'Edit Subject',
+                                                  onTap: () =>
                                                       _showEditSubjectModal(
                                                         subject,
                                                       ),
                                                 ),
-                                                IconButton(
-                                                  icon: Icon(
-                                                    Icons.archive_outlined,
-                                                    color: maroonColor,
-                                                  ),
+                                                const SizedBox(width: 6),
+                                                _buildActionIcon(
+                                                  icon: Icons.archive_outlined,
+                                                  color: Colors.orange,
                                                   tooltip: 'Archive Subject',
-                                                  onPressed: () =>
+                                                  onTap: () =>
                                                       _archiveSubject(
                                                         subject,
                                                       ),
                                                 ),
                                               ] else ...[
-                                                Material(
-                                                  color: Colors.transparent,
-                                                  child: InkWell(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          8,
-                                                        ),
-                                                    onTap: () =>
-                                                        _restoreSubject(
-                                                          subject,
-                                                        ),
-                                                    child: Tooltip(
-                                                      message:
-                                                          kRestoreSubjectLabel,
-                                                      child: Container(
-                                                        padding:
-                                                            const EdgeInsets.all(
-                                                              8,
-                                                            ),
-                                                        decoration: BoxDecoration(
-                                                          color: maroonColor
-                                                              .withValues(
-                                                                alpha: 0.1,
-                                                              ),
-                                                          borderRadius:
-                                                              BorderRadius.circular(
-                                                                8,
-                                                              ),
-                                                        ),
-                                                        child: Icon(
-                                                          Icons.restore_rounded,
-                                                          color: maroonColor,
-                                                          size: 18,
-                                                        ),
+                                                _buildActionIcon(
+                                                  icon: Icons.restore_rounded,
+                                                  color: Colors.green,
+                                                  tooltip:
+                                                      kRestoreSubjectLabel,
+                                                  onTap: () =>
+                                                      _restoreSubject(
+                                                        subject,
                                                       ),
-                                                    ),
-                                                  ),
                                                 ),
-                                                const SizedBox(
-                                                  width: 8,
-                                                ),
-                                                Material(
-                                                  color: Colors.transparent,
-                                                  child: InkWell(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          8,
-                                                        ),
-                                                    onTap: () =>
-                                                        _permanentDeleteSubject(
-                                                          subject,
-                                                        ),
-                                                    child: Tooltip(
-                                                      message:
-                                                          kDeletePermanentlyLabel,
-                                                      child: Container(
-                                                        padding:
-                                                            const EdgeInsets.all(
-                                                              8,
-                                                            ),
-                                                        decoration: BoxDecoration(
-                                                          color: Colors.red
-                                                              .withValues(
-                                                                alpha: 0.1,
-                                                              ),
-                                                          borderRadius:
-                                                              BorderRadius.circular(
-                                                                8,
-                                                              ),
-                                                        ),
-                                                        child: const Icon(
-                                                          Icons
-                                                              .delete_forever_rounded,
-                                                          color: Colors.red,
-                                                          size: 18,
-                                                        ),
+                                                const SizedBox(width: 6),
+                                                _buildActionIcon(
+                                                  icon: Icons
+                                                      .delete_forever_rounded,
+                                                  color: Colors.red,
+                                                  tooltip:
+                                                      kDeletePermanentlyLabel,
+                                                  onTap: () =>
+                                                      _permanentDeleteSubject(
+                                                        subject,
                                                       ),
-                                                    ),
-                                                  ),
                                                 ),
                                               ],
                                             ],
@@ -1336,40 +1276,30 @@ class _SubjectManagementScreenState
                       Row(
                         children: [
                           if (!_isShowingArchived) ...[
-                            IconButton(
-                              icon: Icon(
-                                Icons.edit,
-                                color: maroonColor,
-                                size: 20,
-                              ),
-                              onPressed: () => _showEditSubjectModal(subject),
+                            _buildActionIcon(
+                              icon: Icons.edit_outlined,
+                              color: maroonColor,
+                              tooltip: 'Edit Subject',
+                              onTap: () => _showEditSubjectModal(subject),
                             ),
-                            IconButton(
-                              icon: Icon(
-                                Icons.archive_outlined,
-                                color: maroonColor,
-                                size: 20,
-                              ),
-                              onPressed: () => _archiveSubject(subject),
+                            _buildActionIcon(
+                              icon: Icons.archive_outlined,
+                              color: Colors.orange,
+                              tooltip: 'Archive Subject',
+                              onTap: () => _archiveSubject(subject),
                             ),
                           ] else ...[
-                            IconButton(
-                              icon: Icon(
-                                Icons.restore_rounded,
-                                color: maroonColor,
-                                size: 20,
-                              ),
+                            _buildActionIcon(
+                              icon: Icons.restore_rounded,
+                              color: Colors.green,
                               tooltip: kRestoreSubjectLabel,
-                              onPressed: () => _restoreSubject(subject),
+                              onTap: () => _restoreSubject(subject),
                             ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.delete_forever_rounded,
-                                color: Colors.red,
-                                size: 20,
-                              ),
+                            _buildActionIcon(
+                              icon: Icons.delete_forever_rounded,
+                              color: Colors.red,
                               tooltip: kDeletePermanentlyLabel,
-                              onPressed: () => _permanentDeleteSubject(subject),
+                              onTap: () => _permanentDeleteSubject(subject),
                             ),
                           ],
                         ],
@@ -1496,6 +1426,32 @@ class _SubjectManagementScreenState
             ),
           ],
           onChanged: (v) => setState(() => _selectedYearLevel = v),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionIcon({
+    required IconData icon,
+    required Color color,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 18, color: color),
+          ),
         ),
       ),
     );

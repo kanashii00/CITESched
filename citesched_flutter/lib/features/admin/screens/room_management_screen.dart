@@ -1157,7 +1157,7 @@ class _RoomManagementScreenState extends ConsumerState<RoomManagementScreen> {
                                                                 color: maroonColor
                                                                     .withValues(
                                                                       alpha:
-                                                                          0.1,
+                                                                          0.08,
                                                                     ),
                                                                 borderRadius:
                                                                     BorderRadius.circular(
@@ -1198,7 +1198,7 @@ class _RoomManagementScreenState extends ConsumerState<RoomManagementScreen> {
                                                                 color: maroonColor
                                                                     .withValues(
                                                                       alpha:
-                                                                          0.1,
+                                                                          0.08,
                                                                     ),
                                                                 borderRadius:
                                                                     BorderRadius.circular(
@@ -1239,7 +1239,7 @@ class _RoomManagementScreenState extends ConsumerState<RoomManagementScreen> {
                                                                 color: maroonColor
                                                                     .withValues(
                                                                       alpha:
-                                                                          0.1,
+                                                                          0.08,
                                                                     ),
                                                                 borderRadius:
                                                                     BorderRadius.circular(
@@ -1250,7 +1250,7 @@ class _RoomManagementScreenState extends ConsumerState<RoomManagementScreen> {
                                                                 Icons
                                                                     .archive_outlined,
                                                                 color:
-                                                                    maroonColor,
+                                                                    Colors.orange,
                                                                 size: 18,
                                                               ),
                                                             ),
@@ -1275,10 +1275,11 @@ class _RoomManagementScreenState extends ConsumerState<RoomManagementScreen> {
                                                                     8,
                                                                   ),
                                                               decoration: BoxDecoration(
-                                                                color: maroonColor
+                                                                color: Colors
+                                                                    .green
                                                                     .withValues(
                                                                       alpha:
-                                                                          0.1,
+                                                                          0.08,
                                                                     ),
                                                                 borderRadius:
                                                                     BorderRadius.circular(
@@ -1289,7 +1290,7 @@ class _RoomManagementScreenState extends ConsumerState<RoomManagementScreen> {
                                                                 Icons
                                                                     .restore_rounded,
                                                                 color:
-                                                                    maroonColor,
+                                                                    Colors.green,
                                                                 size: 18,
                                                               ),
                                                             ),
@@ -1320,7 +1321,7 @@ class _RoomManagementScreenState extends ConsumerState<RoomManagementScreen> {
                                                                     .red
                                                                     .withValues(
                                                                       alpha:
-                                                                          0.1,
+                                                                          0.08,
                                                                     ),
                                                                 borderRadius:
                                                                     BorderRadius.circular(
@@ -1420,6 +1421,7 @@ class _RoomManagementScreenState extends ConsumerState<RoomManagementScreen> {
           ),
           if (_searchQuery.isNotEmpty)
             IconButton(
+              tooltip: 'Clear search',
               icon: Icon(Icons.clear, color: Colors.grey[600]),
               onPressed: () {
                 _searchController.clear();
@@ -1498,38 +1500,30 @@ class _RoomManagementScreenState extends ConsumerState<RoomManagementScreen> {
                       Row(
                         children: [
                           if (!_isShowingArchived) ...[
-                            IconButton(
-                              icon: Icon(
-                                Icons.edit,
-                                color: maroonColor,
-                                size: 20,
-                              ),
-                              onPressed: () => _showEditRoomModal(room),
+                            _buildActionIcon(
+                              icon: Icons.edit_outlined,
+                              color: maroonColor,
+                              tooltip: 'Edit Room',
+                              onTap: () => _showEditRoomModal(room),
                             ),
-                            IconButton(
-                              icon: Icon(
-                                Icons.archive_outlined,
-                                color: maroonColor,
-                              ),
+                            _buildActionIcon(
+                              icon: Icons.archive_outlined,
+                              color: Colors.orange,
                               tooltip: 'Archive Room',
-                              onPressed: () => _archiveRoom(room),
+                              onTap: () => _archiveRoom(room),
                             ),
                           ] else ...[
-                            IconButton(
-                              icon: Icon(
-                                Icons.restore_rounded,
-                                color: maroonColor,
-                              ),
+                            _buildActionIcon(
+                              icon: Icons.restore_rounded,
+                              color: Colors.green,
                               tooltip: 'Restore Room',
-                              onPressed: () => _restoreRoom(room),
+                              onTap: () => _restoreRoom(room),
                             ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.delete_forever_rounded,
-                                color: Colors.red,
-                              ),
+                            _buildActionIcon(
+                              icon: Icons.delete_forever_rounded,
+                              color: Colors.red,
                               tooltip: kDeletePermanentlyLabel,
-                              onPressed: () => _permanentDeleteRoom(room),
+                              onTap: () => _permanentDeleteRoom(room),
                             ),
                           ],
                         ],
@@ -1596,6 +1590,32 @@ class _RoomManagementScreenState extends ConsumerState<RoomManagementScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildActionIcon({
+    required IconData icon,
+    required Color color,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 18, color: color),
+          ),
+        ),
       ),
     );
   }
@@ -1873,6 +1893,7 @@ class _AddRoomModalState extends State<_AddRoomModal> {
                       ),
                       const SizedBox(width: 8),
                       IconButton(
+                        tooltip: 'Close',
                         onPressed: () => Navigator.pop(context),
                         icon: const Icon(Icons.close, color: Colors.white),
                         style: IconButton.styleFrom(
@@ -2427,6 +2448,7 @@ class _EditRoomModalState extends State<_EditRoomModal> {
                         ),
                         const SizedBox(width: 8),
                         IconButton(
+                          tooltip: 'Close',
                           onPressed: () => Navigator.pop(context),
                           icon: const Icon(Icons.close, color: Colors.white),
                           style: IconButton.styleFrom(
@@ -2477,6 +2499,7 @@ class _EditRoomModalState extends State<_EditRoomModal> {
                         ),
                         const Spacer(),
                         IconButton(
+                          tooltip: 'Close',
                           onPressed: () => Navigator.pop(context),
                           icon: const Icon(Icons.close, color: Colors.white),
                           style: IconButton.styleFrom(

@@ -1319,17 +1319,20 @@ class _UserListModalState extends ConsumerState<UserListModal>
                       _buildActionIcon(
                         icon: Icons.archive_outlined,
                         color: Colors.orange,
+                        tooltip: 'Archive Faculty',
                         onTap: () => _archiveFaculty(f),
                       ),
                     ] else ...[
                       _buildActionIcon(
                         icon: Icons.settings_backup_restore_rounded,
                         color: Colors.green,
+                        tooltip: 'Restore Faculty',
                         onTap: () => _restoreFaculty(f),
                       ),
                       _buildActionIcon(
                         icon: Icons.delete_forever_rounded,
                         color: Colors.red,
+                        tooltip: 'Delete Faculty Permanently',
                         onTap: () => _deleteFacultyPermanently(f),
                       ),
                     ],
@@ -1410,18 +1413,21 @@ class _UserListModalState extends ConsumerState<UserListModal>
                   _buildActionIcon(
                     icon: Icons.archive_outlined,
                     color: Colors.orange,
+                    tooltip: 'Archive Faculty',
                     onTap: () => _archiveFaculty(f),
                   ),
                 ] else ...[
                   _buildActionIcon(
                     icon: Icons.settings_backup_restore_rounded,
                     color: Colors.green,
+                    tooltip: 'Restore Faculty',
                     onTap: () => _restoreFaculty(f),
                   ),
                   const SizedBox(width: 6),
                   _buildActionIcon(
                     icon: Icons.delete_forever_rounded,
                     color: Colors.red,
+                    tooltip: 'Delete Faculty Permanently',
                     onTap: () => _deleteFacultyPermanently(f),
                   ),
                 ],
@@ -1433,20 +1439,24 @@ class _UserListModalState extends ConsumerState<UserListModal>
   Widget _buildActionIcon({
     required IconData icon,
     required Color color,
+    required String tooltip,
     required VoidCallback onTap,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(8),
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 18, color: color),
           ),
-          child: Icon(icon, size: 18, color: color),
         ),
       ),
     );
@@ -1706,22 +1716,26 @@ class _UserListModalState extends ConsumerState<UserListModal>
                       _buildActionIcon(
                         icon: Icons.edit_outlined,
                         color: primaryColor,
+                        tooltip: 'Edit Student',
                         onTap: () => _showEditStudentDialog(s),
                       ),
                       _buildActionIcon(
                         icon: Icons.archive_outlined,
                         color: Colors.orange,
+                        tooltip: 'Archive Student',
                         onTap: () => _archiveStudent(s),
                       ),
                     ] else ...[
                       _buildActionIcon(
                         icon: Icons.settings_backup_restore_rounded,
                         color: Colors.green,
+                        tooltip: 'Restore Student',
                         onTap: () => _restoreStudent(s),
                       ),
                       _buildActionIcon(
                         icon: Icons.delete_forever_rounded,
                         color: Colors.red,
+                        tooltip: 'Delete Student Permanently',
                         onTap: () => _deleteStudentPermanently(s),
                       ),
                     ],
@@ -1846,24 +1860,28 @@ class _UserListModalState extends ConsumerState<UserListModal>
                   _buildActionIcon(
                     icon: Icons.edit_outlined,
                     color: primaryColor,
+                    tooltip: 'Edit Student',
                     onTap: () => _showEditStudentDialog(s),
                   ),
                   const SizedBox(width: 6),
                   _buildActionIcon(
                     icon: Icons.archive_outlined,
                     color: Colors.orange,
+                    tooltip: 'Archive Student',
                     onTap: () => _archiveStudent(s),
                   ),
                 ] else ...[
                   _buildActionIcon(
                     icon: Icons.settings_backup_restore_rounded,
                     color: Colors.green,
+                    tooltip: 'Restore Student',
                     onTap: () => _restoreStudent(s),
                   ),
                   const SizedBox(width: 6),
                   _buildActionIcon(
                     icon: Icons.delete_forever_rounded,
                     color: Colors.red,
+                    tooltip: 'Delete Student Permanently',
                     onTap: () => _deleteStudentPermanently(s),
                   ),
                 ],

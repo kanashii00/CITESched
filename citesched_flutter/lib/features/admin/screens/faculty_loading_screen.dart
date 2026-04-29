@@ -52,6 +52,8 @@ String _getDayAbbr(DayOfWeek day) {
 
 const String _noPreferredTimeslotsMessage =
     'No preferred timeslots for this faculty';
+const String _selectSubjectTypeTimeslotMessage =
+    'Select subject types first before showing schedule timeslot dropdown below.';
 const String _waitingForAiLabel = 'Waiting for AI...';
 
 bool _requiresLaboratoryRoom(List<SubjectType> types) {
@@ -76,12 +78,15 @@ double _hoursForSubjectTypes(List<SubjectType> types) {
 }
 
 const List<(int start, int end)> _preferredLectureWindows = [
+  (8 * 60, 10 * 60),
+  (10 * 60, 12 * 60),
   (13 * 60, 15 * 60),
   (15 * 60, 17 * 60),
   (17 * 60, 19 * 60),
 ];
 
 const List<(int start, int end)> _preferredLabWindows = [
+  (9 * 60, 12 * 60),
   (13 * 60, 16 * 60),
   (16 * 60, 19 * 60),
 ];
@@ -211,9 +216,12 @@ Widget _buildLoadTypeSelector({
   required ValueChanged<SubjectType?> onChanged,
   required Color accentColor,
   required bool isDark,
+  String? errorText,
 }) {
   if (!show) return const SizedBox.shrink();
   final textColor = isDark ? Colors.grey[300] : Colors.grey[700];
+  final hasError = errorText != null && errorText.isNotEmpty;
+  final errorColor = Colors.red[700]!;
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -236,8 +244,19 @@ Widget _buildLoadTypeSelector({
             onSelected: (value) =>
                 onChanged(value ? SubjectType.lecture : null),
             selectedColor: accentColor.withValues(alpha: 0.2),
+            backgroundColor: hasError ? errorColor.withValues(alpha: 0.08) : null,
+            side: BorderSide(
+              color: hasError
+                  ? errorColor
+                  : (selected == SubjectType.lecture
+                        ? accentColor.withValues(alpha: 0.4)
+                        : (isDark ? Colors.white24 : Colors.black26)),
+              width: hasError ? 1.5 : 1,
+            ),
             labelStyle: GoogleFonts.poppins(
-              color: selected == SubjectType.lecture
+              color: hasError
+                  ? errorColor
+                  : selected == SubjectType.lecture
                   ? accentColor
                   : (isDark ? Colors.white : Colors.black87),
               fontWeight: selected == SubjectType.lecture
@@ -251,8 +270,19 @@ Widget _buildLoadTypeSelector({
             onSelected: (value) =>
                 onChanged(value ? SubjectType.laboratory : null),
             selectedColor: accentColor.withValues(alpha: 0.2),
+            backgroundColor: hasError ? errorColor.withValues(alpha: 0.08) : null,
+            side: BorderSide(
+              color: hasError
+                  ? errorColor
+                  : (selected == SubjectType.laboratory
+                        ? accentColor.withValues(alpha: 0.4)
+                        : (isDark ? Colors.white24 : Colors.black26)),
+              width: hasError ? 1.5 : 1,
+            ),
             labelStyle: GoogleFonts.poppins(
-              color: selected == SubjectType.laboratory
+              color: hasError
+                  ? errorColor
+                  : selected == SubjectType.laboratory
                   ? accentColor
                   : (isDark ? Colors.white : Colors.black87),
               fontWeight: selected == SubjectType.laboratory
@@ -262,7 +292,57 @@ Widget _buildLoadTypeSelector({
           ),
         ],
       ),
+      if (errorText != null) ...[
+        const SizedBox(height: 8),
+        Text(
+          errorText,
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            color: Colors.red[700],
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     ],
+  );
+}
+
+Widget _buildHighlightedTimeslotHint({
+  required String message,
+  required Color accentColor,
+  required bool isDark,
+}) {
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    decoration: BoxDecoration(
+      color: accentColor.withValues(alpha: isDark ? 0.18 : 0.10),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(
+        color: accentColor.withValues(alpha: isDark ? 0.45 : 0.30),
+      ),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          Icons.info_outline_rounded,
+          size: 18,
+          color: accentColor,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            message,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: accentColor,
+            ),
+          ),
+        ),
+      ],
+    ),
   );
 }
 
@@ -441,8 +521,15 @@ class _TimeslotWindow {
 class _TimeslotOption {
   final Timeslot slot;
   final String label;
+  final bool isEnabled;
+  final String? disabledReason;
 
-  const _TimeslotOption({required this.slot, required this.label});
+  const _TimeslotOption({
+    required this.slot,
+    required this.label,
+    this.isEnabled = true,
+    this.disabledReason,
+  });
 }
 
 class _TimeslotOptionsResult {
@@ -512,6 +599,11 @@ _TimeslotOptionsResult _buildTimeslotOptionsFromAvailability({
   required List<Timeslot> timeslots,
   required double requiredHours,
   required String typeLabel,
+  required List<Schedule> schedules,
+  required int? currentScheduleId,
+  required int? facultyId,
+  required List<Faculty> facultyList,
+  required List<SubjectType> effectiveTypes,
 }) {
   final requiredMinutes = (requiredHours * 60).round();
   final windows = _windowsFromAvailability(
@@ -548,10 +640,20 @@ _TimeslotOptionsResult _buildTimeslotOptionsFromAvailability({
       window.startTime,
       window.endTime,
     );
+    final conflictMessage = _timeslotOccupancyMessage(
+      schedules: schedules,
+      facultyList: facultyList,
+      currentScheduleId: currentScheduleId,
+      selectedFacultyId: facultyId,
+      timeslotId: match.id,
+      effectiveTypes: effectiveTypes,
+    );
     options.add(
       _TimeslotOption(
         slot: match,
         label: '$baseLabel - $typeLabel',
+        isEnabled: conflictMessage == null,
+        disabledReason: conflictMessage,
       ),
     );
   }
@@ -612,6 +714,12 @@ Future<void> _createTimeslotsFromWindows({
       AppErrorDialog.show(context, e);
     }
   }
+}
+
+String _timeslotWindowsKey(List<_TimeslotWindow> windows) {
+  return windows
+      .map((window) => '${window.day.name}|${window.startTime}|${window.endTime}')
+      .join('||');
 }
 
 bool _matchesSection(
@@ -789,6 +897,63 @@ String? _detectAssignmentConflict({
   }
 
   return null;
+}
+
+String? _timeslotOccupancyMessage({
+  required List<Schedule> schedules,
+  required List<Faculty> facultyList,
+  required int? currentScheduleId,
+  required int? selectedFacultyId,
+  required int? timeslotId,
+  required List<SubjectType> effectiveTypes,
+}) {
+  if (timeslotId == null) {
+    return null;
+  }
+
+  final isLaboratory = effectiveTypes.contains(SubjectType.laboratory);
+  final occupants = <Schedule>[];
+
+  for (final schedule in schedules) {
+    if (_isCurrentSchedule(schedule, currentScheduleId)) {
+      continue;
+    }
+    if (schedule.timeslotId != timeslotId) {
+      continue;
+    }
+    if (!schedule.isActive) {
+      continue;
+    }
+    if (!isLaboratory && schedule.facultyId != selectedFacultyId) {
+      continue;
+    }
+    occupants.add(schedule);
+  }
+
+  if (occupants.isEmpty) {
+    return null;
+  }
+
+  final sameInstructorTaken = occupants.any(
+    (schedule) => schedule.facultyId == selectedFacultyId,
+  );
+
+  if (sameInstructorTaken && selectedFacultyId != null) {
+    final facultyName = _facultyNameById(facultyList, selectedFacultyId);
+    return '$facultyName already has a class at this time.';
+  }
+
+  final facultyNames = occupants
+      .map((schedule) => _facultyNameById(facultyList, schedule.facultyId))
+      .toSet()
+      .toList()
+    ..sort();
+
+  if (facultyNames.isEmpty) {
+    return 'This availability window is already taken.';
+  }
+
+  return 'Taken by ${facultyNames.join(', ')}.';
 }
 
 bool _facultyMatchesSearch(Faculty faculty, String searchQuery) {
@@ -3550,48 +3715,52 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
                                                         MainAxisSize.min,
                                                     children: [
                                                       if (!_isShowingArchived) ...[
-                                                        Material(
-                                                          color: Colors
-                                                              .transparent,
-                                                          child: InkWell(
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  8,
-                                                                ),
-                                                            onTap: () =>
-                                                                _showAssignmentDetailsDialog(
-                                                                  schedule:
-                                                                      schedule,
-                                                                  faculty:
-                                                                      faculty,
-                                                                  subject:
-                                                                      subject,
-                                                                  room: room,
-                                                                  timeslot:
-                                                                      timeslot,
-                                                                ),
-                                                            child: Container(
-                                                              padding:
-                                                                  const EdgeInsets.all(
+                                                        Tooltip(
+                                                          message:
+                                                              'Open details',
+                                                          child: Material(
+                                                            color: Colors
+                                                                .transparent,
+                                                            child: InkWell(
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
                                                                     8,
                                                                   ),
-                                                              decoration: BoxDecoration(
+                                                              onTap: () =>
+                                                                  _showAssignmentDetailsDialog(
+                                                                    schedule:
+                                                                        schedule,
+                                                                    faculty:
+                                                                        faculty,
+                                                                    subject:
+                                                                        subject,
+                                                                    room: room,
+                                                                    timeslot:
+                                                                        timeslot,
+                                                                  ),
+                                                              child: Container(
+                                                                padding:
+                                                                    const EdgeInsets.all(
+                                                                      8,
+                                                                    ),
+                                                                decoration: BoxDecoration(
                                                                 color: maroonColor
                                                                     .withValues(
                                                                       alpha:
                                                                           0.1,
                                                                     ),
-                                                                borderRadius:
-                                                                    BorderRadius.circular(
-                                                                      8,
-                                                                    ),
-                                                              ),
-                                                              child: Icon(
-                                                                Icons
-                                                                    .open_in_new,
-                                                                color:
-                                                                    maroonColor,
-                                                                size: 18,
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                        8,
+                                                                      ),
+                                                                ),
+                                                                child: Icon(
+                                                                  Icons
+                                                                      .open_in_new,
+                                                                  color:
+                                                                      maroonColor,
+                                                                  size: 18,
+                                                                ),
                                                               ),
                                                             ),
                                                           ),
@@ -3599,40 +3768,44 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
                                                         const SizedBox(
                                                           width: 8,
                                                         ),
-                                                        Material(
-                                                          color: Colors
-                                                              .transparent,
-                                                          child: InkWell(
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  8,
-                                                                ),
-                                                            onTap: () =>
-                                                                _showEditAssignmentModal(
-                                                                  schedule,
-                                                                ),
-                                                            child: Container(
-                                                              padding:
-                                                                  const EdgeInsets.all(
+                                                        Tooltip(
+                                                          message:
+                                                              'Edit assignment',
+                                                          child: Material(
+                                                            color: Colors
+                                                                .transparent,
+                                                            child: InkWell(
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
                                                                     8,
                                                                   ),
-                                                              decoration: BoxDecoration(
-                                                                color: maroonColor
-                                                                    .withValues(
-                                                                      alpha:
-                                                                          0.1,
-                                                                    ),
-                                                                borderRadius:
-                                                                    BorderRadius.circular(
+                                                              onTap: () =>
+                                                                  _showEditAssignmentModal(
+                                                                    schedule,
+                                                                  ),
+                                                              child: Container(
+                                                                padding:
+                                                                    const EdgeInsets.all(
                                                                       8,
                                                                     ),
-                                                              ),
-                                                              child: Icon(
-                                                                Icons
-                                                                    .edit_outlined,
-                                                                color:
-                                                                    maroonColor,
-                                                                size: 18,
+                                                                decoration: BoxDecoration(
+                                                                  color: maroonColor
+                                                                      .withValues(
+                                                                        alpha:
+                                                                            0.1,
+                                                                      ),
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                        8,
+                                                                      ),
+                                                                ),
+                                                                child: Icon(
+                                                                  Icons
+                                                                      .edit_outlined,
+                                                                  color:
+                                                                      maroonColor,
+                                                                  size: 18,
+                                                                ),
                                                               ),
                                                             ),
                                                           ),
@@ -3640,87 +3813,96 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
                                                         const SizedBox(
                                                           width: 8,
                                                         ),
-                                                        Material(
-                                                          color: Colors
-                                                              .transparent,
-                                                          child: InkWell(
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  8,
-                                                                ),
-                                                            onTap: () =>
-                                                                _archiveSchedule(
-                                                                  schedule,
-                                                                ),
-                                                            child: Container(
-                                                              padding:
-                                                                  const EdgeInsets.all(
+                                                        Tooltip(
+                                                          message:
+                                                              'Archive assignment',
+                                                          child: Material(
+                                                            color: Colors
+                                                                .transparent,
+                                                            child: InkWell(
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
                                                                     8,
                                                                   ),
-                                                              decoration: BoxDecoration(
-                                                                color: maroonColor
-                                                                    .withValues(
-                                                                      alpha:
-                                                                          0.1,
-                                                                    ),
-                                                                borderRadius:
-                                                                    BorderRadius.circular(
+                                                              onTap: () =>
+                                                                  _archiveSchedule(
+                                                                    schedule,
+                                                                  ),
+                                                              child: Container(
+                                                                padding:
+                                                                    const EdgeInsets.all(
                                                                       8,
                                                                     ),
-                                                              ),
-                                                              child: Icon(
+                                                                decoration: BoxDecoration(
+                                                                  color: maroonColor
+                                                                      .withValues(
+                                                                        alpha:
+                                                                            0.1,
+                                                                      ),
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                        8,
+                                                                      ),
+                                                                ),
+                                                                child: Icon(
                                                                 Icons
                                                                     .archive_outlined,
                                                                 color:
-                                                                    maroonColor,
+                                                                    Colors.orange,
                                                                 size: 18,
                                                               ),
                                                             ),
                                                           ),
                                                         ),
+                                                        ),
                                                       ] else ...[
-                                                        Material(
-                                                          color: Colors
-                                                              .transparent,
-                                                          child: InkWell(
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  8,
-                                                                ),
-                                                            onTap: () =>
-                                                                _showAssignmentDetailsDialog(
-                                                                  schedule:
-                                                                      schedule,
-                                                                  faculty:
-                                                                      faculty,
-                                                                  subject:
-                                                                      subject,
-                                                                  room: room,
-                                                                  timeslot:
-                                                                      timeslot,
-                                                                ),
-                                                            child: Container(
-                                                              padding:
-                                                                  const EdgeInsets.all(
+                                                        Tooltip(
+                                                          message:
+                                                              'Open details',
+                                                          child: Material(
+                                                            color: Colors
+                                                                .transparent,
+                                                            child: InkWell(
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
                                                                     8,
                                                                   ),
-                                                              decoration: BoxDecoration(
-                                                                color: maroonColor
+                                                              onTap: () =>
+                                                                  _showAssignmentDetailsDialog(
+                                                                    schedule:
+                                                                        schedule,
+                                                                    faculty:
+                                                                        faculty,
+                                                                    subject:
+                                                                        subject,
+                                                                    room: room,
+                                                                    timeslot:
+                                                                        timeslot,
+                                                                  ),
+                                                              child: Container(
+                                                                padding:
+                                                                    const EdgeInsets.all(
+                                                                      8,
+                                                                    ),
+                                                                decoration: BoxDecoration(
+                                                                color: Colors
+                                                                    .green
                                                                     .withValues(
                                                                       alpha:
                                                                           0.1,
                                                                     ),
-                                                                borderRadius:
-                                                                    BorderRadius.circular(
-                                                                      8,
-                                                                    ),
-                                                              ),
-                                                              child: Icon(
-                                                                Icons
-                                                                    .open_in_new,
-                                                                color:
-                                                                    maroonColor,
-                                                                size: 18,
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                        8,
+                                                                      ),
+                                                                ),
+                                                                child: Icon(
+                                                                  Icons
+                                                                      .open_in_new,
+                                                                  color:
+                                                                      maroonColor,
+                                                                  size: 18,
+                                                                ),
                                                               ),
                                                             ),
                                                           ),
@@ -3728,82 +3910,90 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
                                                         const SizedBox(
                                                           width: 8,
                                                         ),
-                                                        Material(
-                                                          color: Colors
-                                                              .transparent,
-                                                          child: InkWell(
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  8,
-                                                                ),
-                                                            onTap: () =>
-                                                                _restoreSchedule(
-                                                                  schedule,
-                                                                ),
-                                                            child: Container(
-                                                              padding:
-                                                                  const EdgeInsets.all(
+                                                        Tooltip(
+                                                          message:
+                                                              'Restore assignment',
+                                                          child: Material(
+                                                            color: Colors
+                                                                .transparent,
+                                                            child: InkWell(
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
                                                                     8,
                                                                   ),
-                                                              decoration: BoxDecoration(
-                                                                color: maroonColor
-                                                                    .withValues(
-                                                                      alpha:
-                                                                          0.1,
-                                                                    ),
-                                                                borderRadius:
-                                                                    BorderRadius.circular(
+                                                              onTap: () =>
+                                                                  _restoreSchedule(
+                                                                    schedule,
+                                                                  ),
+                                                              child: Container(
+                                                                padding:
+                                                                    const EdgeInsets.all(
                                                                       8,
                                                                     ),
-                                                              ),
-                                                              child: Icon(
+                                                                decoration: BoxDecoration(
+                                                                  color: maroonColor
+                                                                      .withValues(
+                                                                        alpha:
+                                                                            0.1,
+                                                                      ),
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                        8,
+                                                                      ),
+                                                                ),
+                                                                child: Icon(
                                                                 Icons
                                                                     .restore_rounded,
                                                                 color:
-                                                                    maroonColor,
+                                                                    Colors.green,
                                                                 size: 18,
                                                               ),
                                                             ),
                                                           ),
                                                         ),
+                                                        ),
                                                         const SizedBox(
                                                           width: 8,
                                                         ),
-                                                        Material(
-                                                          color: Colors
-                                                              .transparent,
-                                                          child: InkWell(
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  8,
-                                                                ),
-                                                            onTap: () =>
-                                                                _deleteSchedule(
-                                                                  schedule,
-                                                                ),
-                                                            child: Container(
-                                                              padding:
-                                                                  const EdgeInsets.all(
+                                                        Tooltip(
+                                                          message:
+                                                              'Delete permanently',
+                                                          child: Material(
+                                                            color: Colors
+                                                                .transparent,
+                                                            child: InkWell(
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
                                                                     8,
                                                                   ),
-                                                              decoration: BoxDecoration(
-                                                                color: Colors
-                                                                    .red
-                                                                    .withValues(
-                                                                      alpha:
-                                                                          0.1,
-                                                                    ),
-                                                                borderRadius:
-                                                                    BorderRadius.circular(
+                                                              onTap: () =>
+                                                                  _deleteSchedule(
+                                                                    schedule,
+                                                                  ),
+                                                              child: Container(
+                                                                padding:
+                                                                    const EdgeInsets.all(
                                                                       8,
                                                                     ),
-                                                              ),
-                                                              child: const Icon(
-                                                                Icons
-                                                                    .delete_forever_rounded,
-                                                                color:
-                                                                    Colors.red,
-                                                                size: 18,
+                                                                decoration: BoxDecoration(
+                                                                  color: Colors
+                                                                      .red
+                                                                      .withValues(
+                                                                        alpha:
+                                                                            0.1,
+                                                                      ),
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                        8,
+                                                                      ),
+                                                                ),
+                                                                child: const Icon(
+                                                                  Icons
+                                                                      .delete_forever_rounded,
+                                                                  color:
+                                                                      Colors.red,
+                                                                  size: 18,
+                                                                ),
                                                               ),
                                                             ),
                                                           ),
@@ -4530,6 +4720,7 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
                               _buildCompactAssignmentAction(
                                 icon: Icons.open_in_new,
                                 color: maroonColor,
+                                tooltip: 'Open details',
                                 onTap: () => _showAssignmentDetailsDialog(
                                   schedule: schedule,
                                   faculty: faculty,
@@ -4542,22 +4733,26 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
                                 _buildCompactAssignmentAction(
                                   icon: Icons.edit_outlined,
                                   color: maroonColor,
+                                  tooltip: 'Edit assignment',
                                   onTap: () => _showEditAssignmentModal(schedule),
                                 ),
                                 _buildCompactAssignmentAction(
                                   icon: Icons.archive_outlined,
-                                  color: maroonColor,
+                                  color: Colors.orange,
+                                  tooltip: 'Archive assignment',
                                   onTap: () => _archiveSchedule(schedule),
                                 ),
                               ] else ...[
                                 _buildCompactAssignmentAction(
                                   icon: Icons.restore_rounded,
-                                  color: maroonColor,
+                                  color: Colors.green,
+                                  tooltip: 'Restore assignment',
                                   onTap: () => _restoreSchedule(schedule),
                                 ),
                                 _buildCompactAssignmentAction(
                                   icon: Icons.delete_forever_rounded,
                                   color: Colors.red,
+                                  tooltip: 'Delete permanently',
                                   onTap: () => _deleteSchedule(schedule),
                                 ),
                               ],
@@ -4582,20 +4777,24 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
   Widget _buildCompactAssignmentAction({
     required IconData icon,
     required Color color,
+    required String tooltip,
     required VoidCallback onTap,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 18),
           ),
-          child: Icon(icon, color: color, size: 18),
         ),
       ),
     );
@@ -4752,6 +4951,8 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
   bool _isAutoAssign = false;
   bool _isLoading = false;
   SubjectType? _selectedLoadType;
+  bool _showLoadTypeRequired = false;
+  final Set<String> _syncingTimeslotKeys = <String>{};
 
   bool get _canSubmit =>
       !_isLoading &&
@@ -4763,11 +4964,15 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
       _unitsController.clear();
       _hoursController.clear();
       _selectedLoadType = null;
+      _showLoadTypeRequired = false;
       return;
     }
     _selectedLoadType = _isBlendedSubject(subject.types)
         ? _selectedLoadType
         : null;
+    if (!_isBlendedSubject(subject.types)) {
+      _showLoadTypeRequired = false;
+    }
     final effectiveTypes = _effectiveAssignmentTypes(
       subject.types,
       _selectedLoadType,
@@ -4833,6 +5038,30 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
     final hour = value.hour.toString().padLeft(2, '0');
     final minute = value.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
+  }
+
+  void _syncMissingTimeslots(List<_TimeslotWindow> windows) {
+    if (windows.isEmpty) return;
+    final key = _timeslotWindowsKey(windows);
+    if (_syncingTimeslotKeys.contains(key)) return;
+    _syncingTimeslotKeys.add(key);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        await _createTimeslotsFromWindows(
+          ref: ref,
+          context: context,
+          windows: windows,
+        );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _syncingTimeslotKeys.remove(key);
+          });
+        } else {
+          _syncingTimeslotKeys.remove(key);
+        }
+      }
+    });
   }
 
   Future<void> _editTimeslotRange(_TimeslotOption option) async {
@@ -5047,6 +5276,9 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
     final selectedLabel = selectedOption?.label;
 
     return Autocomplete<_TimeslotOption>(
+      key: ValueKey(
+        'new-timeslot-${_selectedFacultyId ?? 'none'}-${_selectedSubjectId ?? 'none'}-${_selectedSectionId ?? 'none'}-${_selectedRoomId ?? 'none'}-${_selectedLoadType?.name ?? 'default'}-${options.length}',
+      ),
       displayStringForOption: (option) => option.label,
       initialValue: selectedLabel == null
           ? const TextEditingValue()
@@ -5061,6 +5293,7 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
         );
       },
       onSelected: (option) {
+        if (!option.isEnabled) return;
         setState(() => _selectedTimeslotId = option.slot.id);
       },
       fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
@@ -5114,12 +5347,23 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                 itemCount: options.length,
                 itemBuilder: (context, index) {
                   final option = options.elementAt(index);
+                  final isEnabled = option.isEnabled;
                   return ListTile(
                     dense: true,
+                    enabled: isEnabled,
                     title: Text(
                       option.label,
                       style: GoogleFonts.poppins(fontSize: 13),
                     ),
+                    subtitle: option.disabledReason == null
+                        ? null
+                        : Text(
+                            option.disabledReason!,
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: Colors.grey[600],
+                            ),
+                          ),
                     trailing: IconButton(
                       tooltip: 'Edit timeslot range',
                       icon: Icon(
@@ -5129,7 +5373,7 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                       ),
                       onPressed: () => _editTimeslotRange(option),
                     ),
-                    onTap: () => onSelected(option),
+                    onTap: isEnabled ? () => onSelected(option) : null,
                   );
                 },
               ),
@@ -5195,6 +5439,10 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
       }
       if (selectedFaculty == null) {
         throw Exception('Please select a valid faculty member.');
+      }
+      if (_isBlendedSubject(selectedSubject.types) && _selectedLoadType == null) {
+        setState(() => _showLoadTypeRequired = true);
+        return;
       }
 
       _validateSelectedAssignment(
@@ -5379,6 +5627,8 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                                 .name,
                             onChanged: (value) => setState(() {
                               _selectedFacultyId = value;
+                              _selectedRoomId = null;
+                              _selectedTimeslotId = null;
                               final allSubjects = ref
                                   .read(subjectsProvider)
                                   .maybeWhen(
@@ -5432,6 +5682,8 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                                 filtered.firstWhere((s) => s.id == id).name,
                             onChanged: (value) => setState(() {
                               _selectedSubjectId = value;
+                              _selectedRoomId = null;
+                              _selectedTimeslotId = null;
                               final selected = filtered.where(
                                 (s) => s.id == value,
                               );
@@ -5490,9 +5742,15 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                           return _buildLoadTypeSelector(
                             show: canChooseLoadType,
                             selected: _selectedLoadType,
+                            errorText: _showLoadTypeRequired &&
+                                    _selectedLoadType == null
+                                ? 'Required'
+                                : null,
                             onChanged: (value) {
                               setState(() {
                                 _selectedLoadType = value;
+                                _showLoadTypeRequired = false;
+                                _selectedTimeslotId = null;
                                 if (selectedSubject != null) {
                                   _applySubjectDefaults(selectedSubject);
                                 }
@@ -5622,8 +5880,10 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                               itemLabel: (id) => _sectionDisplayLabel(
                                 filtered.firstWhere((s) => s.id == id),
                               ),
-                              onChanged: (value) =>
-                                  setState(() => _selectedSectionId = value),
+                              onChanged: (value) => setState(() {
+                                _selectedSectionId = value;
+                                _selectedTimeslotId = null;
+                              }),
                               validator: (value) =>
                                   value == null ? 'Required' : null,
                             );
@@ -5733,8 +5993,10 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                               itemLabel: (id) => filteredRooms
                                   .firstWhere((r) => r.id == id)
                                   .name,
-                              onChanged: (value) =>
-                                  setState(() => _selectedRoomId = value),
+                              onChanged: (value) => setState(() {
+                                _selectedRoomId = value;
+                                _selectedTimeslotId = null;
+                              }),
                             );
                           },
                         ),
@@ -5784,17 +6046,19 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                                 }
 
                                 if (selectedSubject == null) {
-                                  return Text(
-                                    'Select a subject to load timeslots',
-                                    style: GoogleFonts.poppins(fontSize: 12),
+                                  return _buildHighlightedTimeslotHint(
+                                    message: _selectSubjectTypeTimeslotMessage,
+                                    accentColor: widget.maroonColor,
+                                    isDark: isDark,
                                   );
                                 }
 
                                 if (_isBlendedSubject(selectedSubject.types) &&
                                     _selectedLoadType == null) {
-                                  return Text(
-                                    'Select Lecture or Lab to load timeslots',
-                                    style: GoogleFonts.poppins(fontSize: 12),
+                                  return _buildHighlightedTimeslotHint(
+                                    message: _selectSubjectTypeTimeslotMessage,
+                                    accentColor: widget.maroonColor,
+                                    isDark: isDark,
                                   );
                                 }
 
@@ -5802,6 +6066,18 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                                     _effectiveAssignmentTypes(
                                       selectedSubject.types,
                                       _selectedLoadType,
+                                    );
+                                final schedules = ref
+                                    .read(schedulesProvider)
+                                    .maybeWhen(
+                                      data: (list) => list,
+                                      orElse: () => <Schedule>[],
+                                    );
+                                final facultyList = ref
+                                    .read(facultyListProvider)
+                                    .maybeWhen(
+                                      data: (list) => list,
+                                      orElse: () => <Faculty>[],
                                     );
                                 final requiredHours = _hoursForSubjectTypes(
                                   effectiveTypes,
@@ -5818,46 +6094,49 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                                       timeslots: timeslotList,
                                       requiredHours: requiredHours,
                                       typeLabel: typeLabel,
+                                      schedules: schedules,
+                                      currentScheduleId: null,
+                                      facultyId: _selectedFacultyId,
+                                      facultyList: facultyList,
+                                      effectiveTypes: effectiveTypes,
                                     );
 
                                 final options = result.options;
                                 final missingWindows = result.missing;
+                                final syncKey = _timeslotWindowsKey(
+                                  missingWindows,
+                                );
+                                final isSyncingMissingTimeslots =
+                                    missingWindows.isNotEmpty &&
+                                    _syncingTimeslotKeys.contains(syncKey);
+                                if (missingWindows.isNotEmpty &&
+                                    !isSyncingMissingTimeslots) {
+                                  _syncMissingTimeslots(missingWindows);
+                                }
 
                                 return Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     if (missingWindows.isNotEmpty) ...[
-                                      Text(
-                                        'Some preferred windows are not yet in Timeslots.',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      OutlinedButton.icon(
-                                        onPressed: () =>
-                                            _createTimeslotsFromWindows(
-                                              ref: ref,
-                                              context: context,
-                                              windows: missingWindows,
-                                            ),
-                                        icon: const Icon(Icons.auto_fix_high),
-                                        label: Text(
-                                          'Generate Missing Timeslots',
-                                          style: GoogleFonts.poppins(
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
+                                      _buildHighlightedTimeslotHint(
+                                        message:
+                                            'Syncing updated faculty availability to the timeslot dropdown...',
+                                        accentColor: widget.maroonColor,
+                                        isDark: isDark,
                                       ),
                                       const SizedBox(height: 8),
                                     ],
-                                    if (options.isEmpty)
+                                    if (options.isEmpty &&
+                                        !isSyncingMissingTimeslots)
                                       Text(
                                         'No timeslots available for this faculty',
                                         style: GoogleFonts.poppins(
                                           fontSize: 12,
                                         ),
                                       )
+                                    else if (options.isEmpty &&
+                                        isSyncingMissingTimeslots)
+                                      const SizedBox.shrink()
                                     else
                                       _buildTimeslotSearchField(
                                         label: 'Timeslot',
@@ -6097,6 +6376,8 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
   bool _isAutoAssign = false;
   bool _isLoading = false;
   SubjectType? _selectedLoadType;
+  bool _showLoadTypeRequired = false;
+  final Set<String> _syncingTimeslotKeys = <String>{};
 
   bool get _canSubmit =>
       !_isLoading &&
@@ -6108,6 +6389,9 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
     _selectedLoadType = _isBlendedSubject(subject.types)
         ? _selectedLoadType
         : null;
+    if (!_isBlendedSubject(subject.types)) {
+      _showLoadTypeRequired = false;
+    }
     final effectiveTypes = _effectiveAssignmentTypes(
       subject.types,
       _selectedLoadType,
@@ -6176,6 +6460,30 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
     final hour = value.hour.toString().padLeft(2, '0');
     final minute = value.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
+  }
+
+  void _syncMissingTimeslots(List<_TimeslotWindow> windows) {
+    if (windows.isEmpty) return;
+    final key = _timeslotWindowsKey(windows);
+    if (_syncingTimeslotKeys.contains(key)) return;
+    _syncingTimeslotKeys.add(key);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        await _createTimeslotsFromWindows(
+          ref: ref,
+          context: context,
+          windows: windows,
+        );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _syncingTimeslotKeys.remove(key);
+          });
+        } else {
+          _syncingTimeslotKeys.remove(key);
+        }
+      }
+    });
   }
 
   Future<void> _editTimeslotRange(_TimeslotOption option) async {
@@ -6421,6 +6729,9 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
     final selectedLabel = selectedOption?.label;
 
     return Autocomplete<_TimeslotOption>(
+      key: ValueKey(
+        'edit-timeslot-${_selectedFacultyId ?? 'none'}-${_selectedSubjectId ?? 'none'}-${_selectedSectionId ?? 'none'}-${_selectedRoomId ?? 'none'}-${_selectedLoadType?.name ?? 'default'}-${options.length}',
+      ),
       displayStringForOption: (option) => option.label,
       initialValue: selectedLabel == null
           ? const TextEditingValue()
@@ -6435,6 +6746,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
         );
       },
       onSelected: (option) {
+        if (!option.isEnabled) return;
         setState(() => _selectedTimeslotId = option.slot.id);
       },
       fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
@@ -6488,12 +6800,23 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                 itemCount: options.length,
                 itemBuilder: (context, index) {
                   final option = options.elementAt(index);
+                  final isEnabled = option.isEnabled;
                   return ListTile(
                     dense: true,
+                    enabled: isEnabled,
                     title: Text(
                       option.label,
                       style: GoogleFonts.poppins(fontSize: 13),
                     ),
+                    subtitle: option.disabledReason == null
+                        ? null
+                        : Text(
+                            option.disabledReason!,
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: Colors.grey[600],
+                            ),
+                          ),
                     trailing: IconButton(
                       tooltip: 'Edit timeslot range',
                       icon: Icon(
@@ -6503,7 +6826,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                       ),
                       onPressed: () => _editTimeslotRange(option),
                     ),
-                    onTap: () => onSelected(option),
+                    onTap: isEnabled ? () => onSelected(option) : null,
                   );
                 },
               ),
@@ -6569,6 +6892,10 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
         throw Exception(
           'Please select a valid subject assigned to this faculty.',
         );
+      }
+      if (_isBlendedSubject(selectedSubject.types) && _selectedLoadType == null) {
+        setState(() => _showLoadTypeRequired = true);
+        return;
       }
       _validateSelectedAssignment(
         faculty: selectedFaculty,
@@ -6732,6 +7059,8 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                                 .name,
                             onChanged: (value) => setState(() {
                               _selectedFacultyId = value!;
+                              _selectedRoomId = null;
+                              _selectedTimeslotId = null;
                               final allSubjects = ref
                                   .read(subjectsProvider)
                                   .maybeWhen(
@@ -6796,6 +7125,8 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                                 filtered.firstWhere((s) => s.id == id).name,
                             onChanged: (value) => setState(() {
                               _selectedSubjectId = value!;
+                              _selectedRoomId = null;
+                              _selectedTimeslotId = null;
                               final selected = filtered.where(
                                 (s) => s.id == value,
                               );
@@ -6854,9 +7185,15 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                           return _buildLoadTypeSelector(
                             show: canChooseLoadType,
                             selected: _selectedLoadType,
+                            errorText: _showLoadTypeRequired &&
+                                    _selectedLoadType == null
+                                ? 'Required'
+                                : null,
                             onChanged: (value) {
                               setState(() {
                                 _selectedLoadType = value;
+                                _showLoadTypeRequired = false;
+                                _selectedTimeslotId = null;
                                 if (selectedSubject != null) {
                                   _applySubjectDefaults(selectedSubject);
                                 }
@@ -6992,8 +7329,10 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                               itemLabel: (id) => _sectionDisplayLabel(
                                 filtered.firstWhere((s) => s.id == id),
                               ),
-                              onChanged: (value) =>
-                                  setState(() => _selectedSectionId = value),
+                              onChanged: (value) => setState(() {
+                                _selectedSectionId = value;
+                                _selectedTimeslotId = null;
+                              }),
                               validator: (value) =>
                                   value == null ? 'Required' : null,
                             );
@@ -7103,8 +7442,10 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                               itemLabel: (id) => filteredRooms
                                   .firstWhere((r) => r.id == id)
                                   .name,
-                              onChanged: (value) =>
-                                  setState(() => _selectedRoomId = value),
+                              onChanged: (value) => setState(() {
+                                _selectedRoomId = value;
+                                _selectedTimeslotId = null;
+                              }),
                             );
                           },
                         ),
@@ -7147,17 +7488,19 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                                 }
 
                                 if (selectedSubject == null) {
-                                  return Text(
-                                    'Select a subject to load timeslots',
-                                    style: GoogleFonts.poppins(fontSize: 12),
+                                  return _buildHighlightedTimeslotHint(
+                                    message: _selectSubjectTypeTimeslotMessage,
+                                    accentColor: widget.maroonColor,
+                                    isDark: isDark,
                                   );
                                 }
 
                                 if (_isBlendedSubject(selectedSubject.types) &&
                                     _selectedLoadType == null) {
-                                  return Text(
-                                    'Select Lecture or Lab to load timeslots',
-                                    style: GoogleFonts.poppins(fontSize: 12),
+                                  return _buildHighlightedTimeslotHint(
+                                    message: _selectSubjectTypeTimeslotMessage,
+                                    accentColor: widget.maroonColor,
+                                    isDark: isDark,
                                   );
                                 }
 
@@ -7165,6 +7508,18 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                                     _effectiveAssignmentTypes(
                                       selectedSubject.types,
                                       _selectedLoadType,
+                                    );
+                                final schedules = ref
+                                    .read(schedulesProvider)
+                                    .maybeWhen(
+                                      data: (list) => list,
+                                      orElse: () => <Schedule>[],
+                                    );
+                                final facultyList = ref
+                                    .read(facultyListProvider)
+                                    .maybeWhen(
+                                      data: (list) => list,
+                                      orElse: () => <Faculty>[],
                                     );
                                 final requiredHours = _hoursForSubjectTypes(
                                   effectiveTypes,
@@ -7181,46 +7536,49 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                                       timeslots: timeslotList,
                                       requiredHours: requiredHours,
                                       typeLabel: typeLabel,
+                                      schedules: schedules,
+                                      currentScheduleId: widget.schedule.id,
+                                      facultyId: _selectedFacultyId,
+                                      facultyList: facultyList,
+                                      effectiveTypes: effectiveTypes,
                                     );
 
                                 final options = result.options;
                                 final missingWindows = result.missing;
+                                final syncKey = _timeslotWindowsKey(
+                                  missingWindows,
+                                );
+                                final isSyncingMissingTimeslots =
+                                    missingWindows.isNotEmpty &&
+                                    _syncingTimeslotKeys.contains(syncKey);
+                                if (missingWindows.isNotEmpty &&
+                                    !isSyncingMissingTimeslots) {
+                                  _syncMissingTimeslots(missingWindows);
+                                }
 
                                 return Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     if (missingWindows.isNotEmpty) ...[
-                                      Text(
-                                        'Some preferred windows are not yet in Timeslots.',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      OutlinedButton.icon(
-                                        onPressed: () =>
-                                            _createTimeslotsFromWindows(
-                                              ref: ref,
-                                              context: context,
-                                              windows: missingWindows,
-                                            ),
-                                        icon: const Icon(Icons.auto_fix_high),
-                                        label: Text(
-                                          'Generate Missing Timeslots',
-                                          style: GoogleFonts.poppins(
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
+                                      _buildHighlightedTimeslotHint(
+                                        message:
+                                            'Syncing updated faculty availability to the timeslot dropdown...',
+                                        accentColor: widget.maroonColor,
+                                        isDark: isDark,
                                       ),
                                       const SizedBox(height: 8),
                                     ],
-                                    if (options.isEmpty)
+                                    if (options.isEmpty &&
+                                        !isSyncingMissingTimeslots)
                                       Text(
                                         'No timeslots available for this faculty',
                                         style: GoogleFonts.poppins(
                                           fontSize: 12,
                                         ),
                                       )
+                                    else if (options.isEmpty &&
+                                        isSyncingMissingTimeslots)
+                                      const SizedBox.shrink()
                                     else
                                       _buildTimeslotSearchField(
                                         label: 'Timeslot',

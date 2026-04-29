@@ -1362,81 +1362,44 @@ class _FacultyManagementScreenState
               mainAxisAlignment: MainAxisAlignment.start,
               children: [
                 if (!_isShowingArchived) ...[
-                  IconButton(
+                  _buildActionIcon(
+                    icon: Icons.open_in_new,
+                    color: maroonColor,
                     tooltip: 'Open details',
-                    constraints: const BoxConstraints.tightFor(
-                      width: 40,
-                      height: 40,
-                    ),
-                    padding: EdgeInsets.zero,
-                    onPressed: () => Navigator.push(
+                    onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (_) => FacultyDetailsScreen(faculty: faculty),
                       ),
                     ),
-                    icon: Icon(
-                      Icons.open_in_new,
-                      color: maroonColor,
-                      size: 20,
-                    ),
                   ),
-                  IconButton(
+                  const SizedBox(width: 6),
+                  _buildActionIcon(
+                    icon: Icons.edit_outlined,
+                    color: maroonColor,
                     tooltip: 'Edit faculty',
-                    constraints: const BoxConstraints.tightFor(
-                      width: 40,
-                      height: 40,
-                    ),
-                    padding: EdgeInsets.zero,
-                    onPressed: () => _showEditFacultyModal(faculty),
-                    icon: Icon(
-                      Icons.edit_rounded,
-                      color: maroonColor,
-                      size: 20,
-                    ),
+                    onTap: () => _showEditFacultyModal(faculty),
                   ),
-                  IconButton(
+                  const SizedBox(width: 6),
+                  _buildActionIcon(
+                    icon: Icons.archive_outlined,
+                    color: Colors.orange,
                     tooltip: 'Archive faculty',
-                    constraints: const BoxConstraints.tightFor(
-                      width: 40,
-                      height: 40,
-                    ),
-                    padding: EdgeInsets.zero,
-                    onPressed: () => _archiveFaculty(faculty),
-                    icon: Icon(
-                      Icons.archive_outlined,
-                      color: maroonColor,
-                      size: 20,
-                    ),
+                    onTap: () => _archiveFaculty(faculty),
                   ),
                 ] else ...[
-                  IconButton(
+                  _buildActionIcon(
+                    icon: Icons.restore_rounded,
+                    color: Colors.green,
                     tooltip: 'Restore faculty',
-                    constraints: const BoxConstraints.tightFor(
-                      width: 40,
-                      height: 40,
-                    ),
-                    padding: EdgeInsets.zero,
-                    onPressed: () => _restoreFaculty(faculty),
-                    icon: Icon(
-                      Icons.restore_rounded,
-                      color: maroonColor,
-                      size: 20,
-                    ),
+                    onTap: () => _restoreFaculty(faculty),
                   ),
-                  IconButton(
+                  const SizedBox(width: 6),
+                  _buildActionIcon(
+                    icon: Icons.delete_forever_rounded,
+                    color: Colors.red,
                     tooltip: 'Delete faculty',
-                    constraints: const BoxConstraints.tightFor(
-                      width: 40,
-                      height: 40,
-                    ),
-                    padding: EdgeInsets.zero,
-                    onPressed: () => _permanentDeleteFaculty(faculty),
-                    icon: const Icon(
-                      Icons.delete_forever_rounded,
-                      color: Colors.red,
-                      size: 20,
-                    ),
+                    onTap: () => _permanentDeleteFaculty(faculty),
                   ),
                 ],
               ],
@@ -1481,6 +1444,32 @@ class _FacultyManagementScreenState
           const Icon(Icons.warning_rounded, color: Colors.red, size: 16),
         ],
       ],
+    );
+  }
+
+  Widget _buildActionIcon({
+    required IconData icon,
+    required Color color,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 18, color: color),
+          ),
+        ),
+      ),
     );
   }
 

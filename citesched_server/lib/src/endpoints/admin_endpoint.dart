@@ -90,6 +90,185 @@ class AdminEndpoint extends Endpoint {
     }
   }
 
+  int _parseTimeToMinutes(String value) {
+    final parts = value.split(':');
+    if (parts.length != 2) {
+      throw FormatException('Invalid time format: $value');
+    }
+    final hour = int.parse(parts[0]);
+    final minute = int.parse(parts[1]);
+    return (hour * 60) + minute;
+  }
+
+  int _dayOrder(DayOfWeek day) {
+    switch (day) {
+      case DayOfWeek.mon:
+        return 1;
+      case DayOfWeek.tue:
+        return 2;
+      case DayOfWeek.wed:
+        return 3;
+      case DayOfWeek.thu:
+        return 4;
+      case DayOfWeek.fri:
+        return 5;
+      case DayOfWeek.sat:
+        return 6;
+      case DayOfWeek.sun:
+        return 7;
+    }
+  }
+
+  bool _requiresLaboratoryRoomForSchedule(Subject subject, Schedule schedule) {
+    final loadTypes = schedule.loadTypes ?? const <SubjectType>[];
+    if (loadTypes.isNotEmpty) {
+      final hasLecture = loadTypes.contains(SubjectType.lecture);
+      final hasLab = loadTypes.contains(SubjectType.laboratory);
+      if (hasLab && !hasLecture) return true;
+      if (hasLecture && !hasLab) return false;
+    }
+
+    return subject.types.contains(SubjectType.laboratory) ||
+        subject.types.contains(SubjectType.blended);
+  }
+
+  bool _roomSupportsSubject(Room room, Subject subject, Schedule schedule) {
+    final requiresLab = _requiresLaboratoryRoomForSchedule(subject, schedule);
+    final roomMatchesType = requiresLab
+        ? room.type == RoomType.laboratory
+        : room.type == RoomType.lecture;
+    final roomMatchesProgram =
+        room.program == Program.both || room.program == subject.program;
+    return room.isActive && roomMatchesType && roomMatchesProgram;
+  }
+
+  bool _timeslotMatchesAvailability(
+    Timeslot timeslot,
+    List<FacultyAvailability> availability,
+  ) {
+    final slotStart = _parseTimeToMinutes(timeslot.startTime);
+    final slotEnd = _parseTimeToMinutes(timeslot.endTime);
+
+    for (final avail in availability) {
+      if (avail.dayOfWeek != timeslot.day) continue;
+      final availStart = _parseTimeToMinutes(avail.startTime);
+      final availEnd = _parseTimeToMinutes(avail.endTime);
+      if (slotStart >= availStart && slotEnd <= availEnd) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  int _requiredScheduleMinutes(Subject subject, Schedule schedule) {
+    if (schedule.hours != null && schedule.hours! > 0) {
+      return (schedule.hours! * 60).round();
+    }
+
+    final loadTypes = schedule.loadTypes ?? const <SubjectType>[];
+    if (loadTypes.contains(SubjectType.laboratory) &&
+        !loadTypes.contains(SubjectType.lecture)) {
+      return 180;
+    }
+    if (loadTypes.contains(SubjectType.lecture) &&
+        !loadTypes.contains(SubjectType.laboratory)) {
+      return 120;
+    }
+    if (subject.types.contains(SubjectType.laboratory) &&
+        !subject.types.contains(SubjectType.lecture) &&
+        !subject.types.contains(SubjectType.blended)) {
+      return 180;
+    }
+    return 120;
+  }
+
+  Future<void> _resolveAutoAssignedSchedule(
+    Session session,
+    Schedule schedule, {
+    int? excludeScheduleId,
+  }) async {
+    final subject = await Subject.db.findById(session, schedule.subjectId);
+    if (subject == null) {
+      throw Exception('Subject not found for auto-assignment.');
+    }
+
+    final availability = await FacultyAvailability.db.find(
+      session,
+      where: (t) => t.facultyId.equals(schedule.facultyId),
+    );
+    if (availability.isEmpty) {
+      throw Exception(
+        'Auto-assign requires faculty availability before choosing room and timeslot.',
+      );
+    }
+
+    final allTimeslots = await Timeslot.db.find(session);
+    if (allTimeslots.isEmpty) {
+      throw Exception('No timeslots available for auto-assignment.');
+    }
+
+    final requiredMinutes = _requiredScheduleMinutes(subject, schedule);
+    final candidateTimeslots = allTimeslots.where((timeslot) {
+      final slotMinutes =
+          _parseTimeToMinutes(timeslot.endTime) -
+          _parseTimeToMinutes(timeslot.startTime);
+      return slotMinutes == requiredMinutes &&
+          _timeslotMatchesAvailability(timeslot, availability);
+    }).toList()
+      ..sort((a, b) {
+        final dayCompare = _dayOrder(a.day).compareTo(_dayOrder(b.day));
+        if (dayCompare != 0) return dayCompare;
+        return _parseTimeToMinutes(a.startTime).compareTo(
+          _parseTimeToMinutes(b.startTime),
+        );
+      });
+
+    if (candidateTimeslots.isEmpty) {
+      throw Exception(
+        'No available timeslot matches this faculty\'s availability for auto-assignment.',
+      );
+    }
+
+    final allRooms = await Room.db.find(
+      session,
+      where: (t) => t.isActive.equals(true),
+    );
+    final candidateRooms = allRooms.where(
+      (room) => _roomSupportsSubject(room, subject, schedule),
+    ).toList()
+      ..sort((a, b) => a.capacity.compareTo(b.capacity));
+
+    if (candidateRooms.isEmpty) {
+      throw Exception('No eligible room found for auto-assignment.');
+    }
+
+    final conflictService = ConflictService();
+
+    for (final timeslot in candidateTimeslots) {
+      for (final room in candidateRooms) {
+        final candidate = schedule.copyWith(
+          roomId: room.id,
+          timeslotId: timeslot.id,
+        );
+        final conflicts = await conflictService.validateSchedule(
+          session,
+          candidate,
+          excludeScheduleId: excludeScheduleId,
+        );
+        if (conflicts.isEmpty) {
+          schedule.roomId = room.id;
+          schedule.timeslotId = timeslot.id;
+          return;
+        }
+      }
+    }
+
+    throw Exception(
+      'No conflict-free room and timeslot combination found for auto-assignment.',
+    );
+  }
+
   Future<int?> _resolveStudentSectionId(
     Session session,
     Student student,
@@ -1099,6 +1278,11 @@ class AdminEndpoint extends Endpoint {
     if (schedule.roomId == -1) schedule.roomId = null;
     if (schedule.timeslotId == -1) schedule.timeslotId = null;
     await _syncScheduleSectionReference(session, schedule);
+    if (schedule.roomId == null || schedule.timeslotId == null) {
+      schedule.roomId = null;
+      schedule.timeslotId = null;
+      await _resolveAutoAssignedSchedule(session, schedule);
+    }
 
     // Validate schedule entry against all conflicts
     var conflicts = await ConflictService().validateSchedule(session, schedule);
@@ -1252,6 +1436,16 @@ class AdminEndpoint extends Endpoint {
 
     final isArchiving = existing.isActive && !schedule.isActive;
     await _syncScheduleSectionReference(session, schedule);
+    if (!isArchiving &&
+        (schedule.roomId == null || schedule.timeslotId == null)) {
+      schedule.roomId = null;
+      schedule.timeslotId = null;
+      await _resolveAutoAssignedSchedule(
+        session,
+        schedule,
+        excludeScheduleId: schedule.id,
+      );
+    }
 
     // Archiving only flips the active flag, so it should not be blocked by
     // conflict validation for room, faculty, or section rules.
