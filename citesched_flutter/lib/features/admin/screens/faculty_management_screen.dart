@@ -1028,10 +1028,19 @@ class _FacultyManagementScreenState
           ),
           LayoutBuilder(
             builder: (context, constraints) {
+              final compactDesktop = constraints.maxWidth < 1800;
+              final columnSpacing = compactDesktop ? 18.0 : 32.0;
+              final horizontalMargin = compactDesktop ? 14.0 : 24.0;
+              final tableMinWidth = compactDesktop ? 1480.0 : 1620.0;
+
               return SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                  constraints: BoxConstraints(
+                    minWidth: constraints.maxWidth > tableMinWidth
+                        ? constraints.maxWidth
+                        : tableMinWidth,
+                  ),
                   child: DataTable(
                     showCheckboxColumn: false,
                     headingRowColor: WidgetStateProperty.all(maroonColor),
@@ -1042,9 +1051,9 @@ class _FacultyManagementScreenState
                       letterSpacing: 0.5,
                     ),
                     dataRowMinHeight: 65,
-                    dataRowMaxHeight: 85,
-                    columnSpacing: 32,
-                    horizontalMargin: 24,
+                    dataRowMaxHeight: 90,
+                    columnSpacing: columnSpacing,
+                    horizontalMargin: horizontalMargin,
                     decoration: const BoxDecoration(color: Colors.transparent),
                     columns: [
                       DataColumn(
@@ -1233,18 +1242,24 @@ class _FacultyManagementScreenState
           ),
         ),
         DataCell(
-          Row(
-            children: [
-              Icon(Icons.email_outlined, size: 16, color: Colors.grey[600]),
-              const SizedBox(width: 6),
-              Text(
-                faculty.email,
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  color: Colors.grey[700],
+          SizedBox(
+            width: 280,
+            child: Row(
+              children: [
+                Icon(Icons.email_outlined, size: 16, color: Colors.grey[600]),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    faculty.email,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: Colors.grey[700],
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         DataCell(
@@ -1341,57 +1356,91 @@ class _FacultyManagementScreenState
           ),
         ),
         DataCell(
-          Row(
-            children: [
-              if (!_isShowingArchived) ...[
-                IconButton(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => FacultyDetailsScreen(faculty: faculty),
+          SizedBox(
+            width: _isShowingArchived ? 100 : 148,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                if (!_isShowingArchived) ...[
+                  IconButton(
+                    tooltip: 'Open details',
+                    constraints: const BoxConstraints.tightFor(
+                      width: 40,
+                      height: 40,
+                    ),
+                    padding: EdgeInsets.zero,
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => FacultyDetailsScreen(faculty: faculty),
+                      ),
+                    ),
+                    icon: Icon(
+                      Icons.open_in_new,
+                      color: maroonColor,
+                      size: 20,
                     ),
                   ),
-                  icon: Icon(
-                    Icons.open_in_new,
-                    color: maroonColor,
-                    size: 20,
+                  IconButton(
+                    tooltip: 'Edit faculty',
+                    constraints: const BoxConstraints.tightFor(
+                      width: 40,
+                      height: 40,
+                    ),
+                    padding: EdgeInsets.zero,
+                    onPressed: () => _showEditFacultyModal(faculty),
+                    icon: Icon(
+                      Icons.edit_rounded,
+                      color: maroonColor,
+                      size: 20,
+                    ),
                   ),
-                ),
-                IconButton(
-                  onPressed: () => _showEditFacultyModal(faculty),
-                  icon: Icon(
-                    Icons.edit_rounded,
-                    color: maroonColor,
-                    size: 20,
+                  IconButton(
+                    tooltip: 'Archive faculty',
+                    constraints: const BoxConstraints.tightFor(
+                      width: 40,
+                      height: 40,
+                    ),
+                    padding: EdgeInsets.zero,
+                    onPressed: () => _archiveFaculty(faculty),
+                    icon: Icon(
+                      Icons.archive_outlined,
+                      color: maroonColor,
+                      size: 20,
+                    ),
                   ),
-                ),
-                IconButton(
-                  onPressed: () => _archiveFaculty(faculty),
-                  icon: Icon(
-                    Icons.archive_outlined,
-                    color: maroonColor,
-                    size: 20,
+                ] else ...[
+                  IconButton(
+                    tooltip: 'Restore faculty',
+                    constraints: const BoxConstraints.tightFor(
+                      width: 40,
+                      height: 40,
+                    ),
+                    padding: EdgeInsets.zero,
+                    onPressed: () => _restoreFaculty(faculty),
+                    icon: Icon(
+                      Icons.restore_rounded,
+                      color: maroonColor,
+                      size: 20,
+                    ),
                   ),
-                ),
-              ] else ...[
-                IconButton(
-                  onPressed: () => _restoreFaculty(faculty),
-                  icon: Icon(
-                    Icons.restore_rounded,
-                    color: maroonColor,
-                    size: 20,
+                  IconButton(
+                    tooltip: 'Delete faculty',
+                    constraints: const BoxConstraints.tightFor(
+                      width: 40,
+                      height: 40,
+                    ),
+                    padding: EdgeInsets.zero,
+                    onPressed: () => _permanentDeleteFaculty(faculty),
+                    icon: const Icon(
+                      Icons.delete_forever_rounded,
+                      color: Colors.red,
+                      size: 20,
+                    ),
                   ),
-                ),
-                IconButton(
-                  onPressed: () => _permanentDeleteFaculty(faculty),
-                  icon: const Icon(
-                    Icons.delete_forever_rounded,
-                    color: Colors.red,
-                    size: 20,
-                  ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ],
@@ -1659,6 +1708,23 @@ class _FacultyManagementScreenState
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         if (!_isShowingArchived) ...[
+                          TextButton.icon(
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    FacultyDetailsScreen(faculty: faculty),
+                              ),
+                            ),
+                            icon: Icon(
+                              Icons.open_in_new,
+                              color: maroonColor,
+                            ),
+                            label: Text(
+                              'View',
+                              style: TextStyle(color: maroonColor),
+                            ),
+                          ),
                           TextButton.icon(
                             onPressed: () => _showEditFacultyModal(faculty),
                             icon: Icon(

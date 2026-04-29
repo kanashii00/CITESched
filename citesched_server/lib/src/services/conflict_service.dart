@@ -81,6 +81,10 @@ class ConflictService {
     return const ['lecture'];
   }
 
+  String _normalizeSubjectCode(String? value) {
+    return (value ?? '').trim().toLowerCase();
+  }
+
   Future<void> _appendSubjectFacultyMismatch(
     Session session,
     Schedule schedule,
@@ -119,6 +123,7 @@ class ConflictService {
     final sectionId = schedule.sectionId;
     final sectionCode = schedule.section.trim();
     if (sectionId == null && sectionCode.isEmpty) return;
+    final normalizedSubjectCode = _normalizeSubjectCode(subject.code);
 
     final whereClause = sectionId != null
         ? (Schedule.t.subjectId.equals(subject.id!) &
@@ -129,14 +134,43 @@ class ConflictService {
     var existing = await Schedule.db.find(
       session,
       where: (_) => whereClause,
+      include: Schedule.include(subject: Subject.include()),
     );
+
+    if (sectionId != null) {
+      final sameSectionByCode = await Schedule.db.find(
+        session,
+        where: (t) => t.sectionId.equals(sectionId),
+        include: Schedule.include(subject: Subject.include()),
+      );
+      existing = [...existing, ...sameSectionByCode];
+    } else {
+      final sameSectionByCode = await Schedule.db.find(
+        session,
+        where: (t) => t.section.equals(sectionCode),
+        include: Schedule.include(subject: Subject.include()),
+      );
+      existing = [...existing, ...sameSectionByCode];
+    }
 
     if (excludeScheduleId != null) {
       existing = existing.where((s) => s.id != excludeScheduleId).toList();
     }
 
+    final deduped = <int?, Schedule>{};
+    for (final entry in existing) {
+      deduped[entry.id] = entry;
+    }
+    existing = deduped.values.toList();
+
     for (final other in existing) {
-      final otherTags = _componentTagsForSchedule(subject, other).toSet();
+      final otherSubject = other.subject ??
+          await Subject.db.findById(session, other.subjectId);
+      if (otherSubject == null) continue;
+      if (_normalizeSubjectCode(otherSubject.code) != normalizedSubjectCode) {
+        continue;
+      }
+      final otherTags = _componentTagsForSchedule(otherSubject, other).toSet();
       for (final tag in tags) {
         if (!otherTags.contains(tag)) continue;
         conflicts.add(
@@ -644,11 +678,49 @@ class ConflictService {
       );
     }
 
+    final startMinutes = _parseTimeToMinutes(timeslot.startTime);
+    final endMinutes = _parseTimeToMinutes(timeslot.endTime);
+    if (_overlapsLunchWindow(startMinutes, endMinutes)) {
+      conflicts.add(
+        ScheduleConflict(
+          type: 'lunch_break_overlap',
+          message: 'Scheduled classes cannot overlap lunch time (12:00 PM-1:00 PM)',
+          scheduleId: schedule.id,
+          facultyId: schedule.facultyId,
+          subjectId: schedule.subjectId,
+          roomId: schedule.roomId,
+          details:
+              'Timeslot ${timeslot.day.name} ${timeslot.startTime}-${timeslot.endTime} overlaps the lunch break.',
+        ),
+      );
+    }
+
     final room = schedule.roomId != null
         ? await Room.db.findById(session, schedule.roomId!)
         : null;
-    if (_isLabSchedule(subject, schedule, room)) {
-      final startMinutes = _parseTimeToMinutes(timeslot.startTime);
+    final isLabSchedule = _isLabSchedule(subject, schedule, room);
+    if (!_matchesPreferredWindow(
+      startMinutes: startMinutes,
+      endMinutes: endMinutes,
+      isLaboratory: isLabSchedule,
+    )) {
+      conflicts.add(
+        ScheduleConflict(
+          type: 'invalid_preferred_window',
+          message: isLabSchedule
+              ? 'Laboratory classes must use 9:00-12:00 PM, 1:00-4:00 PM, or 4:00-7:00 PM'
+              : 'Lecture classes must use 8:00-10:00 AM, 10:00 AM-12:00 PM, 1:00-3:00 PM, 3:00-5:00 PM, or 5:00-7:00 PM',
+          scheduleId: schedule.id,
+          facultyId: schedule.facultyId,
+          subjectId: schedule.subjectId,
+          roomId: schedule.roomId,
+          details:
+              'Timeslot ${timeslot.day.name} ${timeslot.startTime}-${timeslot.endTime} is outside the allowed class windows.',
+        ),
+      );
+    }
+
+    if (isLabSchedule) {
       if (startMinutes < _labEarliestStartMinutes) {
         conflicts.add(
           ScheduleConflict(
@@ -673,6 +745,29 @@ class ConflictService {
     final hours = int.tryParse(parts[0]) ?? 0;
     final minutes = int.tryParse(parts[1]) ?? 0;
     return hours * 60 + minutes;
+  }
+
+  bool _overlapsLunchWindow(int startMinutes, int endMinutes) {
+    return startMinutes < 13 * 60 && endMinutes > 12 * 60;
+  }
+
+  bool _matchesPreferredWindow({
+    required int startMinutes,
+    required int endMinutes,
+    required bool isLaboratory,
+  }) {
+    final allowed = isLaboratory
+        ? const [(9 * 60, 12 * 60), (13 * 60, 16 * 60), (16 * 60, 19 * 60)]
+        : const [
+            (8 * 60, 10 * 60),
+            (10 * 60, 12 * 60),
+            (13 * 60, 15 * 60),
+            (15 * 60, 17 * 60),
+            (17 * 60, 19 * 60),
+          ];
+    return allowed.any(
+      (window) => startMinutes == window.$1 && endMinutes == window.$2,
+    );
   }
 
   bool _timeslotsOverlap(Timeslot a, Timeslot b) {

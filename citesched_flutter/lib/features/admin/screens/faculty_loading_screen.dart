@@ -75,6 +75,17 @@ double _hoursForSubjectTypes(List<SubjectType> types) {
   return 2.0;
 }
 
+const List<(int start, int end)> _preferredLectureWindows = [
+  (13 * 60, 15 * 60),
+  (15 * 60, 17 * 60),
+  (17 * 60, 19 * 60),
+];
+
+const List<(int start, int end)> _preferredLabWindows = [
+  (13 * 60, 16 * 60),
+  (16 * 60, 19 * 60),
+];
+
 List<SubjectType> _expandedSubjectTypes(List<SubjectType> types) {
   final expanded = <SubjectType>{};
   if (types.contains(SubjectType.blended)) {
@@ -450,17 +461,40 @@ List<_TimeslotWindow> _windowsFromAvailability({
 }) {
   if (requiredMinutes <= 0) return const [];
   final windows = <_TimeslotWindow>[];
+  final seen = <String>{};
+  final preferredWindows = switch (requiredMinutes) {
+    120 => _preferredLectureWindows,
+    180 => _preferredLabWindows,
+    _ => const <(int start, int end)>[],
+  };
+
   for (final avail in availability) {
-    var start = _timeToMinutes(avail.startTime);
+    final start = _timeToMinutes(avail.startTime);
     final end = _timeToMinutes(avail.endTime);
-    // Laboratories should not start before 9:00 AM.
-    if (requiredMinutes == 180 && start < 9 * 60) {
-      start = 9 * 60;
-    }
     if (end - start < requiredMinutes) continue;
+
+    if (preferredWindows.isNotEmpty) {
+      for (final window in preferredWindows) {
+        if (window.$1 < start || window.$2 > end) continue;
+        final key =
+            '${avail.dayOfWeek.name}|${_formatMinutes(window.$1)}|${_formatMinutes(window.$2)}';
+        if (!seen.add(key)) continue;
+        windows.add(
+          _TimeslotWindow(
+            day: avail.dayOfWeek,
+            startTime: _formatMinutes(window.$1),
+            endTime: _formatMinutes(window.$2),
+          ),
+        );
+      }
+      continue;
+    }
 
     for (var s = start; s + requiredMinutes <= end; s += requiredMinutes) {
       final e = s + requiredMinutes;
+      if (s < 13 * 60 && e > 12 * 60) continue;
+      final key = '${avail.dayOfWeek.name}|${_formatMinutes(s)}|${_formatMinutes(e)}';
+      if (!seen.add(key)) continue;
       windows.add(
         _TimeslotWindow(
           day: avail.dayOfWeek,
@@ -1394,6 +1428,13 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
   bool _showConflictDetails = false;
   final TextEditingController _searchController = TextEditingController();
   final Set<int> _selectedScheduleIds = {};
+  Set<int>? _expandedFacultySummaryIds;
+  Set<int>? _expandedCompactScheduleIds;
+
+  Set<int> get _safeExpandedFacultySummaryIds =>
+      _expandedFacultySummaryIds ??= <int>{};
+  Set<int> get _safeExpandedCompactScheduleIds =>
+      _expandedCompactScheduleIds ??= <int>{};
 
   // Color scheme matching admin sidebar
   final Color maroonColor = const Color(0xFF720045);
@@ -1441,6 +1482,28 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
         _selectedScheduleIds.add(scheduleId);
       } else {
         _selectedScheduleIds.remove(scheduleId);
+      }
+    });
+  }
+
+  void _toggleCompactScheduleExpanded(int? scheduleId) {
+    if (scheduleId == null) return;
+    setState(() {
+      if (_safeExpandedCompactScheduleIds.contains(scheduleId)) {
+        _safeExpandedCompactScheduleIds.remove(scheduleId);
+      } else {
+        _safeExpandedCompactScheduleIds.add(scheduleId);
+      }
+    });
+  }
+
+  void _toggleFacultySummaryExpanded(int? facultyId) {
+    if (facultyId == null) return;
+    setState(() {
+      if (_safeExpandedFacultySummaryIds.contains(facultyId)) {
+        _safeExpandedFacultySummaryIds.remove(facultyId);
+      } else {
+        _safeExpandedFacultySummaryIds.add(facultyId);
       }
     });
   }
@@ -2606,7 +2669,7 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
                                                       horizontal: 10,
                                                       vertical: 4,
                                                     ),
-                                                decoration: BoxDecoration(
+                                              decoration: BoxDecoration(
                                                   color: maroonColor,
                                                   borderRadius:
                                                       BorderRadius.circular(
@@ -2853,11 +2916,15 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
                               ),
                               LayoutBuilder(
                                 builder: (context, constraints) {
+                                  final compactDesktop =
+                                      constraints.maxWidth < 1800;
                                   return SingleChildScrollView(
                                     scrollDirection: Axis.horizontal,
                                     child: ConstrainedBox(
                                       constraints: BoxConstraints(
-                                        minWidth: constraints.maxWidth,
+                                        minWidth: constraints.maxWidth > 1560
+                                            ? constraints.maxWidth
+                                            : 1560,
                                       ),
                                       child: SingleChildScrollView(
                                         scrollDirection: Axis.vertical,
@@ -2878,8 +2945,9 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
                                           ),
                                           dataRowMinHeight: 70,
                                           dataRowMaxHeight: 90,
-                                          columnSpacing: 28,
-                                          horizontalMargin: 24,
+                                          columnSpacing: compactDesktop ? 18 : 28,
+                                          horizontalMargin:
+                                              compactDesktop ? 14 : 24,
                                           decoration: const BoxDecoration(
                                             color: Colors.transparent,
                                           ),
@@ -3473,7 +3541,11 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
                                                   ),
                                                 ),
                                                 DataCell(
-                                                  Row(
+                                                  SizedBox(
+                                                    width: _isShowingArchived
+                                                        ? 108
+                                                        : 156,
+                                                    child: Row(
                                                     mainAxisSize:
                                                         MainAxisSize.min,
                                                     children: [
@@ -3739,6 +3811,7 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
                                                       ],
                                                     ],
                                                   ),
+                                                  ),
                                                 ),
                                               ],
                                             );
@@ -3859,6 +3932,24 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
     required List<Schedule> schedules,
     required bool isDark,
   }) {
+    final subjects = ref.read(subjectsProvider).maybeWhen(
+      data: (list) => list,
+      orElse: () => <Subject>[],
+    );
+    final rooms = ref.read(roomsProvider).maybeWhen(
+      data: (list) => list,
+      orElse: () => <Room>[],
+    );
+    final timeslots = ref.read(timeslotsProvider).maybeWhen(
+      data: (list) => list,
+      orElse: () => <Timeslot>[],
+    );
+    final subjectMap = {for (final subject in subjects) subject.id!: subject};
+    final roomMap = {for (final room in rooms) room.id!: room};
+    final timeslotMap = {
+      for (final timeslot in timeslots) timeslot.id!: timeslot,
+    };
+
     return ListView.separated(
       padding: const EdgeInsets.only(bottom: 24),
       shrinkWrap: true,
@@ -3870,93 +3961,237 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
         final faculty = stats.faculty;
         final remainingLoad = stats.remainingLoad;
         final hasConflict = stats.hasConflicts;
+        final facultySchedules = schedules
+            .where((s) => s.facultyId == faculty.id)
+            .toList();
+        final isExpanded =
+            faculty.id != null &&
+            _safeExpandedFacultySummaryIds.contains(faculty.id);
 
-        return InkWell(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => FacultyLoadDetailsScreen(
-                  faculty: faculty,
-                  initialSchedules: schedules
-                      .where((s) => s.facultyId == faculty.id)
-                      .toList(),
-                ),
-              ),
-            );
-          },
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E293B) : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isDark
-                    ? Colors.white10
-                    : Colors.black.withValues(alpha: 0.06),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+        return Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white10
+                  : Colors.black.withValues(alpha: 0.06),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        faculty.name,
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white : Colors.black87,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              InkWell(
+                onTap: () => _toggleFacultySummaryExpanded(faculty.id),
+                borderRadius: BorderRadius.circular(16),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              faculty.name,
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(
+                            hasConflict
+                                ? Icons.warning_rounded
+                                : Icons.check_circle_rounded,
+                            color: hasConflict ? Colors.orange : Colors.green,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            isExpanded
+                                ? Icons.keyboard_arrow_up_rounded
+                                : Icons.keyboard_arrow_down_rounded,
+                            color: maroonColor,
+                            size: 24,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _buildInfoChip(
+                            Icons.menu_book_rounded,
+                            '${stats.assignedSubjects} Subjects',
+                            Colors.blue,
+                          ),
+                          _buildInfoChip(
+                            Icons.straighten_rounded,
+                            '${stats.totalUnits.toStringAsFixed(1)} Units',
+                            Colors.purple,
+                          ),
+                          _buildInfoChip(
+                            Icons.schedule_rounded,
+                            '${stats.totalHours.toStringAsFixed(1)} Hours',
+                            Colors.teal,
+                          ),
+                          _buildInfoChip(
+                            Icons.speed_rounded,
+                            '${remainingLoad.toStringAsFixed(1)} Remaining',
+                            remainingLoad < 0 ? Colors.red : Colors.green,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              AnimatedCrossFade(
+                duration: const Duration(milliseconds: 220),
+                crossFadeState: isExpanded
+                    ? CrossFadeState.showFirst
+                    : CrossFadeState.showSecond,
+                firstChild: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Divider(
+                        height: 1,
+                        color: isDark
+                            ? Colors.white12
+                            : Colors.black.withValues(alpha: 0.08),
+                      ),
+                      const SizedBox(height: 12),
+                      if (facultySchedules.isEmpty)
+                        Text(
+                          'No subject assignments for this faculty.',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: isDark ? Colors.white70 : Colors.black54,
+                          ),
+                        )
+                      else
+                        ...facultySchedules.asMap().entries.map((entry) {
+                          final schedule = entry.value;
+                          final subject = subjectMap[schedule.subjectId];
+                          final room = roomMap[schedule.roomId];
+                          final timeslot = timeslotMap[schedule.timeslotId];
+                          final isPending =
+                              schedule.roomId == -1 || schedule.timeslotId == -1;
+                          final scheduleLabel = timeslot != null
+                              ? '${_getDayAbbr(timeslot.day)} ${timeslot.startTime}-${timeslot.endTime}'
+                              : _waitingForAiLabel;
+
+                          return Padding(
+                            padding: EdgeInsets.only(
+                              bottom:
+                                  entry.key == facultySchedules.length - 1 ? 0 : 10,
+                            ),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.03)
+                                    : Colors.grey.withValues(alpha: 0.05),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isDark
+                                      ? Colors.white10
+                                      : Colors.black.withValues(alpha: 0.05),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    subject?.name ?? 'Unknown Subject',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: isDark ? Colors.white : Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      _buildInfoChip(
+                                        Icons.book_outlined,
+                                        subject?.code ?? '-',
+                                        Colors.blue,
+                                      ),
+                                      _buildInfoChip(
+                                        Icons.groups_outlined,
+                                        schedule.section,
+                                        Colors.purple,
+                                      ),
+                                      _buildInfoChip(
+                                        Icons.layers_outlined,
+                                        _getLoadTypeText(schedule.loadTypes),
+                                        _getLoadTypeColor(schedule.loadTypes),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  _detailRow(
+                                    'Room',
+                                    room?.name ?? _waitingForAiLabel,
+                                  ),
+                                  _detailRow('Schedule', scheduleLabel),
+                                  _detailRow(
+                                    'Status',
+                                    isPending ? 'Pending AI' : 'Scheduled',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => FacultyLoadDetailsScreen(
+                                  faculty: faculty,
+                                  initialSchedules: facultySchedules,
+                                ),
+                              ),
+                            );
+                          },
+                          icon: Icon(Icons.open_in_new, color: maroonColor),
+                          label: Text(
+                            'Open Full Details',
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600,
+                              color: maroonColor,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                    Icon(
-                      hasConflict
-                          ? Icons.warning_rounded
-                          : Icons.check_circle_rounded,
-                      color: hasConflict ? Colors.orange : Colors.green,
-                      size: 20,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _buildInfoChip(
-                      Icons.menu_book_rounded,
-                      '${stats.assignedSubjects} Subjects',
-                      Colors.blue,
-                    ),
-                    _buildInfoChip(
-                      Icons.straighten_rounded,
-                      '${stats.totalUnits.toStringAsFixed(1)} Units',
-                      Colors.purple,
-                    ),
-                    _buildInfoChip(
-                      Icons.schedule_rounded,
-                      '${stats.totalHours.toStringAsFixed(1)} Hours',
-                      Colors.teal,
-                    ),
-                    _buildInfoChip(
-                      Icons.speed_rounded,
-                      '${remainingLoad.toStringAsFixed(1)} Remaining',
-                      remainingLoad < 0 ? Colors.red : Colors.green,
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                secondChild: const SizedBox.shrink(),
+              ),
+            ],
           ),
         );
       },
@@ -3996,61 +4231,68 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.assignment_rounded,
-                      color: maroonColor,
-                      size: 20,
-                    ),
-                    Text(
-                      'Schedule Assignments',
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: maroonColor,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: maroonColor,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        '${filteredSchedules.length} Total',
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    if (_selectedScheduleIds.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: maroonColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '${_selectedScheduleIds.length} selected',
-                          style: GoogleFonts.poppins(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                    Expanded(
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.assignment_rounded,
                             color: maroonColor,
+                            size: 20,
                           ),
-                        ),
+                          Text(
+                            'Schedule Assignments',
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: maroonColor,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: maroonColor,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              '${filteredSchedules.length} Total',
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          if (_selectedScheduleIds.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: maroonColor.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                '${_selectedScheduleIds.length} selected',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: maroonColor,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -4132,8 +4374,10 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          ...filteredSchedules.asMap().entries.map((entry) {
+          Column(
+            children: [
+              const SizedBox(height: 12),
+              ...filteredSchedules.asMap().entries.map((entry) {
             final index = entry.key;
             final schedule = entry.value;
             final faculty = facultyMap[schedule.facultyId];
@@ -4143,6 +4387,9 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
             final isSelected =
                 schedule.id != null &&
                 _selectedScheduleIds.contains(schedule.id);
+            final isExpanded =
+                schedule.id != null &&
+                _safeExpandedCompactScheduleIds.contains(schedule.id);
             final roomAndSchedule = timeslot != null
                 ? '${room?.name ?? _waitingForAiLabel} • ${_getDayAbbr(timeslot.day)} ${timeslot.startTime}-${timeslot.endTime}'
                 : _waitingForAiLabel;
@@ -4174,134 +4421,159 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Checkbox(
-                          value: isSelected,
-                          onChanged: schedule.id == null
-                              ? null
-                              : (value) => _toggleScheduleSelection(
-                                  schedule.id!,
-                                  value,
+                    InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => _toggleCompactScheduleExpanded(schedule.id),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Checkbox(
+                            value: isSelected,
+                            onChanged: schedule.id == null
+                                ? null
+                                : (value) => _toggleScheduleSelection(
+                                    schedule.id!,
+                                    value,
+                                  ),
+                            activeColor: maroonColor,
+                          ),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  faculty?.name ?? 'Unknown Faculty',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? Colors.white : Colors.black87,
+                                  ),
                                 ),
-                          activeColor: maroonColor,
-                        ),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                                const SizedBox(height: 2),
+                                Text(
+                                  subject?.name ?? 'Unknown Subject',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    color: isDark
+                                        ? Colors.white70
+                                        : Colors.black54,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            isExpanded
+                                ? Icons.keyboard_arrow_up_rounded
+                                : Icons.keyboard_arrow_down_rounded,
+                            color: maroonColor,
+                            size: 24,
+                          ),
+                        ],
+                      ),
+                    ),
+                    AnimatedCrossFade(
+                      duration: const Duration(milliseconds: 220),
+                      crossFadeState: isExpanded
+                          ? CrossFadeState.showFirst
+                          : CrossFadeState.showSecond,
+                      firstChild: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
                             children: [
-                              Text(
-                                faculty?.name ?? 'Unknown Faculty',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: isDark ? Colors.white : Colors.black87,
-                                ),
+                              _buildInfoChip(
+                                Icons.book_outlined,
+                                subject?.code ?? '-',
+                                Colors.blue,
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                subject?.name ?? 'Unknown Subject',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  color: isDark
-                                      ? Colors.white70
-                                      : Colors.black54,
-                                ),
+                              _buildInfoChip(
+                                Icons.groups_outlined,
+                                schedule.section,
+                                Colors.purple,
+                              ),
+                              _buildInfoChip(
+                                Icons.school_outlined,
+                                'Year ${subject?.yearLevel ?? '-'}',
+                                Colors.orange,
+                              ),
+                              _buildInfoChip(
+                                Icons.layers_outlined,
+                                _getLoadTypeText(schedule.loadTypes),
+                                _getLoadTypeColor(schedule.loadTypes),
                               ),
                             ],
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _buildInfoChip(
-                          Icons.book_outlined,
-                          subject?.code ?? '-',
-                          Colors.blue,
-                        ),
-                        _buildInfoChip(
-                          Icons.groups_outlined,
-                          schedule.section,
-                          Colors.purple,
-                        ),
-                        _buildInfoChip(
-                          Icons.school_outlined,
-                          'Year ${subject?.yearLevel ?? '-'}',
-                          Colors.orange,
-                        ),
-                        _buildInfoChip(
-                          Icons.layers_outlined,
-                          _getLoadTypeText(schedule.loadTypes),
-                          _getLoadTypeColor(schedule.loadTypes),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    _detailRow(
-                      'Units',
-                      subject?.units.toString() ??
-                          schedule.units?.toString() ??
-                          '-',
-                    ),
-                    _detailRow('Hours', schedule.hours?.toString() ?? '-'),
-                    _detailRow('Room & Schedule', roomAndSchedule),
-                    _detailRow(
-                      'Status',
-                      (schedule.roomId == -1 || schedule.timeslotId == -1)
-                          ? 'Pending AI'
-                          : 'Scheduled',
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _buildCompactAssignmentAction(
-                          icon: Icons.open_in_new,
-                          color: maroonColor,
-                          onTap: () => _showAssignmentDetailsDialog(
-                            schedule: schedule,
-                            faculty: faculty,
-                            subject: subject,
-                            room: room,
-                            timeslot: timeslot,
+                          const SizedBox(height: 12),
+                          _detailRow(
+                            'Units',
+                            subject?.units.toString() ??
+                                schedule.units?.toString() ??
+                                '-',
                           ),
-                        ),
-                        if (!_isShowingArchived) ...[
-                          _buildCompactAssignmentAction(
-                            icon: Icons.edit_outlined,
-                            color: maroonColor,
-                            onTap: () => _showEditAssignmentModal(schedule),
+                          _detailRow('Hours', schedule.hours?.toString() ?? '-'),
+                          _detailRow('Room & Schedule', roomAndSchedule),
+                          _detailRow(
+                            'Status',
+                            (schedule.roomId == -1 || schedule.timeslotId == -1)
+                                ? 'Pending AI'
+                                : 'Scheduled',
                           ),
-                          _buildCompactAssignmentAction(
-                            icon: Icons.archive_outlined,
-                            color: maroonColor,
-                            onTap: () => _archiveSchedule(schedule),
-                          ),
-                        ] else ...[
-                          _buildCompactAssignmentAction(
-                            icon: Icons.restore_rounded,
-                            color: maroonColor,
-                            onTap: () => _restoreSchedule(schedule),
-                          ),
-                          _buildCompactAssignmentAction(
-                            icon: Icons.delete_forever_rounded,
-                            color: Colors.red,
-                            onTap: () => _deleteSchedule(schedule),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _buildCompactAssignmentAction(
+                                icon: Icons.open_in_new,
+                                color: maroonColor,
+                                onTap: () => _showAssignmentDetailsDialog(
+                                  schedule: schedule,
+                                  faculty: faculty,
+                                  subject: subject,
+                                  room: room,
+                                  timeslot: timeslot,
+                                ),
+                              ),
+                              if (!_isShowingArchived) ...[
+                                _buildCompactAssignmentAction(
+                                  icon: Icons.edit_outlined,
+                                  color: maroonColor,
+                                  onTap: () => _showEditAssignmentModal(schedule),
+                                ),
+                                _buildCompactAssignmentAction(
+                                  icon: Icons.archive_outlined,
+                                  color: maroonColor,
+                                  onTap: () => _archiveSchedule(schedule),
+                                ),
+                              ] else ...[
+                                _buildCompactAssignmentAction(
+                                  icon: Icons.restore_rounded,
+                                  color: maroonColor,
+                                  onTap: () => _restoreSchedule(schedule),
+                                ),
+                                _buildCompactAssignmentAction(
+                                  icon: Icons.delete_forever_rounded,
+                                  color: Colors.red,
+                                  onTap: () => _deleteSchedule(schedule),
+                                ),
+                              ],
+                            ],
                           ),
                         ],
-                      ],
+                      ),
+                      secondChild: const SizedBox.shrink(),
                     ),
                   ],
                 ),
               ),
             );
           }),
+            ],
+          ),
         ],
       ),
     );
@@ -4481,6 +4753,11 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
   bool _isLoading = false;
   SubjectType? _selectedLoadType;
 
+  bool get _canSubmit =>
+      !_isLoading &&
+      (_isAutoAssign ||
+          (_selectedRoomId != null && _selectedTimeslotId != null));
+
   void _applySubjectDefaults(Subject? subject) {
     if (subject == null) {
       _unitsController.clear();
@@ -4543,6 +4820,151 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
       }
     }
     return null;
+  }
+
+  TimeOfDay _timeOfDayFromHHmm(String value) {
+    final parts = value.split(':');
+    final hour = parts.isNotEmpty ? int.tryParse(parts[0]) ?? 0 : 0;
+    final minute = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
+    return TimeOfDay(hour: hour.clamp(0, 23), minute: minute.clamp(0, 59));
+  }
+
+  String _timeOfDayToHHmm(TimeOfDay value) {
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  Future<void> _editTimeslotRange(_TimeslotOption option) async {
+    final slot = option.slot;
+    final result = await showDialog<Timeslot>(
+      context: context,
+      builder: (dialogContext) {
+        var startTime = _timeOfDayFromHHmm(slot.startTime);
+        var endTime = _timeOfDayFromHHmm(slot.endTime);
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> onPickStart() async {
+              final picked = await showTimePicker(
+                context: context,
+                initialTime: startTime,
+              );
+              if (picked != null) {
+                setDialogState(() => startTime = picked);
+              }
+            }
+
+            Future<void> onPickEnd() async {
+              final picked = await showTimePicker(
+                context: context,
+                initialTime: endTime,
+              );
+              if (picked != null) {
+                setDialogState(() => endTime = picked);
+              }
+            }
+
+            return AlertDialog(
+              title: Text(
+                'Edit Timeslot Range',
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _getDayAbbr(slot.day),
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 16),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('Start', style: GoogleFonts.poppins()),
+                    subtitle: Text(
+                      startTime.format(context),
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                    ),
+                    trailing: const Icon(Icons.schedule),
+                    onTap: onPickStart,
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('End', style: GoogleFonts.poppins()),
+                    subtitle: Text(
+                      endTime.format(context),
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                    ),
+                    trailing: const Icon(Icons.schedule),
+                    onTap: onPickEnd,
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Cancel', style: GoogleFonts.poppins()),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final startMinutes =
+                        startTime.hour * 60 + startTime.minute;
+                    final endMinutes = endTime.hour * 60 + endTime.minute;
+                    if (endMinutes <= startMinutes) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('End time must be after start time.'),
+                        ),
+                      );
+                      return;
+                    }
+
+                    Navigator.pop(
+                      context,
+                      Timeslot(
+                        id: slot.id,
+                        day: slot.day,
+                        startTime: _timeOfDayToHHmm(startTime),
+                        endTime: _timeOfDayToHHmm(endTime),
+                        label:
+                            '${_getDayAbbr(slot.day)} ${_timeOfDayToHHmm(startTime)}-${_timeOfDayToHHmm(endTime)}',
+                        createdAt: slot.createdAt,
+                        updatedAt: DateTime.now(),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: widget.maroonColor,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text('Save', style: GoogleFonts.poppins()),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (result == null) return;
+
+    try {
+      await client.admin.updateTimeslot(result);
+      ref.invalidate(timeslotsProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Timeslot updated successfully.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        _showConflictErrorDialog(context, _parseServerError(e));
+      }
+    }
   }
 
   void _validateSelectedAssignment({
@@ -4661,6 +5083,9 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: widget.maroonColor, width: 2),
             ),
+            helperText: _selectedTimeslotId == null
+                ? 'Select from dropdown. Typed text alone will not be accepted.'
+                : null,
           ),
           onChanged: (value) {
             final match = options.any(
@@ -4694,6 +5119,15 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                     title: Text(
                       option.label,
                       style: GoogleFonts.poppins(fontSize: 13),
+                    ),
+                    trailing: IconButton(
+                      tooltip: 'Edit timeslot range',
+                      icon: Icon(
+                        Icons.edit_outlined,
+                        color: widget.maroonColor,
+                        size: 20,
+                      ),
+                      onPressed: () => _editTimeslotRange(option),
                     ),
                     onTap: () => onSelected(option),
                   );
@@ -5472,7 +5906,7 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                         ),
                         const SizedBox(height: 12),
                         ElevatedButton(
-                          onPressed: _isLoading ? null : _submit,
+                          onPressed: _canSubmit ? _submit : null,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: widget.maroonColor,
                             foregroundColor: Colors.white,
@@ -5518,7 +5952,7 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                         ),
                         const SizedBox(width: 12),
                         ElevatedButton(
-                          onPressed: _isLoading ? null : _submit,
+                          onPressed: _canSubmit ? _submit : null,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: widget.maroonColor,
                             foregroundColor: Colors.white,
@@ -5664,6 +6098,11 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
   bool _isLoading = false;
   SubjectType? _selectedLoadType;
 
+  bool get _canSubmit =>
+      !_isLoading &&
+      (_isAutoAssign ||
+          (_selectedRoomId != null && _selectedTimeslotId != null));
+
   void _applySubjectDefaults(Subject? subject) {
     if (subject == null) return;
     _selectedLoadType = _isBlendedSubject(subject.types)
@@ -5724,6 +6163,147 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
       }
     }
     return null;
+  }
+
+  TimeOfDay _timeOfDayFromHHmm(String value) {
+    final parts = value.split(':');
+    final hour = parts.isNotEmpty ? int.tryParse(parts[0]) ?? 0 : 0;
+    final minute = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
+    return TimeOfDay(hour: hour.clamp(0, 23), minute: minute.clamp(0, 59));
+  }
+
+  String _timeOfDayToHHmm(TimeOfDay value) {
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  Future<void> _editTimeslotRange(_TimeslotOption option) async {
+    final slot = option.slot;
+    var startTime = _timeOfDayFromHHmm(slot.startTime);
+    var endTime = _timeOfDayFromHHmm(slot.endTime);
+    final result = await showDialog<Timeslot>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          Future<void> onPickStart() async {
+            final picked = await showTimePicker(
+              context: context,
+              initialTime: startTime,
+            );
+            if (picked != null) {
+              setDialogState(() => startTime = picked);
+            }
+          }
+
+          Future<void> onPickEnd() async {
+            final picked = await showTimePicker(
+              context: context,
+              initialTime: endTime,
+            );
+            if (picked != null) {
+              setDialogState(() => endTime = picked);
+            }
+          }
+
+          return AlertDialog(
+            title: Text(
+              'Edit Timeslot Range',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _getDayAbbr(slot.day),
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('Start', style: GoogleFonts.poppins()),
+                  subtitle: Text(
+                    startTime.format(context),
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                  ),
+                  trailing: const Icon(Icons.schedule),
+                  onTap: onPickStart,
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('End', style: GoogleFonts.poppins()),
+                  subtitle: Text(
+                    endTime.format(context),
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                  ),
+                  trailing: const Icon(Icons.schedule),
+                  onTap: onPickEnd,
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Cancel', style: GoogleFonts.poppins()),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final startMinutes = startTime.hour * 60 + startTime.minute;
+                  final endMinutes = endTime.hour * 60 + endTime.minute;
+                  if (endMinutes <= startMinutes) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('End time must be after start time.'),
+                      ),
+                    );
+                    return;
+                  }
+
+                  Navigator.pop(
+                    context,
+                    Timeslot(
+                      id: slot.id,
+                      day: slot.day,
+                      startTime: _timeOfDayToHHmm(startTime),
+                      endTime: _timeOfDayToHHmm(endTime),
+                      label:
+                          '${_getDayAbbr(slot.day)} ${_timeOfDayToHHmm(startTime)}-${_timeOfDayToHHmm(endTime)}',
+                      createdAt: slot.createdAt,
+                      updatedAt: DateTime.now(),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: widget.maroonColor,
+                  foregroundColor: Colors.white,
+                ),
+                child: Text('Save', style: GoogleFonts.poppins()),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (result == null) return;
+
+    try {
+      await client.admin.updateTimeslot(result);
+      ref.invalidate(timeslotsProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Timeslot updated successfully.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        _showConflictErrorDialog(context, _parseServerError(e));
+      }
+    }
   }
 
   void _validateSelectedAssignment({
@@ -5877,6 +6457,9 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: widget.maroonColor, width: 2),
             ),
+            helperText: _selectedTimeslotId == null
+                ? 'Select from dropdown. Typed text alone will not be accepted.'
+                : null,
           ),
           onChanged: (value) {
             final match = options.any(
@@ -5910,6 +6493,15 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                     title: Text(
                       option.label,
                       style: GoogleFonts.poppins(fontSize: 13),
+                    ),
+                    trailing: IconButton(
+                      tooltip: 'Edit timeslot range',
+                      icon: Icon(
+                        Icons.edit_outlined,
+                        color: widget.maroonColor,
+                        size: 20,
+                      ),
+                      onPressed: () => _editTimeslotRange(option),
                     ),
                     onTap: () => onSelected(option),
                   );
@@ -6677,7 +7269,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                         ),
                         const SizedBox(height: 12),
                         ElevatedButton(
-                          onPressed: _isLoading ? null : _submit,
+                          onPressed: _canSubmit ? _submit : null,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: widget.maroonColor,
                             foregroundColor: Colors.white,
@@ -6723,7 +7315,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                         ),
                         const SizedBox(width: 12),
                         ElevatedButton(
-                          onPressed: _isLoading ? null : _submit,
+                          onPressed: _canSubmit ? _submit : null,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: widget.maroonColor,
                             foregroundColor: Colors.white,

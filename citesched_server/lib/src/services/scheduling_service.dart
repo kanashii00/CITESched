@@ -12,6 +12,18 @@ class SchedulingService {
   static const int _labEarliestStartMinutes = 9 * 60;
   static const int _lunchStartMinutes = 12 * 60;
   static const int _lunchEndMinutes = 13 * 60;
+  static const List<(int start, int end)> _preferredLectureWindows = [
+    (8 * 60, 10 * 60),
+    (10 * 60, 12 * 60),
+    (13 * 60, 15 * 60),
+    (15 * 60, 17 * 60),
+    (17 * 60, 19 * 60),
+  ];
+  static const List<(int start, int end)> _preferredLabWindows = [
+    (9 * 60, 12 * 60),
+    (13 * 60, 16 * 60),
+    (16 * 60, 19 * 60),
+  ];
 
   bool _roomSupportsProgram(Room room, Program subjectProgram) {
     return room.program == Program.both || room.program == subjectProgram;
@@ -156,9 +168,11 @@ class SchedulingService {
   ) {
     final facultyAssignments = <int, double>{};
     final facultyTimeslotUsage = <int, Map<int, int>>{};
+    final facultyYearLevelAssignments = <int, Map<String, int>>{};
     for (final faculty in validFaculties) {
       facultyAssignments[faculty.id!] = 0;
       facultyTimeslotUsage[faculty.id!] = {};
+      facultyYearLevelAssignments[faculty.id!] = {};
     }
 
     for (final existing in existingSchedules) {
@@ -169,11 +183,17 @@ class SchedulingService {
         final usage = facultyTimeslotUsage[existing.facultyId]!;
         usage[existing.timeslotId!] = (usage[existing.timeslotId!] ?? 0) + 1;
       }
+      final yearLevelKey = _facultyYearLevelKeyFromSchedule(existing);
+      if (yearLevelKey != null) {
+        final usage = facultyYearLevelAssignments[existing.facultyId]!;
+        usage[yearLevelKey] = (usage[yearLevelKey] ?? 0) + 1;
+      }
     }
 
     return _FacultyTracking(
       assignments: facultyAssignments,
       timeslotUsage: facultyTimeslotUsage,
+      yearLevelAssignments: facultyYearLevelAssignments,
     );
   }
 
@@ -383,9 +403,11 @@ class SchedulingService {
     required List<Schedule> generatedSchedules,
     required List<Schedule> insertedForPair,
   }) async {
-    final rankedFaculties = _rankFacultiesByLoad(
-      data.validFaculties,
-      tracking.assignments,
+    final rankedFaculties = _rankFacultiesForSection(
+      validFaculties: data.validFaculties,
+      facultyAssignments: tracking.assignments,
+      yearLevelAssignments: tracking.yearLevelAssignments,
+      section: section,
     );
 
     for (final faculty in rankedFaculties) {
@@ -435,12 +457,25 @@ class SchedulingService {
     return false;
   }
 
-  List<Faculty> _rankFacultiesByLoad(
-    List<Faculty> validFaculties,
-    Map<int, double> facultyAssignments,
-  ) {
+  List<Faculty> _rankFacultiesForSection({
+    required List<Faculty> validFaculties,
+    required Map<int, double> facultyAssignments,
+    required Map<int, Map<String, int>> yearLevelAssignments,
+    required _SectionCandidate section,
+  }) {
     final ranked = [...validFaculties];
+    final targetYearLevelKey = _facultyYearLevelKey(
+      section.program,
+      section.yearLevel,
+    );
     ranked.sort((a, b) {
+      final aSectionCount =
+          yearLevelAssignments[a.id!]?[targetYearLevelKey] ?? 0;
+      final bSectionCount =
+          yearLevelAssignments[b.id!]?[targetYearLevelKey] ?? 0;
+      final sectionCompare = aSectionCount.compareTo(bSectionCount);
+      if (sectionCompare != 0) return sectionCompare;
+
       final aLoad = facultyAssignments[a.id!] ?? 0;
       final bLoad = facultyAssignments[b.id!] ?? 0;
       final aMax = (a.maxLoad ?? 1).toDouble();
@@ -514,6 +549,14 @@ class SchedulingService {
             (tracking.assignments[faculty.id!] ?? 0) + component.units;
         final usage = tracking.timeslotUsage[faculty.id!]!;
         usage[timeslot.id!] = (usage[timeslot.id!] ?? 0) + 1;
+        final yearLevelKey = _facultyYearLevelKey(
+          section.program,
+          section.yearLevel,
+        );
+        final yearLevelUsage =
+            tracking.yearLevelAssignments[faculty.id!] ??= {};
+        yearLevelUsage[yearLevelKey] =
+            (yearLevelUsage[yearLevelKey] ?? 0) + 1;
         assignedSubjectSectionKeys.add(
           _componentKey(
             subject.id!,
@@ -669,6 +712,57 @@ class SchedulingService {
     return startMinutes < _lunchEndMinutes && endMinutes > _lunchStartMinutes;
   }
 
+  List<(int start, int end)> _preferredWindowsForDuration(int requiredMinutes) {
+    if (requiredMinutes == (_lectureHours * 60).round()) {
+      return _preferredLectureWindows;
+    }
+    if (requiredMinutes == (_labHours * 60).round()) {
+      return _preferredLabWindows;
+    }
+    return const [];
+  }
+
+  Iterable<(int start, int end)> _windowsWithinRange({
+    required int rangeStart,
+    required int rangeEnd,
+    required int requiredMinutes,
+    required bool requireLabStartAfterNine,
+  }) sync* {
+    final fixedWindows = _preferredWindowsForDuration(requiredMinutes);
+    if (fixedWindows.isNotEmpty) {
+      for (final window in fixedWindows) {
+        final start = window.$1;
+        final end = window.$2;
+        if (requireLabStartAfterNine && start < _labEarliestStartMinutes) {
+          continue;
+        }
+        if (_overlapsLunchWindow(start, end)) {
+          continue;
+        }
+        if (start >= rangeStart && end <= rangeEnd) {
+          yield (start, end);
+        }
+      }
+      return;
+    }
+
+    final stepMinutes = requiredMinutes % 60 == 0 ? 60 : 30;
+    for (
+      var start = rangeStart;
+      start + requiredMinutes <= rangeEnd;
+      start += stepMinutes
+    ) {
+      if (requireLabStartAfterNine && start < _labEarliestStartMinutes) {
+        continue;
+      }
+      final end = start + requiredMinutes;
+      if (_overlapsLunchWindow(start, end)) {
+        continue;
+      }
+      yield (start, end);
+    }
+  }
+
   String _timeslotKey(DayOfWeek day, String startTime, String endTime) {
     return '${day.name}|${startTime.trim()}|${endTime.trim()}';
   }
@@ -796,6 +890,25 @@ class SchedulingService {
     return '$base|$tag';
   }
 
+  String _facultyYearLevelKey(Program program, int yearLevel) {
+    return '${program.name}|$yearLevel';
+  }
+
+  String? _facultyYearLevelKeyFromSchedule(Schedule schedule) {
+    final sectionCode = schedule.section.trim();
+    if (sectionCode.isEmpty) return null;
+    final yearLevel = _yearLevelFromSectionCode(sectionCode, fallback: 0);
+    if (yearLevel <= 0) return null;
+    final program = _programFromSectionCode(sectionCode);
+    return _facultyYearLevelKey(program, yearLevel);
+  }
+
+  Program _programFromSectionCode(String sectionCode) {
+    final normalized = sectionCode.trim().toUpperCase();
+    if (normalized.contains('EMC')) return Program.emc;
+    return Program.it;
+  }
+
   int _dayRank(DayOfWeek day) {
     switch (day) {
       case DayOfWeek.mon:
@@ -888,7 +1001,6 @@ class SchedulingService {
     required Map<String, Timeslot> cache,
     required bool requireLabStartAfterNine,
   }) async {
-    final stepMinutes = requiredMinutes % 60 == 0 ? 60 : 30;
     final candidates = <Timeslot>[];
     final seen = <String>{};
 
@@ -897,16 +1009,14 @@ class SchedulingService {
       final end = _parseTimeToMinutes(slot.endTime);
       if (end - start < requiredMinutes) continue;
 
-      for (var s = start; s + requiredMinutes <= end; s += stepMinutes) {
-        if (requireLabStartAfterNine && s < _labEarliestStartMinutes) {
-          continue;
-        }
-        final e = s + requiredMinutes;
-        if (_overlapsLunchWindow(s, e)) {
-          continue;
-        }
-        final startTime = _formatMinutes(s);
-        final endTime = _formatMinutes(e);
+      for (final window in _windowsWithinRange(
+        rangeStart: start,
+        rangeEnd: end,
+        requiredMinutes: requiredMinutes,
+        requireLabStartAfterNine: requireLabStartAfterNine,
+      )) {
+        final startTime = _formatMinutes(window.$1);
+        final endTime = _formatMinutes(window.$2);
         final key = _timeslotKey(slot.day, startTime, endTime);
         if (!seen.add(key)) continue;
         final created = await _getOrCreateTimeslot(
@@ -944,7 +1054,6 @@ class SchedulingService {
     required Map<String, Timeslot> cache,
     required bool requireLabStartAfterNine,
   }) async {
-    final stepMinutes = requiredMinutes % 60 == 0 ? 60 : 30;
     final candidates = <Timeslot>[];
     final seen = <String>{};
 
@@ -953,16 +1062,14 @@ class SchedulingService {
       final end = _parseTimeToMinutes(avail.endTime);
       if (end - start < requiredMinutes) continue;
 
-      for (var s = start; s + requiredMinutes <= end; s += stepMinutes) {
-        if (requireLabStartAfterNine && s < _labEarliestStartMinutes) {
-          continue;
-        }
-        final e = s + requiredMinutes;
-        if (_overlapsLunchWindow(s, e)) {
-          continue;
-        }
-        final startTime = _formatMinutes(s);
-        final endTime = _formatMinutes(e);
+      for (final window in _windowsWithinRange(
+        rangeStart: start,
+        rangeEnd: end,
+        requiredMinutes: requiredMinutes,
+        requireLabStartAfterNine: requireLabStartAfterNine,
+      )) {
+        final startTime = _formatMinutes(window.$1);
+        final endTime = _formatMinutes(window.$2);
         final key = _timeslotKey(avail.dayOfWeek, startTime, endTime);
         if (!seen.add(key)) {
           continue;
@@ -1184,10 +1291,12 @@ class _GenerateData {
 class _FacultyTracking {
   final Map<int, double> assignments;
   final Map<int, Map<int, int>> timeslotUsage;
+  final Map<int, Map<String, int>> yearLevelAssignments;
 
   const _FacultyTracking({
     required this.assignments,
     required this.timeslotUsage,
+    required this.yearLevelAssignments,
   });
 }
 

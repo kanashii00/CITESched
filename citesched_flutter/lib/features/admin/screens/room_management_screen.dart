@@ -240,6 +240,15 @@ class _RoomManagementScreenState extends ConsumerState<RoomManagementScreen> {
         maroonColor: maroonColor,
         onSuccess: () {
           ref.invalidate(roomListProvider);
+          ref.invalidate(archivedRoomListProvider);
+          final messenger = ScaffoldMessenger.of(context);
+          messenger.clearSnackBars();
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('Room added successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
         },
       ),
     );
