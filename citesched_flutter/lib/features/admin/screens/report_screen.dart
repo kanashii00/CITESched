@@ -1,6 +1,7 @@
 import 'package:citesched_client/citesched_client.dart';
 import 'package:citesched_flutter/main.dart';
 import 'package:citesched_flutter/core/utils/responsive_helper.dart';
+import 'package:citesched_flutter/core/utils/schedule_export_service.dart';
 import 'package:citesched_flutter/core/widgets/full_screen_calendar_scaffold.dart';
 import 'package:citesched_flutter/features/admin/screens/room_details_screen.dart';
 import 'package:citesched_flutter/features/admin/widgets/admin_header_container.dart';
@@ -49,6 +50,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final maroonColor = const Color(0xFF720045);
+  String _scheduleExportGrouping = 'section';
 
   @override
   void initState() {
@@ -69,6 +71,12 @@ class _ReportScreenState extends ConsumerState<ReportScreen>
     final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8F9FA);
     final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
     final textMuted = isDark ? Colors.grey[300]! : Colors.grey[700]!;
+    final schedulesAsync = ref.watch(schedulesProvider);
+    final subjectsAsync = ref.watch(subjectsProvider);
+    final facultyAsync = ref.watch(facultyListProvider);
+    final roomsAsync = ref.watch(roomListProvider);
+    final timeslotsAsync = ref.watch(timeslotsProvider);
+    final sectionsAsync = ref.watch(sectionListProvider);
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -279,6 +287,18 @@ class _ReportScreenState extends ConsumerState<ReportScreen>
               ),
             ),
             const SizedBox(height: 24),
+            _buildScheduleExportPanel(
+              context,
+              schedulesAsync,
+              subjectsAsync: subjectsAsync,
+              facultyAsync: facultyAsync,
+              roomsAsync: roomsAsync,
+              timeslotsAsync: timeslotsAsync,
+              sectionsAsync: sectionsAsync,
+              cardBg: cardBg,
+              textMuted: textMuted,
+            ),
+            const SizedBox(height: 24),
 
             // Content
             Expanded(
@@ -298,6 +318,269 @@ class _ReportScreenState extends ConsumerState<ReportScreen>
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildScheduleExportPanel(
+    BuildContext context,
+    AsyncValue<List<Schedule>> schedulesAsync, {
+    required AsyncValue<List<Subject>> subjectsAsync,
+    required AsyncValue<List<Faculty>> facultyAsync,
+    required AsyncValue<List<Room>> roomsAsync,
+    required AsyncValue<List<Timeslot>> timeslotsAsync,
+    required AsyncValue<List<Section>> sectionsAsync,
+    required Color cardBg,
+    required Color textMuted,
+  }) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final titleStyle = GoogleFonts.poppins(
+      fontSize: 16,
+      fontWeight: FontWeight.bold,
+      color: maroonColor,
+    );
+    final subtitleStyle = GoogleFonts.poppins(
+      fontSize: 12,
+      color: textMuted,
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: maroonColor.withValues(alpha: 0.12)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Schedule Export Center', style: titleStyle),
+          const SizedBox(height: 6),
+          Text(
+            'Export all schedules in organized CSV, PDF, or DOCX format grouped by section, year, or room.',
+            style: subtitleStyle,
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              DropdownButtonHideUnderline(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: maroonColor.withValues(alpha: 0.25)),
+                  ),
+                  child: DropdownButton<String>(
+                    value: _scheduleExportGrouping,
+                    borderRadius: BorderRadius.circular(12),
+                    items: const [
+                      DropdownMenuItem(value: 'all', child: Text('All Schedules')),
+                      DropdownMenuItem(value: 'section', child: Text('By Section')),
+                      DropdownMenuItem(value: 'year', child: Text('By Year')),
+                      DropdownMenuItem(value: 'room', child: Text('By Room')),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() => _scheduleExportGrouping = value);
+                    },
+                  ),
+                ),
+              ),
+              schedulesAsync.when(
+                loading: () => const SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                error: (error, _) => Text(
+                  'Unable to load schedules for export.',
+                  style: subtitleStyle.copyWith(color: Colors.red),
+                ),
+                data: (schedules) {
+                  final hydratedSchedules = _hydrateSchedules(
+                    schedules,
+                    subjects: _asyncListValue(subjectsAsync),
+                    faculty: _asyncListValue(facultyAsync),
+                    rooms: _asyncListValue(roomsAsync),
+                    timeslots: _asyncListValue(timeslotsAsync),
+                    sections: _asyncListValue(sectionsAsync),
+                  );
+
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildExportButton(
+                        label: 'CSV',
+                        icon: Icons.table_chart_rounded,
+                        onPressed: hydratedSchedules.isEmpty
+                            ? null
+                            : () => _exportSchedules(
+                                  hydratedSchedules,
+                                  format: 'csv',
+                                ),
+                      ),
+                      _buildExportButton(
+                        label: 'PDF',
+                        icon: Icons.picture_as_pdf_rounded,
+                        onPressed: hydratedSchedules.isEmpty
+                            ? null
+                            : () => _exportSchedules(
+                                  hydratedSchedules,
+                                  format: 'pdf',
+                                ),
+                      ),
+                      _buildExportButton(
+                        label: 'DOCX',
+                        icon: Icons.description_rounded,
+                        onPressed: hydratedSchedules.isEmpty
+                            ? null
+                            : () => _exportSchedules(
+                                  hydratedSchedules,
+                                  format: 'docx',
+                                ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExportButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback? onPressed,
+  }) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: maroonColor,
+        side: BorderSide(color: maroonColor.withValues(alpha: 0.35)),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        textStyle: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      icon: Icon(icon, size: 16),
+      label: Text(label),
+    );
+  }
+
+  Future<void> _exportSchedules(
+    List<Schedule> schedules, {
+    required String format,
+  }) async {
+    final title = switch (_scheduleExportGrouping) {
+      'section' => 'Schedules_By_Section',
+      'year' => 'Schedules_By_Year',
+      'room' => 'Schedules_By_Room',
+      _ => 'All_Schedules',
+    };
+
+    if (_scheduleExportGrouping == 'all') {
+      if (format == 'csv') {
+        await ScheduleExportService.exportSchedulesCsv(
+          title: title,
+          schedules: schedules,
+        );
+      } else if (format == 'pdf') {
+        await ScheduleExportService.exportSchedulesPdf(
+          title: title.replaceAll('_', ' '),
+          schedules: schedules,
+          subtitle: 'Administrative schedule export',
+        );
+      } else {
+        await ScheduleExportService.exportSchedulesDocx(
+          title: title.replaceAll('_', ' '),
+          schedules: schedules,
+          subtitle: 'Administrative schedule export',
+        );
+      }
+      return;
+    }
+
+    if (format == 'csv') {
+      await ScheduleExportService.exportGroupedSchedulesCsv(
+        title: title,
+        schedules: schedules,
+        grouping: _scheduleExportGrouping,
+      );
+    } else if (format == 'pdf') {
+      await ScheduleExportService.exportGroupedSchedulesPdf(
+        title: title.replaceAll('_', ' '),
+        schedules: schedules,
+        grouping: _scheduleExportGrouping,
+      );
+    } else {
+      await ScheduleExportService.exportGroupedSchedulesDocx(
+        title: title.replaceAll('_', ' '),
+        schedules: schedules,
+        grouping: _scheduleExportGrouping,
+      );
+    }
+  }
+
+  List<Schedule> _hydrateSchedules(
+    List<Schedule> schedules, {
+    required List<Subject> subjects,
+    required List<Faculty> faculty,
+    required List<Room> rooms,
+    required List<Timeslot> timeslots,
+    required List<Section> sections,
+  }) {
+    final subjectById = {for (final item in subjects) item.id: item};
+    final facultyById = {for (final item in faculty) item.id: item};
+    final roomById = {for (final item in rooms) item.id: item};
+    final timeslotById = {for (final item in timeslots) item.id: item};
+    final sectionById = {for (final item in sections) item.id: item};
+
+    return schedules
+        .map(
+          (schedule) => schedule.copyWith(
+            subject:
+                schedule.subject ??
+                (schedule.subjectId > 0 ? subjectById[schedule.subjectId] : null),
+            faculty:
+                schedule.faculty ??
+                (schedule.facultyId > 0 ? facultyById[schedule.facultyId] : null),
+            room:
+                schedule.room ??
+                (schedule.roomId != null ? roomById[schedule.roomId] : null),
+            timeslot:
+                schedule.timeslot ??
+                (schedule.timeslotId != null
+                    ? timeslotById[schedule.timeslotId]
+                    : null),
+            sectionRef:
+                schedule.sectionRef ??
+                (schedule.sectionId != null
+                    ? sectionById[schedule.sectionId]
+                    : null),
+          ),
+        )
+        .toList();
+  }
+
+  List<T> _asyncListValue<T>(AsyncValue<List<T>> asyncValue) {
+    return asyncValue.maybeWhen(
+      data: (items) => items,
+      orElse: () => <T>[],
     );
   }
 }

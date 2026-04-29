@@ -39,8 +39,39 @@ class NLPQueryChatState {
 
 class NLPQueryChatNotifier extends Notifier<NLPQueryChatState> {
   static const _weeklySchedule = 'weekly schedule';
+  static const List<({String from, String to})> _queryAliases = [
+    (from: 'iskedyul', to: 'schedule'),
+    (from: 'edyul', to: 'schedule'),
+    (from: 'orasan', to: 'timetable'),
+    (from: 'pakita', to: 'show'),
+    (from: 'ipakita', to: 'show'),
+    (from: 'tingnan', to: 'show'),
+    (from: 'ano', to: 'what'),
+    (from: 'anong', to: 'what'),
+    (from: 'unsa', to: 'what'),
+    (from: 'asa', to: 'where'),
+    (from: 'nasaan', to: 'where'),
+    (from: 'saan', to: 'where'),
+    (from: 'bukas', to: 'tomorrow'),
+    (from: 'ugma', to: 'tomorrow'),
+    (from: 'ngayon', to: 'today'),
+    (from: 'karon', to: 'today'),
+    (from: 'klase', to: 'class'),
+    (from: 'subject', to: 'subject'),
+    (from: 'asignatura', to: 'subject'),
+    (from: 'seksyon', to: 'section'),
+    (from: 'kwarto', to: 'room'),
+    (from: 'silid', to: 'room'),
+    (from: 'konflikto', to: 'conflict'),
+    (from: 'salungatan', to: 'conflict'),
+    (from: 'libre', to: 'free'),
+    (from: 'bakante', to: 'vacant'),
+    (from: 'sunod', to: 'next'),
+    (from: 'susunod', to: 'next'),
+  ];
   bool _initialized = false;
   bool _pendingTimetable = false;
+  String? _pendingScheduleView;
 
   String? _selectedRole() => ref.read(authProvider.notifier).selectedRole;
 
@@ -68,7 +99,6 @@ class NLPQueryChatNotifier extends Notifier<NLPQueryChatState> {
                 "Hello! I'm your CITESched Assistant. I can help with schedules, teaching loads, timetables, room assignments, and conflict checks.",
           },
         ],
-        sessionId: _generateSessionId(),
         sessionTitle: _generateSessionTitle(),
       );
     }
@@ -77,6 +107,7 @@ class NLPQueryChatNotifier extends Notifier<NLPQueryChatState> {
 
   void clearChat() {
     _pendingTimetable = false;
+    _pendingScheduleView = null;
     state = NLPQueryChatState(
       messages: [
         {
@@ -86,13 +117,18 @@ class NLPQueryChatNotifier extends Notifier<NLPQueryChatState> {
         },
       ],
       isLoading: false,
-      sessionId: _generateSessionId(),
       sessionTitle: _generateSessionTitle(),
     );
   }
 
+  void closeDeletedSession(String sessionId) {
+    if (state.sessionId?.trim() != sessionId.trim()) return;
+    clearChat();
+  }
+
   void setActiveSession(String sessionId, String? sessionTitle) {
     _pendingTimetable = false;
+    _pendingScheduleView = null;
     state = state.copyWith(
       sessionId: sessionId,
       sessionTitle: sessionTitle ?? state.sessionTitle,
@@ -105,6 +141,7 @@ class NLPQueryChatNotifier extends Notifier<NLPQueryChatState> {
     required List<ChatHistory> history,
   }) {
     _pendingTimetable = false;
+    _pendingScheduleView = null;
     final restoredMessages = history
         .map(
           (entry) => <String, dynamic>{
@@ -126,8 +163,11 @@ class NLPQueryChatNotifier extends Notifier<NLPQueryChatState> {
     if (query.trim().isEmpty) return;
 
     final userQuery = query.trim();
-    var outbound = _rewriteSimpleQuery(userQuery);
+    final rawNormalized = _normalizeQuery(userQuery);
+    final bypassRewrite = _isInformationalQuery(rawNormalized);
+    var outbound = bypassRewrite ? userQuery : _rewriteSimpleQuery(userQuery);
     final normalized = _normalizeQuery(outbound);
+    _pendingScheduleView = _detectRequestedScheduleView(normalized);
     if (_isTimetableQuery(normalized)) {
       _pendingTimetable = true;
       if (!_hasExplicitScheduleTarget(normalized) && !_isAdmin()) {
@@ -146,6 +186,7 @@ class NLPQueryChatNotifier extends Notifier<NLPQueryChatState> {
     );
 
     try {
+      await _ensureSession();
       final response = await client.nLP.query(
         outbound,
         sessionId: state.sessionId,
@@ -161,7 +202,11 @@ class NLPQueryChatNotifier extends Notifier<NLPQueryChatState> {
       };
       if (_pendingTimetable) {
         message['showTimetable'] = true;
+        if (_pendingScheduleView != null) {
+          message['scheduleView'] = _pendingScheduleView;
+        }
         _pendingTimetable = false;
+        _pendingScheduleView = null;
       }
       state = state.copyWith(
         messages: [
@@ -175,6 +220,8 @@ class NLPQueryChatNotifier extends Notifier<NLPQueryChatState> {
         ref.invalidate(chatHistorySessionProvider(state.sessionId!));
       }
     } catch (_) {
+      _pendingTimetable = false;
+      _pendingScheduleView = null;
       state = state.copyWith(
         messages: [
           ...state.messages,
@@ -194,10 +241,41 @@ class NLPQueryChatNotifier extends Notifier<NLPQueryChatState> {
     }
   }
 
+  Future<void> _ensureSession() async {
+    if (state.sessionId != null && state.sessionId!.trim().isNotEmpty) {
+      return;
+    }
+
+    final session = await client.nLP.createChatSession(
+      role: _effectiveRole(),
+      title: state.sessionTitle ?? _generateSessionTitle(),
+    );
+
+    state = state.copyWith(
+      sessionId: session.id?.toString(),
+      sessionTitle: session.title,
+    );
+  }
+
   bool _isTimetableQuery(String query) {
     return query.contains('timetable') ||
         query.contains('calendar') ||
+        query.contains('table view') ||
+        query.contains('calendar view') ||
         query.contains(_weeklySchedule);
+  }
+
+  String? _detectRequestedScheduleView(String query) {
+    if (query.contains('calendar view') || query.contains('calendar')) {
+      return 'calendar';
+    }
+    if (query.contains('table view') || query.contains('tabular')) {
+      return 'table';
+    }
+    if (query.contains('timetable') || query.contains(_weeklySchedule)) {
+      return 'calendar';
+    }
+    return null;
   }
 
   bool _hasExplicitScheduleTarget(String query) {
@@ -214,7 +292,16 @@ class NLPQueryChatNotifier extends Notifier<NLPQueryChatState> {
   }
 
   String _normalizeQuery(String query) {
-    return query.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+    var normalized = query.toLowerCase();
+    normalized = normalized.replaceAll(RegExp(r'[^a-z0-9\s]'), ' ');
+    normalized = normalized.replaceAll(RegExp(r'\s+'), ' ').trim();
+    for (final alias in _queryAliases) {
+      normalized = normalized.replaceAllMapped(
+        RegExp(r'\b' + RegExp.escape(alias.from) + r'\b'),
+        (_) => alias.to,
+      );
+    }
+    return normalized.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
   String _rewriteSimpleQuery(String query) {
@@ -243,6 +330,7 @@ class NLPQueryChatNotifier extends Notifier<NLPQueryChatState> {
     final hasDayContext = RegExp(
       r'\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b',
     ).hasMatch(normalized);
+    final asksConflictExplanation = _isConflictExplanationQuery(normalized);
 
     if (asksSchedule) {
       normalized = _rewriteScheduleIntent(
@@ -254,7 +342,7 @@ class NLPQueryChatNotifier extends Notifier<NLPQueryChatState> {
       );
     }
 
-    if (asksConflict) {
+    if (asksConflict && !asksConflictExplanation) {
       normalized = _rewriteConflictIntent(
         isStudent: isStudent,
         isFaculty: isFaculty,
@@ -270,6 +358,32 @@ class NLPQueryChatNotifier extends Notifier<NLPQueryChatState> {
     }
 
     return normalized;
+  }
+
+  bool _isInformationalQuery(String query) {
+    final asksConflictExplanation = _isConflictExplanationQuery(query);
+    final asksSystemAbout = RegExp(
+      r'\b(what|exactly|about|system|citesched|does|manage|purpose)\b',
+    ).hasMatch(query);
+    final asksCapability = RegExp(
+      r'\b(can|help|ask|do)\b',
+    ).hasMatch(query) &&
+        RegExp(r'\b(system|citesched|you)\b').hasMatch(query);
+    final asksDashboardFeatures = RegExp(
+      r'\b(admin|student|faculty)\b',
+    ).hasMatch(query) &&
+        RegExp(
+          r'\b(dashboard|side|portal|panel|feature|features|module|modules|list)\b',
+        ).hasMatch(query);
+    final asksFormatOnly = RegExp(
+      r'\b(bullet|bullets|format|formatted)\b',
+    ).hasMatch(query);
+
+    return asksConflictExplanation ||
+        asksSystemAbout ||
+        asksCapability ||
+        asksDashboardFeatures ||
+        asksFormatOnly;
   }
 
   String _rewriteScheduleIntent({
@@ -312,6 +426,15 @@ class NLPQueryChatNotifier extends Notifier<NLPQueryChatState> {
     return 'check conflicts';
   }
 
+  bool _isConflictExplanationQuery(String query) {
+    final asksConflict = RegExp(r'\b(conflict|conflicts|overlap|clash)\b')
+        .hasMatch(query);
+    final asksExplanation = RegExp(
+      r'\b(how|why|what if|manage|handled|handle|resolve|fix|avoid|prevent)\b',
+    ).hasMatch(query);
+    return asksConflict && asksExplanation;
+  }
+
   String _rewriteStudentRoomIntent(String normalized) {
     final asksNextClass =
         normalized.contains('next') && normalized.contains('class');
@@ -335,11 +458,6 @@ class NLPQueryChatNotifier extends Notifier<NLPQueryChatState> {
     final auth = ref.read(authProvider);
     final scopes = auth?.scopeNames ?? const [];
     return scopes.contains('student');
-  }
-
-  String _generateSessionId() {
-    final role = _effectiveRole();
-    return '${role}_chat_${DateTime.now().microsecondsSinceEpoch}';
   }
 
   String _generateSessionTitle() {

@@ -3,13 +3,134 @@ import 'dart:convert';
 import 'package:serverpod/serverpod.dart';
 import 'package:serverpod_auth_server/serverpod_auth_server.dart';
 import '../generated/protocol.dart';
+import 'ai_chat_service.dart';
+import 'ai_grounding_service.dart';
+import 'gemini_llm_provider.dart';
 import 'conflict_service.dart';
 
 class NLPService {
   final ConflictService _conflictService = ConflictService();
+  final AiChatService _chatService = AiChatService();
+  final AiGroundingService _groundingService = AiGroundingService();
+  final LlmProvider _llmProvider;
   final DateTime Function() _now;
 
-  NLPService({DateTime Function()? nowProvider}) : _now = nowProvider ?? DateTime.now;
+  static const String _facultyAccessRestrictedMessage =
+      'Access restricted. Faculty accounts may only view personal schedule, load, and assigned timetable information.';
+  static const String _studentAccessRestrictedMessage =
+      'Access restricted. You may only access your personal academic schedule and assigned section timetable.';
+  static const String _studentSectionRestrictedMessage =
+      'Access restricted. Students may only view their own assigned section schedule.';
+  static const String _unsupportedLanguageMessage =
+      'CITESched AI currently supports English, Tagalog, and Bisaya only.';
+
+  static const List<({String from, String to})> _multilingualPhraseAliases = [
+    (from: 'tubaga ko sa bisaya', to: 'answer me in bisaya'),
+    (from: 'tubag sa bisaya', to: 'answer in bisaya'),
+    (from: 'tubaga ko sa tagalog', to: 'answer me in tagalog'),
+    (from: 'tubag sa tagalog', to: 'answer in tagalog'),
+    (from: 'tubaga ko sa english', to: 'answer me in english'),
+    (from: 'tubag sa english', to: 'answer in english'),
+    (from: 'tubaga ko sa ingles', to: 'answer me in english'),
+    (from: 'tubag sa ingles', to: 'answer in english'),
+    (from: 'unsa akong schedule', to: 'what is my schedule'),
+    (from: 'ano ang schedule ko', to: 'what is my schedule'),
+    (from: 'nasaan ang next class ko', to: 'where is my next class'),
+    (from: 'asa ang next class nako', to: 'where is my next class'),
+    (from: 'ipakita ang schedule ko', to: 'show my schedule'),
+    (from: 'ipakita yung schedule ko', to: 'show my schedule'),
+    (from: 'pakita ang schedule ko', to: 'show my schedule'),
+    (from: 'pakita sa akong schedule', to: 'show my schedule'),
+    (from: 'pakita ang timetable ko', to: 'show my timetable'),
+    (from: 'show ang schedule ko', to: 'show my schedule'),
+    (from: 'may conflict ba ako', to: 'do i have conflicts'),
+    (from: 'naa ba koy conflict', to: 'do i have conflicts'),
+    (from: 'may klase ako bukas', to: 'what classes are scheduled tomorrow'),
+    (from: 'naa ba koy klase ugma', to: 'what classes are scheduled tomorrow'),
+    (from: 'anong subject ko ngayon', to: 'what subjects do i have today'),
+    (from: 'unsa akong subject karon', to: 'what subjects do i have today'),
+  ];
+
+  static const List<({String from, String to})> _multilingualWordAliases = [
+    (from: 'iskedyul', to: 'schedule'),
+    (from: 'edyul', to: 'schedule'),
+    (from: 'orasan', to: 'timetable'),
+    (from: 'talaan', to: 'list'),
+    (from: 'kwarto', to: 'room'),
+    (from: 'silid', to: 'room'),
+    (from: 'klasehanan', to: 'room'),
+    (from: 'asignatura', to: 'subject'),
+    (from: 'kurso', to: 'subject'),
+    (from: 'maestra', to: 'faculty'),
+    (from: 'maestro', to: 'faculty'),
+    (from: 'guro', to: 'teacher'),
+    (from: 'titser', to: 'teacher'),
+    (from: 'pangutana', to: 'question'),
+    (from: 'mangutana', to: 'ask'),
+    (from: 'tubag', to: 'answer'),
+    (from: 'tubaga', to: 'answer'),
+    (from: 'sagot', to: 'answer'),
+    (from: 'sagutin', to: 'answer'),
+    (from: 'tabang', to: 'help'),
+    (from: 'pakita', to: 'show'),
+    (from: 'ipakita', to: 'show'),
+    (from: 'tingnan', to: 'show'),
+    (from: 'makita', to: 'show'),
+    (from: 'saan', to: 'where'),
+    (from: 'nasaan', to: 'where'),
+    (from: 'asa', to: 'where'),
+    (from: 'ano', to: 'what'),
+    (from: 'anong', to: 'what'),
+    (from: 'unsa', to: 'what'),
+    (from: 'kanus a', to: 'when'),
+    (from: 'kanusa', to: 'when'),
+    (from: 'bakit', to: 'why'),
+    (from: 'ngano', to: 'why'),
+    (from: 'paano', to: 'how'),
+    (from: 'giunsa', to: 'how'),
+    (from: 'meron', to: 'have'),
+    (from: 'may', to: 'have'),
+    (from: 'naa', to: 'have'),
+    (from: 'ako', to: 'my'),
+    (from: 'aking', to: 'my'),
+    (from: 'ko', to: 'my'),
+    (from: 'akinga', to: 'my'),
+    (from: 'nako', to: 'my'),
+    (from: 'akong', to: 'my'),
+    (from: 'aming', to: 'our'),
+    (from: 'namin', to: 'our'),
+    (from: 'amo', to: 'our'),
+    (from: 'namo', to: 'our'),
+    (from: 'ngayon', to: 'today'),
+    (from: 'karon', to: 'today'),
+    (from: 'karon', to: 'today'),
+    (from: 'bukas', to: 'tomorrow'),
+    (from: 'ugma', to: 'tomorrow'),
+    (from: 'libre', to: 'free'),
+    (from: 'bakante', to: 'vacant'),
+    (from: 'bakanti', to: 'vacant'),
+    (from: 'sunod', to: 'next'),
+    (from: 'susunod', to: 'next'),
+    (from: 'klase', to: 'class'),
+    (from: 'subjects', to: 'subject'),
+    (from: 'mga subject', to: 'subject'),
+    (from: 'kwalipikado', to: 'available'),
+    (from: 'bakanteha', to: 'available'),
+    (from: 'conflict', to: 'conflict'),
+    (from: 'banggaan', to: 'conflict'),
+    (from: 'salungatan', to: 'conflict'),
+    (from: 'yunit', to: 'units'),
+    (from: 'load', to: 'load'),
+    (from: 'karga', to: 'load'),
+    (from: 'silingang', to: 'section'),
+    (from: 'seksyon', to: 'section'),
+  ];
+
+  NLPService({
+    DateTime Function()? nowProvider,
+    LlmProvider? llmProvider,
+  }) : _now = nowProvider ?? DateTime.now,
+       _llmProvider = llmProvider ?? GeminiLlmProvider();
 
   // Restricted keywords that should always be rejected
   static const List<String> forbiddenKeywords = [
@@ -263,19 +384,24 @@ class NLPService {
     String query,
     String? userId,
     List<String> scopes,
+    String? sessionId,
   ) async =>
-      processQueryImpl(session, query, userId, scopes);
+      processQueryImpl(session, query, userId, scopes, sessionId);
 
   Future<NLPResponse> processQueryImpl(
     Session session,
     String query,
     String? userId,
     List<String> scopes,
+    String? sessionId,
   ) async {
     // Sanitize and validate input
     if (query.isEmpty || query.length > 500) {
-      return _unsupportedResponse();
+      return _unsupportedResponse('english');
     }
+
+    final resolvedUserId = userId?.trim();
+    final resolvedRole = _resolveRoleFromScopes(scopes);
 
     final lowerQuery = query.toLowerCase();
     final normalizedQuery = _normalizeQuery(lowerQuery);
@@ -285,14 +411,92 @@ class NLPService {
 
     // Check for forbidden keywords - NEVER execute
     if (_containsForbiddenKeywords(lowerQuery)) {
-      return _unsupportedResponse();
+      return _unsupportedResponse('english');
+    }
+
+    final preferredLanguage = await _resolvePreferredLanguage(
+      session,
+      query: query,
+      sessionId: sessionId,
+    );
+
+    if (_isUnsupportedLanguageRequest(query)) {
+      return NLPResponse(
+        text: _unsupportedLanguageMessage,
+        intent: NLPIntent.unknown,
+      );
+    }
+
+    final informationalResponse = await _tryInformationalSystemQuery(
+      session,
+      normalizedQuery,
+      role: resolvedRole,
+      sessionId: sessionId,
+      preferredLanguage: preferredLanguage,
+    );
+    if (informationalResponse != null) return informationalResponse;
+
+    final greetingResponse = _tryGreetingQuery(
+      normalizedQuery,
+      preferredLanguage: preferredLanguage,
+    );
+    if (greetingResponse != null) return greetingResponse;
+
+    final accessRestriction = await _enforceRoleQueryScope(
+      session,
+      normalizedQuery,
+      userId: resolvedUserId,
+      scopes: scopes,
+      preferredLanguage: preferredLanguage,
+    );
+    if (accessRestriction != null) return accessRestriction;
+
+    final simpleRoomsResponse = await _trySimpleRoomListQuery(
+      session,
+      normalizedQuery,
+      scopes,
+    );
+    if (simpleRoomsResponse != null) return simpleRoomsResponse;
+
+    final simpleTimetableResponse = await _trySimpleTimetableQuery(
+      session,
+      normalizedQuery,
+      userId,
+      scopes,
+    );
+    if (simpleTimetableResponse != null) return simpleTimetableResponse;
+
+    final preferGroundedResponse = _shouldPreferGroundedResponse(
+      normalizedQuery,
+      requestedDay,
+      requestedDays,
+      relativeDays,
+    );
+    if (preferGroundedResponse) {
+      final groundedFirstResponse = await _tryGroundedLlmFallback(
+        session,
+        rawQuery: query,
+        normalizedQuery: normalizedQuery,
+        userId: resolvedUserId,
+        role: resolvedRole,
+        sessionId: sessionId,
+        preferredLanguage: preferredLanguage,
+      );
+      if (groundedFirstResponse != null &&
+          groundedFirstResponse.text !=
+              _llmUnavailableMessage(preferredLanguage)) {
+        return groundedFirstResponse;
+      }
     }
 
     // 1. My Schedule Queries (All authenticated users)
     if (_hasMyScheduleIntent(normalizedQuery)) {
       if (userId == null) {
         return NLPResponse(
-          text: "You must be logged in to view your schedule.",
+          text: _loginRequiredMessage(
+            preferredLanguage,
+            purpose: 'viewSchedule',
+          ),
           intent: NLPIntent.unknown,
         );
       }
@@ -308,7 +512,10 @@ class NLPService {
     if (_hasConflictIntent(normalizedQuery)) {
       if (userId == null) {
         return NLPResponse(
-          text: "You must be logged in to check for conflicts.",
+          text: _loginRequiredMessage(
+            preferredLanguage,
+            purpose: 'checkConflicts',
+          ),
           intent: NLPIntent.unknown,
         );
       }
@@ -319,7 +526,10 @@ class NLPService {
     if (_hasOverloadIntent(normalizedQuery)) {
       if (userId == null) {
         return NLPResponse(
-          text: "You must be logged in to check faculty load information.",
+          text: _loginRequiredMessage(
+            preferredLanguage,
+            purpose: 'checkFacultyLoad',
+          ),
           intent: NLPIntent.unknown,
         );
       }
@@ -403,7 +613,15 @@ class NLPService {
     if (_hasSystemIntent(normalizedQuery)) {
       return NLPResponse(
         text:
-            "That action needs the admin scheduling tools. Use the Timetable or Conflict modules to generate, optimize, or resolve schedules.",
+            _textForLanguage(
+              preferredLanguage,
+              english:
+                  'That action needs the admin scheduling tools. Use the Timetable or Conflict modules to generate, optimize, or resolve schedules.',
+              tagalog:
+                  'Kailangan ng action na iyon ang admin scheduling tools. Gamitin ang Timetable o Conflict modules para gumawa, mag-optimize, o mag-resolve ng schedules.',
+              bisaya:
+                  'Kana nga aksyon nanginahanglan sa admin scheduling tools. Gamita ang Timetable o Conflict modules aron maghimo, mag-optimize, o mag-resolve sa schedules.',
+            ),
         intent: NLPIntent.unknown,
       );
     }
@@ -412,7 +630,15 @@ class NLPService {
         _containsKeywordFuzzy(normalizedQuery, ['slot', 'slots', 'time'])) {
       return NLPResponse(
         text:
-            "Please specify whose availability to check (e.g., 'Show free time slots for Prof Ryan') or include a day/time.",
+            _textForLanguage(
+              preferredLanguage,
+              english:
+                  "Please specify whose availability to check (e.g., 'Show free time slots for Prof Ryan') or include a day/time.",
+              tagalog:
+                  "Pakisabi kung kaninong availability ang iche-check (halimbawa, 'Show free time slots for Prof Ryan') o maglagay ng araw/oras.",
+              bisaya:
+                  "Palihug isulti kang kinsang availability ang tan-awon (pananglitan, 'Show free time slots for Prof Ryan') o ilakip ang adlaw/oras.",
+            ),
         intent: NLPIntent.schedule,
       );
     }
@@ -421,16 +647,1608 @@ class NLPService {
         _containsKeywordFuzzy(normalizedQuery, ['room'])) {
       return NLPResponse(
         text:
-            "Please specify a day and time range to find a free room (e.g., 'Find free room on Monday between 1 PM and 3 PM').",
+            _textForLanguage(
+              preferredLanguage,
+              english:
+                  "Please specify a day and time range to find a free room (e.g., 'Find free room on Monday between 1 PM and 3 PM').",
+              tagalog:
+                  "Pakispecify ang araw at oras para makahanap ng bakanteng room (halimbawa, 'Find free room on Monday between 1 PM and 3 PM').",
+              bisaya:
+                  "Palihug ispecify ang adlaw ug time range aron makakita og bakanteng room (pananglitan, 'Find free room on Monday between 1 PM and 3 PM').",
+            ),
         intent: NLPIntent.roomStatus,
       );
     }
 
+    final llmResponse = await _tryGroundedLlmFallback(
+      session,
+        rawQuery: query,
+        normalizedQuery: normalizedQuery,
+        userId: resolvedUserId,
+        role: resolvedRole,
+        sessionId: sessionId,
+        preferredLanguage: preferredLanguage,
+      );
+    if (llmResponse != null) {
+      return llmResponse;
+    }
+
     return NLPResponse(
       text:
-          "I couldn't match that request. Try asking about schedules, rooms, conflicts, or faculty load. Example: 'My schedule on Monday' or 'Is IT LAB available at 2 PM?'",
+          _textForLanguage(
+            preferredLanguage,
+            english:
+                "I couldn't match that request. Try asking about schedules, rooms, conflicts, or faculty load. Example: 'My schedule on Monday' or 'Is IT LAB available at 2 PM?'",
+            tagalog:
+                "Hindi ko maitugma ang request na iyon. Subukan mong magtanong tungkol sa schedules, rooms, conflicts, o faculty load. Halimbawa: 'My schedule on Monday' o 'Is IT LAB available at 2 PM?'",
+            bisaya:
+                "Dili nako ma-match kana nga request. Sulayi pangutana bahin sa schedules, rooms, conflicts, o faculty load. Pananglitan: 'My schedule on Monday' o 'Is IT LAB available at 2 PM?'",
+          ),
       intent: NLPIntent.unknown,
     );
+  }
+
+  Future<NLPResponse?> _tryGroundedLlmFallback(
+    Session session, {
+    required String rawQuery,
+    required String normalizedQuery,
+    required String? userId,
+    required String role,
+    String? sessionId,
+    required String preferredLanguage,
+  }) async {
+    if (userId == null || userId.isEmpty) {
+      return null;
+    }
+
+    final groundedContext = await _groundingService.buildContext(
+      session,
+      query: normalizedQuery,
+      roleType: role,
+      userIdentifier: userId,
+    );
+    if (!groundedContext.hasData) {
+      return NLPResponse(
+        text: AiGroundingService.fallbackNoDataMessage,
+        intent: groundedContext.intent,
+        dataJson: groundedContext.jsonText,
+      );
+    }
+
+    final conversationHistory = await _loadConversationHistory(
+      session,
+      sessionId: sessionId,
+      currentQuery: rawQuery,
+    );
+
+    final llmResult = await _llmProvider.generate(
+      session,
+      GroundedLlmRequest(
+        model: _pickGeminiModel(normalizedQuery),
+        systemPrompt: _systemPrompt(role, preferredLanguage: preferredLanguage),
+        userPrompt: rawQuery,
+        groundedJson: groundedContext.jsonText,
+        history: conversationHistory,
+      ),
+    );
+    if (llmResult == null) {
+      return NLPResponse(
+        text: _llmUnavailableMessage(preferredLanguage),
+        intent: groundedContext.intent,
+        dataJson: groundedContext.jsonText,
+      );
+    }
+
+    return NLPResponse(
+      text: llmResult.text,
+      intent: groundedContext.intent,
+      dataJson: jsonEncode({
+        'provider': 'gemini',
+        'model': llmResult.model,
+        'groundedContext': jsonDecode(groundedContext.jsonText),
+      }),
+    );
+  }
+
+  String _resolveRoleFromScopes(List<String> scopes) {
+    if (scopes.contains('admin')) return 'admin';
+    if (scopes.contains('faculty')) return 'faculty';
+    if (scopes.contains('student')) return 'student';
+    return 'unknown';
+  }
+
+  String _pickGeminiModel(String query) {
+    final isComplex = _containsKeywordFuzzy(
+      query,
+      ['generate', 'optimize', 'suggest', 'analyze', 'report'],
+    );
+    return isComplex ? 'gemini-2.5-flash' : 'gemini-2.5-flash-lite';
+  }
+
+  String _systemPrompt(String role, {required String preferredLanguage}) => '''
+You are CITESched AI, the official scheduling assistant of Jose Maria College Foundation Inc.
+Use ONLY verified CITESched system data provided to you.
+Never invent schedules, rooms, faculty, students, or subjects.
+Always provide accurate responses related to scheduling, faculty loading, room assignments, timetable conflicts, and student schedules.
+If data is unavailable, clearly state: "I don't have enough schedule data to answer that accurately."
+The active user role for this request is: $role.
+Preferred response language for this conversation: ${_languageLabel(preferredLanguage)}. Follow that language unless the user explicitly asks to switch.
+${_rolePromptRule(role)}
+Keep answers concise, helpful, and grounded in the verified data payload.
+''';
+
+  String _rolePromptRule(String role) {
+    if (role == 'faculty') {
+      return 'Faculty scope rule: answer only with the current faculty account\'s personal timetable, assigned subjects, assigned sections, assigned rooms, teaching load, available teaching hours, and personal conflicts. Deny any request for other faculty data, student private schedules, institutional reports, schedule generation, or global timetable management.';
+    }
+    if (role == 'student') {
+      return 'Student scope rule: answer only with the current student account\'s personal schedule, own assigned section timetable, own subjects, own room assignments, next class, vacant periods, and personal or section conflicts. Deny any request for other sections, other students, faculty data, admin data, institutional reports, or global room or timetable access.';
+    }
+    return 'Admin scope rule: full scheduling and reporting access is allowed.';
+  }
+
+  Future<NLPResponse?> _enforceRoleQueryScope(
+    Session session,
+    String query, {
+    required String? userId,
+    required List<String> scopes,
+    required String preferredLanguage,
+  }) async {
+    if (scopes.contains('admin')) return null;
+    if (scopes.contains('faculty')) {
+      return _enforceFacultyQueryScope(
+        session,
+        query,
+        userId: userId,
+        preferredLanguage: preferredLanguage,
+      );
+    }
+    if (scopes.contains('student')) {
+      return _enforceStudentQueryScope(
+        session,
+        query,
+        userId: userId,
+        preferredLanguage: preferredLanguage,
+      );
+    }
+    return null;
+  }
+
+  Future<NLPResponse?> _enforceFacultyQueryScope(
+    Session session,
+    String query, {
+    required String? userId,
+    required String preferredLanguage,
+  }) async {
+    if (userId == null) return null;
+    final faculty = await _findCurrentFaculty(session, userId);
+    if (faculty == null) return null;
+
+    if ((_isAdminOnlyQuery(query) && !_isScheduleExportQuery(query)) ||
+        _isInstitutionWideQuery(query) ||
+        _isStudentPrivateDataQuery(query)) {
+      return _restrictedResponse(
+        _facultyAccessRestrictedMessage,
+        preferredLanguage,
+      );
+    }
+
+    final matchedFaculty = _matchFacultyByName(query, await Faculty.db.find(session));
+    if (matchedFaculty != null && matchedFaculty.id != faculty.id) {
+      return _restrictedResponse(
+        _facultyAccessRestrictedMessage,
+        preferredLanguage,
+      );
+    }
+
+    final extractedSection = _extractSectionFromQuery(query);
+    if (extractedSection != null) {
+      final schedules = await Schedule.db.find(
+        session,
+        where: (t) => t.facultyId.equals(faculty.id!),
+      );
+      final allowedSections = schedules.map((s) => s.section).toSet();
+      final requestedCandidates = _buildSectionCandidates(extractedSection).toSet();
+      final hasAssignedSection = allowedSections.any(
+        (section) => requestedCandidates.contains(section.toUpperCase()),
+      );
+      if (!hasAssignedSection) {
+        return _restrictedResponse(
+          _facultyAccessRestrictedMessage,
+          preferredLanguage,
+        );
+      }
+    }
+
+    if (_isBroadRoomAccessQuery(query) && !_isPersonalFacultyRoomQuery(query)) {
+      return _restrictedResponse(
+        _facultyAccessRestrictedMessage,
+        preferredLanguage,
+      );
+    }
+
+    return null;
+  }
+
+  Future<NLPResponse?> _enforceStudentQueryScope(
+    Session session,
+    String query, {
+    required String? userId,
+    required String preferredLanguage,
+  }) async {
+    if (userId == null) return null;
+    final student = await _findCurrentStudent(session, userId);
+    if (student == null) return null;
+
+    if (_hasFacultyReference(query) ||
+        _isFacultyLoadQuery(query) ||
+        (_isAdminOnlyQuery(query) && !_isScheduleExportQuery(query)) ||
+        _isInstitutionWideQuery(query)) {
+      return _restrictedResponse(
+        _studentAccessRestrictedMessage,
+        preferredLanguage,
+      );
+    }
+
+    final extractedSection = _extractSectionFromQuery(query);
+    if (extractedSection != null) {
+      final allowedCandidates = _buildSectionCandidates(
+        student.section ?? student.sectionRef?.sectionCode ?? '',
+      ).toSet();
+      final requestedCandidates = _buildSectionCandidates(extractedSection).toSet();
+      final matchesOwnSection = requestedCandidates.any(allowedCandidates.contains);
+      if (!matchesOwnSection) {
+        return _restrictedResponse(
+          _studentSectionRestrictedMessage,
+          preferredLanguage,
+        );
+      }
+    }
+
+    if (_isBroadRoomAccessQuery(query) && !_isPersonalStudentRoomQuery(query)) {
+      return _restrictedResponse(
+        _studentAccessRestrictedMessage,
+        preferredLanguage,
+      );
+    }
+
+    return null;
+  }
+
+  NLPResponse _restrictedResponse(String message, String preferredLanguage) {
+    return NLPResponse(
+      text: _translateAccessMessage(message, preferredLanguage),
+      intent: NLPIntent.unknown,
+    );
+  }
+
+  bool _isAdminOnlyQuery(String query) {
+    if (_containsKeywordFuzzy(query, [
+      'generate',
+      'optimize',
+      'reassign',
+      'analytics',
+      'report',
+      'reports',
+      'department',
+      'institutional',
+      'database',
+      'global',
+    ])) {
+      return true;
+    }
+
+    if (_containsKeywordFuzzy(query, ['admin']) &&
+        _containsKeywordFuzzy(query, ['control', 'controls', 'manage'])) {
+      return true;
+    }
+
+    return false;
+  }
+
+  bool _isScheduleExportQuery(String query) {
+    final asksExport = _containsKeywordFuzzy(query, [
+      'export',
+      'csv',
+      'pdf',
+      'docx',
+      'download',
+      'print',
+      'file',
+      'report',
+    ]);
+    final asksScheduleData = _containsKeywordFuzzy(query, [
+      'schedule',
+      'schedules',
+      'timetable',
+      'subject',
+      'subjects',
+      'class',
+      'classes',
+      'room',
+      'rooms',
+    ]);
+    return asksExport && asksScheduleData;
+  }
+
+  bool _isInstitutionWideQuery(String query) {
+    final asksGlobalScope = _containsKeywordFuzzy(query, [
+      'all',
+      'full',
+      'entire',
+      'global',
+      'department',
+      'institutional',
+      'everyone',
+      'other',
+      'compare',
+    ]);
+    final asksScheduleData = _containsKeywordFuzzy(query, [
+      'schedule',
+      'schedules',
+      'timetable',
+      'room',
+      'rooms',
+      'section',
+      'sections',
+      'classroom',
+      'faculty',
+      'students',
+      'report',
+      'reports',
+    ]);
+    return asksGlobalScope && asksScheduleData;
+  }
+
+  bool _isStudentPrivateDataQuery(String query) {
+    return _containsKeywordFuzzy(query, ['student', 'students']) &&
+        _containsKeywordFuzzy(query, ['private', 'other', 'all', 'full']);
+  }
+
+  bool _isFacultyLoadQuery(String query) {
+    return _containsKeywordFuzzy(query, [
+      'load',
+      'units',
+      'teaching',
+      'overload',
+      'underload',
+      'hours',
+    ]);
+  }
+
+  bool _isBroadRoomAccessQuery(String query) {
+    final asksRoom = _containsKeywordFuzzy(query, [
+      'room',
+      'rooms',
+      'classroom',
+      'classrooms',
+      'laboratory',
+      'lab',
+    ]);
+    final asksAvailability = _containsKeywordFuzzy(query, [
+      'available',
+      'availability',
+      'free',
+      'all',
+      'show',
+      'list',
+      'find',
+      'check',
+    ]);
+    return asksRoom && asksAvailability;
+  }
+
+  bool _isPersonalFacultyRoomQuery(String query) {
+    return _containsKeywordFuzzy(query, [
+      'my',
+      'next',
+      'assigned',
+      'subject',
+      'class',
+      'schedule',
+      'teaching',
+      'available hours',
+      'laboratory',
+    ]);
+  }
+
+  bool _isPersonalStudentRoomQuery(String query) {
+    return _containsKeywordFuzzy(query, [
+      'my',
+      'next',
+      'assigned',
+      'subject',
+      'class',
+      'section',
+      'schedule',
+      'tomorrow',
+      'today',
+    ]);
+  }
+
+  NLPResponse? _tryGreetingQuery(
+    String query, {
+    required String preferredLanguage,
+  }) {
+    final isGreetingOnly =
+        query == 'hello' ||
+        query == 'hi' ||
+        query == 'hey' ||
+        query == 'good morning' ||
+        query == 'good afternoon' ||
+        query == 'good evening';
+    if (!isGreetingOnly) return null;
+
+    return NLPResponse(
+      text: _textForLanguage(
+        preferredLanguage,
+        english:
+            'Hello! I am CITESched AI. I can understand English, Tagalog, and Bisaya for schedule-related questions. Ask me about schedules, faculty loads, sections, rooms, or timetable conflicts.',
+        tagalog:
+            'Hello! Ako si CITESched AI. Naiintindihan ko ang English, Tagalog, at Bisaya para sa mga tanong tungkol sa schedule. Magtanong ka tungkol sa schedules, faculty loads, sections, rooms, o timetable conflicts.',
+        bisaya:
+            'Hello! Ako si CITESched AI. Makasabot ko og English, Tagalog, ug Bisaya para sa schedule-related nga mga pangutana. Pangutana bahin sa schedules, faculty loads, sections, rooms, o timetable conflicts.',
+      ),
+      intent: NLPIntent.unknown,
+    );
+  }
+
+  Future<NLPResponse?> _tryInformationalSystemQuery(
+    Session session,
+    String query, {
+    required String role,
+    String? sessionId,
+    required String preferredLanguage,
+  }) async {
+    final prefersBulletFormat = _prefersBulletFormat(query);
+
+    if (role == 'faculty' &&
+        (_isAdminFeatureListQuery(query) ||
+            _isAdminManagementQuery(query) ||
+            _isAdminMissingModuleQuery(query) ||
+            _isStudentFeatureListQuery(query))) {
+      return _restrictedResponse(
+        _facultyAccessRestrictedMessage,
+        preferredLanguage,
+      );
+    }
+
+    if (role == 'student' &&
+        (_isAdminFeatureListQuery(query) ||
+            _isAdminManagementQuery(query) ||
+            _isAdminMissingModuleQuery(query) ||
+            _isFacultyFeatureListQuery(query))) {
+      return _restrictedResponse(
+        _studentAccessRestrictedMessage,
+        preferredLanguage,
+      );
+    }
+
+    final followUpResponse = await _tryFormattingFollowUp(
+      session,
+      query: query,
+      sessionId: sessionId,
+      preferredLanguage: preferredLanguage,
+    );
+    if (followUpResponse != null) return followUpResponse;
+
+    if (_isAdminManagementQuery(query)) {
+      return NLPResponse(
+        text: _adminManagementResponse(
+          prefersBulletFormat,
+          preferredLanguage: preferredLanguage,
+        ),
+        intent: NLPIntent.unknown,
+      );
+    }
+
+    if (_isAdminFeatureListQuery(query)) {
+      return NLPResponse(
+        text: _adminFeatureListResponse(
+          prefersBulletFormat,
+          preferredLanguage: preferredLanguage,
+        ),
+        intent: NLPIntent.unknown,
+      );
+    }
+
+    if (_isStudentFeatureListQuery(query)) {
+      return NLPResponse(
+        text: _studentFeatureListResponse(
+          prefersBulletFormat,
+          preferredLanguage: preferredLanguage,
+        ),
+        intent: NLPIntent.unknown,
+      );
+    }
+
+    if (_isFacultyFeatureListQuery(query)) {
+      return NLPResponse(
+        text: _facultyFeatureListResponse(
+          prefersBulletFormat,
+          preferredLanguage: preferredLanguage,
+        ),
+        intent: NLPIntent.unknown,
+      );
+    }
+
+    if (_isAdminMissingModuleQuery(query)) {
+      return NLPResponse(
+        text: _adminMissingModuleResponse(
+          prefersBulletFormat,
+          preferredLanguage: preferredLanguage,
+        ),
+        intent: NLPIntent.unknown,
+      );
+    }
+
+    if (_isSystemAboutQuery(query)) {
+      return NLPResponse(
+        text: _systemAboutResponse(
+          prefersBulletFormat,
+          preferredLanguage: preferredLanguage,
+        ),
+        intent: NLPIntent.unknown,
+      );
+    }
+
+    if (_isConflictExplanationQuery(query)) {
+      return NLPResponse(
+        text: _conflictExplanationResponse(
+          prefersBulletFormat,
+          preferredLanguage: preferredLanguage,
+        ),
+        intent: NLPIntent.conflict,
+      );
+    }
+
+    if (_isCapabilityQuery(query)) {
+      return NLPResponse(
+        text:
+            _textForLanguage(
+              preferredLanguage,
+              english:
+                  'Yes. I can help with section schedules, faculty schedules, room usage, timetable views, subject schedules, faculty load checks, and conflict-related questions based on verified CITESched data.',
+              tagalog:
+                  'Oo. Makakatulong ako sa section schedules, faculty schedules, room usage, timetable views, subject schedules, faculty load checks, at conflict-related questions gamit ang verified CITESched data.',
+              bisaya:
+                  'Oo. Makatabang ko sa section schedules, faculty schedules, room usage, timetable views, subject schedules, faculty load checks, ug conflict-related nga mga pangutana gamit ang verified CITESched data.',
+            ),
+        intent: NLPIntent.unknown,
+      );
+    }
+
+    if (_isGeneralQuestionPrompt(query)) {
+      return NLPResponse(
+        text:
+            _textForLanguage(
+              preferredLanguage,
+              english:
+                  'Yes, you can ask. What would you like to know about CITESched? I can help with schedules, timetable, rooms, faculty load, and conflict checks.',
+              tagalog:
+                  'Oo, pwede kang magtanong. Ano ang gusto mong malaman tungkol sa CITESched? Makakatulong ako sa schedules, timetable, rooms, faculty load, at conflict checks.',
+              bisaya:
+                  'Oo, pwede ka mangutana. Unsay gusto nimo mahibal-an sa CITESched? Mahimo ko motabang sa schedules, timetable, rooms, faculty load, ug conflict checks.',
+            ),
+        intent: NLPIntent.unknown,
+      );
+    }
+
+    if (_isBisayaLanguageRequest(query)) {
+      return NLPResponse(
+        text:
+            'Sige, motubag ko sa Bisaya kung mahimo. Padayon ko ug tubag sa Bisaya hangtod nga mangayo ka ug laing pinulongan. Pangutana lang bahin sa imong schedule, timetable, subjects, rooms, o conflicts sa CITESched.',
+        intent: NLPIntent.unknown,
+      );
+    }
+
+    if (_isTagalogLanguageRequest(query)) {
+      return NLPResponse(
+        text:
+            'Sige, sasagot ako sa Tagalog kung maaari. Itutuloy ko ang mga sagot sa Tagalog hanggang humiling ka ng ibang wika. Magtanong ka lang tungkol sa iyong schedule, timetable, subjects, rooms, o conflicts sa CITESched.',
+        intent: NLPIntent.unknown,
+      );
+    }
+
+    if (_isEnglishLanguageRequest(query)) {
+      return NLPResponse(
+        text:
+            'Sure, I can answer in English. I will keep replying in English until you ask me to switch languages. Ask me about your schedule, timetable, subjects, rooms, or conflict checks in CITESched.',
+        intent: NLPIntent.unknown,
+      );
+    }
+
+    return null;
+  }
+
+  bool _isSystemAboutQuery(String query) {
+    final asksWhat = _containsKeywordFuzzy(query, ['what', 'exactly']);
+    final asksSystem = _containsKeywordFuzzy(query, ['system', 'citesched']);
+    final asksDoes = _containsKeywordFuzzy(query, ['does', 'do', 'manage']);
+    return asksSystem && (asksWhat || asksDoes);
+  }
+
+  bool _isAdminManagementQuery(String query) {
+    final asksAdmin = _containsKeywordFuzzy(query, ['admin', 'administrator']);
+    final asksManage = _containsKeywordFuzzy(query, [
+      'manage',
+      'management',
+      'control',
+      'use',
+    ]);
+    final asksSystem = _containsKeywordFuzzy(query, ['system', 'citesched']);
+    return asksAdmin && asksManage && asksSystem;
+  }
+
+  bool _isAdminFeatureListQuery(String query) {
+    final asksAdmin = _containsKeywordFuzzy(query, ['admin', 'administrator']);
+    final asksFeatures = _containsKeywordFuzzy(query, [
+      'feature',
+      'features',
+      'module',
+      'modules',
+      'list',
+    ]);
+    return asksAdmin && asksFeatures;
+  }
+
+  bool _isStudentFeatureListQuery(String query) {
+    final asksStudent = _containsKeywordFuzzy(query, ['student']);
+    final asksLocation = _containsKeywordFuzzy(query, [
+      'dashboard',
+      'side',
+      'portal',
+      'panel',
+    ]);
+    final asksFeatures = _containsKeywordFuzzy(query, [
+      'feature',
+      'features',
+      'module',
+      'modules',
+      'list',
+      'include',
+      'included',
+      'functions',
+    ]);
+    return asksStudent && asksFeatures && (asksLocation || asksFeatures);
+  }
+
+  bool _isFacultyFeatureListQuery(String query) {
+    final asksFaculty = _containsKeywordFuzzy(query, [
+      'faculty',
+      'professor',
+      'teacher',
+      'instructor',
+    ]);
+    final asksLocation = _containsKeywordFuzzy(query, [
+      'dashboard',
+      'side',
+      'portal',
+      'panel',
+    ]);
+    final asksFeatures = _containsKeywordFuzzy(query, [
+      'feature',
+      'features',
+      'module',
+      'modules',
+      'list',
+      'include',
+      'included',
+      'functions',
+    ]);
+    return asksFaculty && asksFeatures && (asksLocation || asksFeatures);
+  }
+
+  bool _isAdminMissingModuleQuery(String query) {
+    final asksMissing = _containsKeywordFuzzy(query, [
+      'include',
+      'included',
+      'missing',
+      'why',
+    ]);
+    final asksAdmin = _containsKeywordFuzzy(query, ['admin', 'administrator']);
+    final asksNamedModules = _containsKeywordFuzzy(query, [
+      'conflict',
+      'timetable',
+      'report',
+      'reports',
+    ]);
+    return asksMissing && (asksAdmin || asksNamedModules);
+  }
+
+  bool _isConflictExplanationQuery(String query) {
+    final asksConflict = _containsKeywordFuzzy(query, ['conflict', 'conflicts']);
+    final asksHow = _containsKeywordFuzzy(query, [
+      'how',
+      'manage',
+      'handled',
+      'handle',
+      'resolve',
+    ]);
+    return asksConflict && asksHow;
+  }
+
+  bool _isCapabilityQuery(String query) {
+    final asksCan = _containsKeywordFuzzy(query, ['can']);
+    final asksAsk = _containsKeywordFuzzy(query, ['ask', 'help']);
+    final asksSystem = _containsKeywordFuzzy(query, ['system', 'citesched']);
+    return asksCan && (asksAsk || asksSystem);
+  }
+
+  bool _isGeneralQuestionPrompt(String query) {
+    final normalized = _normalizeQuery(query);
+    if (normalized == 'naa koy pangutana' ||
+        normalized == 'naa ko pangutana' ||
+        normalized == 'i have a question' ||
+        normalized == 'i have questions' ||
+        normalized == 'can i ask a question' ||
+        normalized == 'pwede ko mangutana') {
+      return true;
+    }
+
+    final asksQuestion = _containsKeywordFuzzy(normalized, [
+      'question',
+      'questions',
+      'pangutana',
+      'mangutana',
+      'ask',
+    ]);
+    final asksPermission = _containsKeywordFuzzy(normalized, [
+      'can',
+      'may',
+      'pwede',
+      'naa',
+      'have',
+    ]);
+    return asksQuestion && asksPermission;
+  }
+
+  bool _isBisayaLanguageRequest(String query) {
+    final normalized = _normalizeQuery(query);
+    final asksBisaya = _containsKeywordFuzzy(normalized, [
+      'bisaya',
+      'cebuano',
+    ]);
+    final asksResponse = _containsKeywordFuzzy(normalized, [
+      'tubag',
+      'tubaga',
+      'answer',
+      'respond',
+      'reply',
+      'istorya',
+      'speak',
+    ]);
+    return asksBisaya && asksResponse;
+  }
+
+  bool _isTagalogLanguageRequest(String query) {
+    final normalized = _normalizeQuery(query);
+    final asksTagalog = _containsKeywordFuzzy(normalized, [
+      'tagalog',
+      'filipino',
+    ]);
+    final asksResponse = _containsKeywordFuzzy(normalized, [
+      'tubag',
+      'tubaga',
+      'sagot',
+      'sagutin',
+      'answer',
+      'respond',
+      'reply',
+      'speak',
+    ]);
+    return asksTagalog && asksResponse;
+  }
+
+  bool _isEnglishLanguageRequest(String query) {
+    final normalized = _normalizeQuery(query);
+    final asksEnglish = _containsKeywordFuzzy(normalized, [
+      'english',
+      'ingles',
+    ]);
+    final asksResponse = _containsKeywordFuzzy(normalized, [
+      'tubag',
+      'tubaga',
+      'sagot',
+      'sagutin',
+      'answer',
+      'respond',
+      'reply',
+      'speak',
+      'talk',
+    ]);
+    return asksEnglish && asksResponse;
+  }
+
+  bool _prefersBulletFormat(String query) {
+    return _containsKeywordFuzzy(query, [
+      'bullet',
+      'bullets',
+      'format',
+      'formatted',
+    ]);
+  }
+
+  bool _isFormattingFollowUpQuery(String query) {
+    final asksFormat = _containsKeywordFuzzy(query, [
+      'bullet',
+      'bullets',
+      'format',
+      'formatted',
+    ]);
+    final asksOnlyFormatting =
+        !_isAdminFeatureListQuery(query) &&
+        !_isStudentFeatureListQuery(query) &&
+        !_isFacultyFeatureListQuery(query) &&
+        !_isSystemAboutQuery(query) &&
+        !_isConflictExplanationQuery(query) &&
+        !_isAdminManagementQuery(query);
+    return asksFormat && asksOnlyFormatting;
+  }
+
+  Future<NLPResponse?> _tryFormattingFollowUp(
+    Session session, {
+    required String query,
+    String? sessionId,
+    required String preferredLanguage,
+  }) async {
+    if (!_isFormattingFollowUpQuery(query) || sessionId == null) {
+      return null;
+    }
+
+    final parsedSessionId = int.tryParse(sessionId.trim());
+    if (parsedSessionId == null) return null;
+
+    final messages = await _chatService.getMessages(
+      session,
+      sessionId: parsedSessionId,
+      limit: 20,
+    );
+    if (messages.isEmpty) return null;
+
+    final normalizedCurrent = _normalizeQuery(query);
+    final priorUserMessages = List<AiChatMessage>.from(messages)
+      ..removeWhere((message) {
+        return message.sender == 'user' &&
+            _normalizeQuery(message.message) == normalizedCurrent;
+      });
+
+    for (final message in priorUserMessages.reversed) {
+      if (message.sender != 'user') continue;
+      final priorQuery = _normalizeQuery(message.message);
+      if (_isStudentFeatureListQuery(priorQuery)) {
+        return NLPResponse(
+          text: _studentFeatureListResponse(
+            true,
+            preferredLanguage: preferredLanguage,
+          ),
+          intent: NLPIntent.unknown,
+        );
+      }
+      if (_isFacultyFeatureListQuery(priorQuery)) {
+        return NLPResponse(
+          text: _facultyFeatureListResponse(
+            true,
+            preferredLanguage: preferredLanguage,
+          ),
+          intent: NLPIntent.unknown,
+        );
+      }
+      if (_isAdminFeatureListQuery(priorQuery) ||
+          _isAdminManagementQuery(priorQuery)) {
+        return NLPResponse(
+          text: _adminFeatureListResponse(
+            true,
+            preferredLanguage: preferredLanguage,
+          ),
+          intent: NLPIntent.unknown,
+        );
+      }
+      if (_isSystemAboutQuery(priorQuery)) {
+        return NLPResponse(
+          text: _systemAboutResponse(
+            true,
+            preferredLanguage: preferredLanguage,
+          ),
+          intent: NLPIntent.unknown,
+        );
+      }
+      if (_isConflictExplanationQuery(priorQuery)) {
+        return NLPResponse(
+          text: _conflictExplanationResponse(
+            true,
+            preferredLanguage: preferredLanguage,
+          ),
+          intent: NLPIntent.conflict,
+        );
+      }
+    }
+
+    return null;
+  }
+
+  Future<List<Map<String, String>>> _loadConversationHistory(
+    Session session, {
+    String? sessionId,
+    required String currentQuery,
+  }) async {
+    final parsedSessionId = int.tryParse(sessionId?.trim() ?? '');
+    if (parsedSessionId == null) return const [];
+
+    final messages = await _chatService.getMessages(
+      session,
+      sessionId: parsedSessionId,
+      limit: 12,
+    );
+    if (messages.isEmpty) return const [];
+
+    final normalizedCurrent = _normalizeQuery(currentQuery.toLowerCase());
+    final historyMessages = List<AiChatMessage>.from(messages);
+    if (historyMessages.isNotEmpty) {
+      final last = historyMessages.last;
+      if (last.sender == 'user' &&
+          _normalizeQuery(last.message.toLowerCase()) == normalizedCurrent) {
+        historyMessages.removeLast();
+      }
+    }
+
+    return _chatService.toConversationHistory(historyMessages);
+  }
+
+  Future<String> _resolvePreferredLanguage(
+    Session session, {
+    required String query,
+    String? sessionId,
+  }) async {
+    if (_isBisayaLanguageRequest(query)) return 'bisaya';
+    if (_isTagalogLanguageRequest(query)) return 'tagalog';
+    if (_isEnglishLanguageRequest(query)) return 'english';
+    final dominant = _detectDominantLanguage(query);
+    if (dominant != null) return dominant;
+
+    final parsedSessionId = int.tryParse(sessionId?.trim() ?? '');
+    if (parsedSessionId == null) return 'english';
+
+    final messages = await _chatService.getMessages(
+      session,
+      sessionId: parsedSessionId,
+      limit: 20,
+    );
+    for (final message in messages.reversed) {
+      if (message.sender != 'user') continue;
+      final text = message.message;
+      if (_isBisayaLanguageRequest(text)) return 'bisaya';
+      if (_isTagalogLanguageRequest(text)) return 'tagalog';
+      if (_isEnglishLanguageRequest(text)) return 'english';
+      final historyDominant = _detectDominantLanguage(text);
+      if (historyDominant != null) return historyDominant;
+    }
+
+    return 'english';
+  }
+
+  String? _detectDominantLanguage(String query) {
+    final normalized = _normalizeQuery(query);
+    final tokens = normalized
+        .split(RegExp(r'\s+'))
+        .where((token) => token.isNotEmpty)
+        .toList();
+    if (tokens.isEmpty) return null;
+
+    const tagalogIndicators = {
+      'ano',
+      'anong',
+      'bakit',
+      'paano',
+      'bukas',
+      'ngayon',
+      'pwede',
+      'sagot',
+      'sagutin',
+      'filipino',
+      'tagalog',
+      'aking',
+      'iyong',
+      'klase',
+      'seksyon',
+    };
+    const bisayaIndicators = {
+      'unsa',
+      'ngano',
+      'giunsa',
+      'ugma',
+      'karon',
+      'pwede',
+      'pangutana',
+      'mangutana',
+      'tubag',
+      'tubaga',
+      'bisaya',
+      'cebuano',
+      'imong',
+      'nako',
+      'akong',
+      'klase',
+    };
+    const englishIndicators = {
+      'what',
+      'when',
+      'where',
+      'why',
+      'how',
+      'schedule',
+      'today',
+      'tomorrow',
+      'answer',
+      'english',
+      'class',
+      'subject',
+      'room',
+      'conflict',
+    };
+
+    var tagalogScore = 0;
+    var bisayaScore = 0;
+    var englishScore = 0;
+
+    for (final token in tokens) {
+      if (tagalogIndicators.contains(token)) tagalogScore++;
+      if (bisayaIndicators.contains(token)) bisayaScore++;
+      if (englishIndicators.contains(token)) englishScore++;
+    }
+
+    final hasTagalog = tagalogScore > 0;
+    final hasBisaya = bisayaScore > 0;
+    final hasEnglish = englishScore > 0;
+
+    if (!hasTagalog && !hasBisaya && !hasEnglish) return null;
+
+    if (tagalogScore >= bisayaScore && tagalogScore > englishScore) {
+      return 'tagalog';
+    }
+    if (bisayaScore > tagalogScore && bisayaScore >= englishScore) {
+      return 'bisaya';
+    }
+    if (englishScore > 0) {
+      return 'english';
+    }
+    if (hasTagalog) return 'tagalog';
+    if (hasBisaya) return 'bisaya';
+    return 'english';
+  }
+
+  bool _isUnsupportedLanguageRequest(String query) {
+    final lowered = query.toLowerCase();
+    final asksLanguageSwitch = RegExp(
+      r'\b(answer|reply|respond|speak|talk|tubag|tubaga|sagot|sagutin)\b',
+    ).hasMatch(lowered);
+    if (!asksLanguageSwitch) return false;
+
+    const unsupportedLanguages = [
+      'spanish',
+      'espanol',
+      'french',
+      'japanese',
+      'korean',
+      'mandarin',
+      'chinese',
+      'german',
+      'arabic',
+      'russian',
+      'ilonggo',
+      'hiligaynon',
+      'waray',
+      'kapampangan',
+    ];
+    return unsupportedLanguages.any(
+      (language) => RegExp(r'\b' + RegExp.escape(language) + r'\b').hasMatch(lowered),
+    );
+  }
+
+  String _textForLanguage(
+    String preferredLanguage, {
+    required String english,
+    String? tagalog,
+    String? bisaya,
+  }) {
+    switch (preferredLanguage) {
+      case 'tagalog':
+        return tagalog ?? english;
+      case 'bisaya':
+        return bisaya ?? english;
+      default:
+        return english;
+    }
+  }
+
+  String _languageLabel(String preferredLanguage) {
+    switch (preferredLanguage) {
+      case 'tagalog':
+        return 'Tagalog';
+      case 'bisaya':
+        return 'Bisaya';
+      default:
+        return 'English';
+    }
+  }
+
+  String _llmUnavailableMessage(String preferredLanguage) {
+    return _textForLanguage(
+      preferredLanguage,
+      english:
+          'I found matching schedule data, but the AI assistant is temporarily unavailable. Please try again shortly.',
+      tagalog:
+          'May nakita akong tugmang schedule data, pero pansamantalang hindi available ang AI assistant. Pakisubukang muli maya-maya.',
+      bisaya:
+          'Nakit-an nako ang nagtugma nga schedule data, pero temporaryong dili available ang AI assistant. Palihug sulayi pag-usab unya.',
+    );
+  }
+
+  String _loginRequiredMessage(String preferredLanguage, {required String purpose}) {
+    switch (purpose) {
+      case 'viewSchedule':
+        return _textForLanguage(
+          preferredLanguage,
+          english: 'You must be logged in to view your schedule.',
+          tagalog: 'Kailangan mong naka-log in para makita ang iyong schedule.',
+          bisaya: 'Kinahanglan naka-log in ka aron makita ang imong schedule.',
+        );
+      case 'checkConflicts':
+        return _textForLanguage(
+          preferredLanguage,
+          english: 'You must be logged in to check for conflicts.',
+          tagalog: 'Kailangan mong naka-log in para makita ang conflicts.',
+          bisaya: 'Kinahanglan naka-log in ka aron masusi ang conflicts.',
+        );
+      case 'checkFacultyLoad':
+        return _textForLanguage(
+          preferredLanguage,
+          english: 'You must be logged in to check faculty load information.',
+          tagalog:
+              'Kailangan mong naka-log in para masuri ang faculty load information.',
+          bisaya:
+              'Kinahanglan naka-log in ka aron masusi ang faculty load information.',
+        );
+      default:
+        return _textForLanguage(
+          preferredLanguage,
+          english: 'You must be logged in to continue.',
+          tagalog: 'Kailangan mong naka-log in para magpatuloy.',
+          bisaya: 'Kinahanglan naka-log in ka aron mopadayon.',
+        );
+    }
+  }
+
+  String _translateAccessMessage(String message, String preferredLanguage) {
+    if (message == _facultyAccessRestrictedMessage) {
+      return _textForLanguage(
+        preferredLanguage,
+        english: _facultyAccessRestrictedMessage,
+        tagalog:
+            'Access restricted. Ang faculty accounts ay maaari lamang tumingin ng personal schedule, teaching load, at assigned timetable information.',
+        bisaya:
+            'Access restricted. Ang faculty accounts mahimo lang motan-aw sa personal schedule, teaching load, ug assigned timetable information.',
+      );
+    }
+    if (message == _studentAccessRestrictedMessage) {
+      return _textForLanguage(
+        preferredLanguage,
+        english: _studentAccessRestrictedMessage,
+        tagalog:
+            'Access restricted. Personal academic schedule at assigned section timetable lamang ang maaari mong ma-access.',
+        bisaya:
+            'Access restricted. Personal academic schedule ug assigned section timetable ra ang imong ma-access.',
+      );
+    }
+    if (message == _studentSectionRestrictedMessage) {
+      return _textForLanguage(
+        preferredLanguage,
+        english: _studentSectionRestrictedMessage,
+        tagalog:
+            'Access restricted. Maaari lamang tingnan ng students ang sarili nilang assigned section schedule.',
+        bisaya:
+            'Access restricted. Ang students mahimo lang motan-aw sa ilang kaugalingong assigned section schedule.',
+      );
+    }
+    return _textForLanguage(
+      preferredLanguage,
+      english: message,
+      tagalog: message,
+      bisaya: message,
+    );
+  }
+
+  String _adminManagementResponse(
+    bool bulletFormat, {
+    required String preferredLanguage,
+  }) {
+    if (bulletFormat) {
+      return _adminFeatureListResponse(
+        true,
+        preferredLanguage: preferredLanguage,
+      );
+    }
+    return _textForLanguage(
+      preferredLanguage,
+      english:
+          'Administrators manage CITESched through these main modules: Dashboard, Faculty Management, Faculty Loading, Subject Management, Room Management, Timetable, Conflicts, and Reports. In practice, admins maintain faculty, subjects, rooms, and sections, assign schedules in Faculty Loading and Timetable, review detected conflicts in the Conflicts module, and monitor summaries and analytics in Reports.',
+      tagalog:
+          'Pinamamahalaan ng administrators ang CITESched sa pamamagitan ng mga pangunahing module na ito: Dashboard, Faculty Management, Faculty Loading, Subject Management, Room Management, Timetable, Conflicts, at Reports. Sa actual na gamit, mina-manage nila ang faculty, subjects, rooms, at sections, nag-a-assign ng schedules sa Faculty Loading at Timetable, nire-review ang detected conflicts sa Conflicts module, at mino-monitor ang summaries at analytics sa Reports.',
+      bisaya:
+          'Gidumala sa administrators ang CITESched pinaagi niining mga nag-unang modules: Dashboard, Faculty Management, Faculty Loading, Subject Management, Room Management, Timetable, Conflicts, ug Reports. Sa aktwal nga gamit, sila ang nagdumala sa faculty, subjects, rooms, ug sections, naga-assign sa schedules sa Faculty Loading ug Timetable, naga-review sa detected conflicts sa Conflicts module, ug naga-monitor sa summaries ug analytics sa Reports.',
+    );
+  }
+
+  String _adminFeatureListResponse(
+    bool bulletFormat, {
+    required String preferredLanguage,
+  }) {
+    if (!bulletFormat) {
+      return _textForLanguage(
+        preferredLanguage,
+        english:
+            'The admin side of CITESched includes these modules: Dashboard, Faculty Management, Faculty Loading, Subject Management, Room Management, Timetable, Conflicts, and Reports.',
+        tagalog:
+            'Kasama sa admin side ng CITESched ang mga module na ito: Dashboard, Faculty Management, Faculty Loading, Subject Management, Room Management, Timetable, Conflicts, at Reports.',
+        bisaya:
+            'Lakip sa admin side sa CITESched ang mga module nga kini: Dashboard, Faculty Management, Faculty Loading, Subject Management, Room Management, Timetable, Conflicts, ug Reports.',
+      );
+    }
+    return _textForLanguage(
+      preferredLanguage,
+      english: '''The admin side of CITESched includes:
+* Dashboard
+* Faculty Management
+* Faculty Loading
+* Subject Management
+* Room Management
+* Timetable
+* Conflicts
+* Reports''',
+      tagalog: '''Kasama sa admin side ng CITESched ang:
+* Dashboard
+* Faculty Management
+* Faculty Loading
+* Subject Management
+* Room Management
+* Timetable
+* Conflicts
+* Reports''',
+      bisaya: '''Lakip sa admin side sa CITESched ang:
+* Dashboard
+* Faculty Management
+* Faculty Loading
+* Subject Management
+* Room Management
+* Timetable
+* Conflicts
+* Reports''',
+    );
+  }
+
+  String _studentFeatureListResponse(
+    bool bulletFormat, {
+    required String preferredLanguage,
+  }) {
+    if (!bulletFormat) {
+      return _textForLanguage(
+        preferredLanguage,
+        english:
+            'The student dashboard includes assistant history, a My Classes Schedule area, PDF and DOCX schedule export, a My Weekly Schedule calendar view, and a read-only subject list that shows subject, section, timeslot, room, and faculty details. It also includes student account actions such as password reset and logout.',
+        tagalog:
+            'Kasama sa student dashboard ang assistant history, My Classes Schedule area, PDF at DOCX schedule export, My Weekly Schedule calendar view, at read-only subject list na nagpapakita ng subject, section, timeslot, room, at faculty details. Kasama rin dito ang password reset at logout actions.',
+        bisaya:
+            'Lakip sa student dashboard ang assistant history, My Classes Schedule area, PDF ug DOCX schedule export, My Weekly Schedule calendar view, ug read-only subject list nga nagpakita sa subject, section, timeslot, room, ug faculty details. Lakip usab ang password reset ug logout actions.',
+      );
+    }
+    return _textForLanguage(
+      preferredLanguage,
+      english: '''The student dashboard includes:
+* Assistant History
+* My Classes Schedule
+* Export PDF for the student schedule
+* Export DOCX for the student schedule
+* My Weekly Schedule calendar view
+* Subjects (read-only) list with subject, section, day/time, room, and faculty details
+* Password reset action
+* Logout action''',
+      tagalog: '''Kasama sa student dashboard ang:
+* Assistant History
+* My Classes Schedule
+* Export PDF para sa student schedule
+* Export DOCX para sa student schedule
+* My Weekly Schedule calendar view
+* Subjects (read-only) list na may subject, section, day/time, room, at faculty details
+* Password reset action
+* Logout action''',
+      bisaya: '''Lakip sa student dashboard ang:
+* Assistant History
+* My Classes Schedule
+* Export PDF para sa student schedule
+* Export DOCX para sa student schedule
+* My Weekly Schedule calendar view
+* Subjects (read-only) list nga adunay subject, section, day/time, room, ug faculty details
+* Password reset action
+* Logout action''',
+    );
+  }
+
+  String _facultyFeatureListResponse(
+    bool bulletFormat, {
+    required String preferredLanguage,
+  }) {
+    if (!bulletFormat) {
+      return _textForLanguage(
+        preferredLanguage,
+        english:
+            'The faculty dashboard includes load and availability metrics such as Assigned Units, Max Load, Outside Preferred, Assigned Hours, and Vacant Hours. It also shows free slot summaries, assistant history, a Weekly Calendar view, a Schedule Table tab, and PDF or DOCX schedule export, along with faculty account actions like password reset and logout.',
+        tagalog:
+            'Kasama sa faculty dashboard ang load at availability metrics tulad ng Assigned Units, Max Load, Outside Preferred, Assigned Hours, at Vacant Hours. Ipinapakita rin nito ang free slot summaries, assistant history, Weekly Calendar view, Schedule Table tab, at PDF o DOCX schedule export, kasama ang password reset at logout actions.',
+        bisaya:
+            'Lakip sa faculty dashboard ang load ug availability metrics sama sa Assigned Units, Max Load, Outside Preferred, Assigned Hours, ug Vacant Hours. Gipakita usab niini ang free slot summaries, assistant history, Weekly Calendar view, Schedule Table tab, ug PDF o DOCX schedule export, uban sa password reset ug logout actions.',
+      );
+    }
+    return _textForLanguage(
+      preferredLanguage,
+      english: '''The faculty dashboard includes:
+* Assigned Units metric
+* Max Load metric
+* Outside Preferred metric
+* Assigned Hours metric
+* Vacant Hours metric
+* Free Slots summary
+* Preferred availability monitoring
+* Assistant History
+* Weekly Calendar view
+* Schedule Table view
+* Export PDF for the faculty schedule
+* Export DOCX for the faculty schedule
+* Password reset action
+* Logout action''',
+      tagalog: '''Kasama sa faculty dashboard ang:
+* Assigned Units metric
+* Max Load metric
+* Outside Preferred metric
+* Assigned Hours metric
+* Vacant Hours metric
+* Free Slots summary
+* Preferred availability monitoring
+* Assistant History
+* Weekly Calendar view
+* Schedule Table view
+* Export PDF para sa faculty schedule
+* Export DOCX para sa faculty schedule
+* Password reset action
+* Logout action''',
+      bisaya: '''Lakip sa faculty dashboard ang:
+* Assigned Units metric
+* Max Load metric
+* Outside Preferred metric
+* Assigned Hours metric
+* Vacant Hours metric
+* Free Slots summary
+* Preferred availability monitoring
+* Assistant History
+* Weekly Calendar view
+* Schedule Table view
+* Export PDF para sa faculty schedule
+* Export DOCX para sa faculty schedule
+* Password reset action
+* Logout action''',
+    );
+  }
+
+  String _adminMissingModuleResponse(
+    bool bulletFormat, {
+    required String preferredLanguage,
+  }) {
+    if (bulletFormat) {
+      return _textForLanguage(
+        preferredLanguage,
+        english: '''Those admin modules are already included:
+* Timetable for schedule viewing and filtering
+* Conflicts for detected scheduling issues
+* Reports for administrative summaries such as conflict, faculty load, room utilization, and schedule overview reports''',
+        tagalog: '''Kasama na ang mga admin modules na ito:
+* Timetable para sa schedule viewing at filtering
+* Conflicts para sa detected scheduling issues
+* Reports para sa administrative summaries tulad ng conflict, faculty load, room utilization, at schedule overview reports''',
+        bisaya: '''Apil na ang mga admin modules nga kini:
+* Timetable para sa schedule viewing ug filtering
+* Conflicts para sa detected scheduling issues
+* Reports para sa administrative summaries sama sa conflict, faculty load, room utilization, ug schedule overview reports''',
+      );
+    }
+    return _textForLanguage(
+      preferredLanguage,
+      english:
+          'Those modules are already included on the admin side. CITESched has a Timetable module for schedule viewing and filtering, a Conflicts module for detected scheduling issues, and a Reports module for administrative summaries such as conflict, faculty load, room utilization, and schedule overview reports.',
+      tagalog:
+          'Kasama na ang mga module na iyon sa admin side. May Timetable module ang CITESched para sa schedule viewing at filtering, Conflicts module para sa detected scheduling issues, at Reports module para sa administrative summaries tulad ng conflict, faculty load, room utilization, at schedule overview reports.',
+      bisaya:
+          'Apil na daan kana nga mga module sa admin side. Adunay Timetable module ang CITESched para sa schedule viewing ug filtering, Conflicts module para sa detected scheduling issues, ug Reports module para sa administrative summaries sama sa conflict, faculty load, room utilization, ug schedule overview reports.',
+    );
+  }
+
+  String _systemAboutResponse(
+    bool bulletFormat, {
+    required String preferredLanguage,
+  }) {
+    if (bulletFormat) {
+      return _textForLanguage(
+        preferredLanguage,
+        english: '''CITESched is an academic scheduling system for Jose Maria College Foundation Inc. It covers:
+* Faculty management
+* Student and section management
+* Subject and room management
+* Timeslot and class schedule management
+* Timetable views
+* Conflict checking
+* Verified schedule-based AI assistance''',
+        tagalog: '''Ang CITESched ay academic scheduling system para sa Jose Maria College Foundation Inc. Saklaw nito ang:
+* Faculty management
+* Student at section management
+* Subject at room management
+* Timeslot at class schedule management
+* Timetable views
+* Conflict checking
+* Verified schedule-based AI assistance''',
+        bisaya: '''Ang CITESched usa ka academic scheduling system para sa Jose Maria College Foundation Inc. Naglangkob kini sa:
+* Faculty management
+* Student ug section management
+* Subject ug room management
+* Timeslot ug class schedule management
+* Timetable views
+* Conflict checking
+* Verified schedule-based AI assistance''',
+      );
+    }
+    return _textForLanguage(
+      preferredLanguage,
+      english:
+          'CITESched is an academic scheduling system for Jose Maria College Foundation Inc. It manages faculty, students, sections, subjects, rooms, timeslots, class schedules, timetable views, and conflict checking. I can answer questions using verified CITESched schedule data and help you inspect schedules, room use, faculty loads, and timetable conflicts.',
+      tagalog:
+          'Ang CITESched ay academic scheduling system para sa Jose Maria College Foundation Inc. Pinamamahalaan nito ang faculty, students, sections, subjects, rooms, timeslots, class schedules, timetable views, at conflict checking. Makakasagot ako gamit ang verified CITESched schedule data at makakatulong sa pagtingin ng schedules, room use, faculty loads, at timetable conflicts.',
+      bisaya:
+          'Ang CITESched usa ka academic scheduling system para sa Jose Maria College Foundation Inc. Gidumala niini ang faculty, students, sections, subjects, rooms, timeslots, class schedules, timetable views, ug conflict checking. Makatubag ko gamit ang verified CITESched schedule data ug makatabang sa pagtan-aw sa schedules, room use, faculty loads, ug timetable conflicts.',
+    );
+  }
+
+  String _conflictExplanationResponse(
+    bool bulletFormat, {
+    required String preferredLanguage,
+  }) {
+    if (bulletFormat) {
+      return _textForLanguage(
+        preferredLanguage,
+        english: '''When a schedule conflict happens in CITESched:
+* The system checks overlapping timeslots for the same room
+* It checks overlapping timeslots for the same faculty member
+* It checks overlapping timeslots for the same section
+* Administrators review conflicts in the Conflict module or Timetable
+* Admins resolve them by adjusting room, faculty, section, or timeslot assignments''',
+        tagalog: '''Kapag may schedule conflict sa CITESched:
+* Tinitingnan ng system ang overlapping timeslots para sa parehong room
+* Tinitingnan nito ang overlapping timeslots para sa parehong faculty member
+* Tinitingnan nito ang overlapping timeslots para sa parehong section
+* Nirereview ng administrators ang conflicts sa Conflict module o Timetable
+* Inaayos ng admins ang room, faculty, section, o timeslot assignments para maalis ang overlap''',
+        bisaya: '''Kung adunay schedule conflict sa CITESched:
+* Gisusi sa system ang overlapping timeslots para sa parehas nga room
+* Gisusi niini ang overlapping timeslots para sa parehas nga faculty member
+* Gisusi niini ang overlapping timeslots para sa parehas nga section
+* Gi-review sa administrators ang conflicts sa Conflict module o Timetable
+* Giayo sa admins ang room, faculty, section, o timeslot assignments aron mawagtang ang overlap''',
+      );
+    }
+    return _textForLanguage(
+      preferredLanguage,
+      english:
+          'When a schedule conflict happens in CITESched, it is handled by checking overlapping timeslots for the same room, faculty member, or section. Administrators can review those conflicts in the Conflict Module or Timetable tools, then adjust room assignments, faculty assignments, sections, or timeslots to remove the overlap.',
+      tagalog:
+          'Kapag may schedule conflict sa CITESched, hina-handle ito sa pamamagitan ng pag-check ng overlapping timeslots para sa parehong room, faculty member, o section. Maaaring i-review ng administrators ang mga conflict na iyon sa Conflict Module o Timetable tools, pagkatapos ay ayusin ang room assignments, faculty assignments, sections, o timeslots para maalis ang overlap.',
+      bisaya:
+          'Kung adunay schedule conflict sa CITESched, gi-handle kini pinaagi sa pag-check sa overlapping timeslots para sa parehas nga room, faculty member, o section. Mahimo kining i-review sa administrators sa Conflict Module o Timetable tools, unya usbon ang room assignments, faculty assignments, sections, o timeslots aron mawala ang overlap.',
+    );
+  }
+
+  Future<NLPResponse?> _trySimpleRoomListQuery(
+    Session session,
+    String query,
+    List<String> scopes,
+  ) async {
+    final asksForRooms = _containsKeywordFuzzy(query, [
+      'room',
+      'rooms',
+      'laboratory',
+      'lab',
+    ]);
+    final asksToShow = _containsKeywordFuzzy(query, [
+      'show',
+      'list',
+      'display',
+      'view',
+    ]);
+
+    if (!asksForRooms || !asksToShow) return null;
+    if (_matchRoomByName(query, await Room.db.find(session)) != null) return null;
+    if (_extractTimeRange(query) != null) return null;
+    if (_extractDayOfWeek(query) != null) return null;
+
+    final rooms = await Room.db.find(
+      session,
+      where: (t) => t.isActive.equals(true),
+    );
+    if (rooms.isEmpty) {
+      return NLPResponse(
+        text: 'I could not find any active rooms in CITESched.',
+        intent: NLPIntent.roomStatus,
+      );
+    }
+
+    final roomNames = rooms.map((room) => room.name).toList();
+    return NLPResponse(
+      text:
+          'Active rooms: ${roomNames.take(12).join(', ')}${roomNames.length > 12 ? '...' : ''}',
+      intent: NLPIntent.roomStatus,
+      dataJson: jsonEncode({
+        'roomCount': rooms.length,
+        'rooms': roomNames,
+      }),
+    );
+  }
+
+  Future<NLPResponse?> _trySimpleTimetableQuery(
+    Session session,
+    String query,
+    String? userId,
+    List<String> scopes,
+  ) async {
+    final asksTimetable = _containsKeywordFuzzy(query, [
+      'timetable',
+      'schedule',
+      'schedules',
+    ]);
+    final asksToShow = _containsKeywordFuzzy(query, [
+      'show',
+      'view',
+      'display',
+      'list',
+    ]);
+
+    if (!asksTimetable || !asksToShow) return null;
+    if (_extractSectionFromQuery(query) != null) return null;
+    if (_hasFacultyReference(query)) return null;
+    if (_extractDayOfWeek(query) != null) return null;
+    if (_extractTimeRange(query) != null) return null;
+    if (_containsKeywordFuzzy(query, ['room', 'rooms'])) return null;
+
+    final isAdmin = scopes.contains('admin');
+    if (isAdmin) {
+      final schedules = await Schedule.db.find(
+        session,
+        include: Schedule.include(
+          subject: Subject.include(),
+          faculty: Faculty.include(),
+          room: Room.include(),
+          timeslot: Timeslot.include(),
+          sectionRef: Section.include(),
+        ),
+      );
+      return NLPResponse(
+        text:
+            'The timetable currently has ${schedules.length} scheduled class entries. I loaded the live timetable so you can view it in table or calendar format.',
+        intent: NLPIntent.schedule,
+        schedules: schedules,
+        dataJson: jsonEncode({
+          'contextType': 'timetable',
+          'scheduleCount': schedules.length,
+        }),
+      );
+    }
+
+    if (userId == null) return null;
+    return _handleMyScheduleQuery(session, userId, scopes, null);
   }
 
   Future<NLPResponse?> _tryRoomTypeQuestion(
@@ -581,9 +2399,14 @@ class NLPService {
   }
 
   /// Returns standard unsupported response
-  NLPResponse _unsupportedResponse() {
+  NLPResponse _unsupportedResponse(String preferredLanguage) {
     return NLPResponse(
-      text: "This query is not supported by the system.",
+      text: _textForLanguage(
+        preferredLanguage,
+        english: 'This query is not supported by the system.',
+        tagalog: 'Hindi sinusuportahan ng system ang query na ito.',
+        bisaya: 'Dili suportado sa systema kining querya.',
+      ),
       intent: NLPIntent.unknown,
     );
   }
@@ -623,6 +2446,7 @@ class NLPService {
   }
 
   bool _hasConflictIntent(String query) {
+    if (_isConflictExplanationQuery(query)) return false;
     return _containsKeywordFuzzy(query, ['conflict', 'issue', 'overlap']);
   }
 
@@ -1223,6 +3047,14 @@ class NLPService {
       );
       if (facultySchedules != null) return facultySchedules;
 
+      if (_hasFacultyReference(query)) {
+        return NLPResponse(
+          text:
+              "I couldn't find a faculty member matching that name. Try using the faculty's recorded name in CITESched.",
+          intent: NLPIntent.schedule,
+        );
+      }
+
       // Extract section (e.g., IT 3A / 3A)
       final extractedSection = _extractSectionFromQuery(query);
       if (extractedSection != null) {
@@ -1441,21 +3273,6 @@ class NLPService {
           intent: NLPIntent.unknown,
         );
       }
-
-      final currentFaculty = await _findCurrentFaculty(session, userId);
-      if (currentFaculty == null || currentFaculty.id != matchedFaculty.id) {
-        return NLPResponse(
-          text:
-              "You can only view your own schedule. Contact administrators to see other faculty schedules.",
-          intent: NLPIntent.schedule,
-        );
-      }
-    } else if (!isAdmin && !isFaculty) {
-      return NLPResponse(
-        text:
-            "Faculty schedules are only available to faculty members and administrators.",
-        intent: NLPIntent.schedule,
-      );
     }
 
     final schedules = await Schedule.db.find(
@@ -1498,26 +3315,178 @@ class NLPService {
   }
 
   Faculty? _matchFacultyByName(String query, List<Faculty> facultyList) {
-    var cleanedQuery = query.toLowerCase();
-    cleanedQuery = cleanedQuery.replaceAll(
-      RegExp(r'\b(sir|maam|mr|ms|mrs|prof|professor|dr)\b'),
-      '',
-    );
+    final cleanedQuery = _normalizeFacultySearchText(query);
+    if (cleanedQuery.isEmpty) return null;
+    final queryTokens = _extractFacultySearchTokens(cleanedQuery);
+    final extractedCandidate = _extractFacultyNameCandidate(cleanedQuery);
+    final candidateTokens = extractedCandidate == null
+        ? const <String>{}
+        : _extractFacultySearchTokens(extractedCandidate);
+
+    Faculty? bestMatch;
+    var bestScore = 0;
 
     for (var f in facultyList) {
-      final name = f.name.toLowerCase();
-      if (cleanedQuery.contains(name)) return f;
+      final normalizedName = _normalizeFacultySearchText(f.name);
+      if (normalizedName.isEmpty) continue;
+      final nameTokens = _extractFacultySearchTokens(normalizedName);
 
-      final tokens = name.split(RegExp(r'\s+')).where((t) => t.length >= 3);
-      for (var token in tokens) {
-        final tokenRegex = RegExp(r'\b' + RegExp.escape(token) + r'\b');
-        if (tokenRegex.hasMatch(cleanedQuery)) {
+      if (cleanedQuery.contains(normalizedName)) return f;
+      if (extractedCandidate != null &&
+          (extractedCandidate == normalizedName ||
+              normalizedName.contains(extractedCandidate) ||
+              extractedCandidate.contains(normalizedName))) {
+        return f;
+      }
+
+      if (queryTokens.isEmpty || nameTokens.isEmpty) continue;
+
+      final containsAllNameTokens = nameTokens.every(queryTokens.contains);
+      final containsAllQueryTokens = queryTokens.every(nameTokens.contains);
+      if (containsAllNameTokens || containsAllQueryTokens) {
+        return f;
+      }
+
+      if (candidateTokens.isNotEmpty) {
+        final candidateContainsAll = candidateTokens.every(nameTokens.contains);
+        final nameContainsCandidate = nameTokens.every(candidateTokens.contains);
+        if (candidateContainsAll || nameContainsCandidate) {
           return f;
         }
+      }
+
+      final overlap = queryTokens.intersection(nameTokens).length;
+      final candidateOverlap = candidateTokens.intersection(nameTokens).length;
+      final score =
+          overlap * 10 +
+          candidateOverlap * 14 +
+          (_tokenPrefixMatchScore(queryTokens, nameTokens)) +
+          (_tokenPrefixMatchScore(nameTokens, queryTokens)) +
+          (_tokenPrefixMatchScore(candidateTokens, nameTokens) * 2);
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = f;
+      }
+    }
+
+    return bestScore >= 10 ? bestMatch : null;
+  }
+
+  String _normalizeFacultySearchText(String text) {
+    final lowered = text.toLowerCase().replaceAll(
+      RegExp(r'\b(sir|maam|mam|mr|ms|mrs|prof|professor|dr)\b'),
+      ' ',
+    );
+    return lowered
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  Set<String> _extractFacultySearchTokens(String text) {
+    const ignoredTokens = {
+      'what',
+      'is',
+      'the',
+      'schedule',
+      'of',
+      'for',
+      'show',
+      'me',
+      'please',
+      'timetable',
+      'class',
+      'classes',
+      'teacher',
+      'faculty',
+      'instructor',
+      'professor',
+      'prof',
+    };
+    return text
+        .split(RegExp(r'\s+'))
+        .map((token) => token.trim())
+        .where((token) => token.length >= 3 && !ignoredTokens.contains(token))
+        .toSet();
+  }
+
+  String? _extractFacultyNameCandidate(String text) {
+    final patterns = [
+      RegExp(r'(?:schedule|timetable|class|classes)\s+of\s+(.+)$'),
+      RegExp(r'(?:for|of)\s+(?:sir|maam|mam|mr|ms|mrs|prof|professor|dr)?\s*(.+)$'),
+      RegExp(r'(?:sir|maam|mam|mr|ms|mrs|prof|professor|dr)\s+(.+)$'),
+    ];
+
+    for (final pattern in patterns) {
+      final match = pattern.firstMatch(text);
+      final candidate = match?.group(1)?.trim();
+      if (candidate != null && candidate.isNotEmpty) {
+        return _normalizeFacultySearchText(candidate);
       }
     }
 
     return null;
+  }
+
+  int _tokenPrefixMatchScore(Set<String> left, Set<String> right) {
+    var score = 0;
+    for (final a in left) {
+      for (final b in right) {
+        if (a == b) continue;
+        if (a.startsWith(b) || b.startsWith(a)) {
+          score += 2;
+        }
+      }
+    }
+    return score;
+  }
+
+  bool _hasFacultyReference(String query) {
+    if (_containsKeywordFuzzy(
+      query,
+      ['faculty', 'teacher', 'instructor', 'professor', 'prof', 'sir', 'maam'],
+    )) {
+      return true;
+    }
+
+    return RegExp(r'\b(schedule|class|classes|timetable)\s+of\s+[a-z]{3,}')
+        .hasMatch(query);
+  }
+
+  bool _shouldPreferGroundedResponse(
+    String query,
+    DayOfWeek? requestedDay,
+    List<DayOfWeek> requestedDays,
+    List<DayOfWeek> relativeDays,
+  ) {
+    if (_hasFacultyReference(query)) return true;
+    if (_extractSectionFromQuery(query) != null) return true;
+    if (_containsKeywordFuzzy(query, ['subject', 'subjects'])) return true;
+    if (_containsKeywordFuzzy(query, ['faculty', 'teacher', 'instructor'])) {
+      return true;
+    }
+    if (_containsKeywordFuzzy(query, ['room', 'rooms', 'laboratory', 'lab'])) {
+      return true;
+    }
+    if (_containsKeywordFuzzy(query, ['room']) &&
+        (_hasScheduleIntent(query) ||
+            requestedDay != null ||
+            requestedDays.isNotEmpty ||
+            relativeDays.isNotEmpty)) {
+      return true;
+    }
+    if (_containsKeywordFuzzy(query, ['who', 'which', 'what']) &&
+        (_hasScheduleIntent(query) ||
+            requestedDay != null ||
+            relativeDays.isNotEmpty)) {
+      return true;
+    }
+    if (_hasScheduleIntent(query) &&
+        !_containsKeywordFuzzy(query, ['my', 'mine']) &&
+        !_containsKeywordFuzzy(query, ['generate', 'optimize', 'resolve'])) {
+      return true;
+    }
+    return false;
   }
 
   List<DayOfWeek> _extractDaysOfWeek(String query) {
@@ -1543,11 +3512,26 @@ class NLPService {
     return matches.toList()..sort((a, b) => a.index.compareTo(b.index));
   }
 
+  DayOfWeek? _extractDayOfWeek(String query) {
+    final days = _extractDaysOfWeek(query);
+    if (days.length == 1) return days.first;
+    return null;
+  }
+
   String? _extractSectionFromQuery(String query) {
-    final match = RegExp(
-      r'\b([a-zA-Z]{1,4})?\s?\d[a-zA-Z]\b',
-    ).firstMatch(query.toUpperCase());
-    return match?.group(0);
+    final normalized = query.toUpperCase();
+
+    final explicitSectionMatch = RegExp(
+      r'\bSECTION\s+([A-Z]{1,4}\s*)?\d[A-Z]\b',
+    ).firstMatch(normalized);
+    if (explicitSectionMatch != null) {
+      return explicitSectionMatch.group(0)?.replaceFirst('SECTION', '').trim();
+    }
+
+    final compactMatch = RegExp(
+      r'\b([A-Z]{1,4}\s*)?\d[A-Z]\b',
+    ).firstMatch(normalized);
+    return compactMatch?.group(0)?.trim();
   }
 
   List<String> _buildSectionCandidates(String sectionInput) {
@@ -1658,8 +3642,48 @@ class NLPService {
   }
 
   String _normalizeQuery(String query) {
-    final cleaned = query.replaceAll(RegExp(r'[^a-z0-9\s]'), ' ');
-    return cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
+    var normalized = query.toLowerCase();
+    normalized = normalized.replaceAll(RegExp(r'[^a-z0-9\s]'), ' ');
+    normalized = normalized.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    normalized = _replaceWholePhrases(
+      normalized,
+      _multilingualPhraseAliases,
+    );
+    normalized = _replaceWholePhrases(
+      normalized,
+      _multilingualWordAliases,
+    );
+
+    normalized = _replaceWholePhrases(normalized, const [
+      (from: 'lunes', to: 'monday'),
+      (from: 'lunis', to: 'monday'),
+      (from: 'miyerkules', to: 'wednesday'),
+      (from: 'merkules', to: 'wednesday'),
+      (from: 'huwebes', to: 'thursday'),
+      (from: 'jueves', to: 'thursday'),
+      (from: 'biyernes', to: 'friday'),
+      (from: 'viernes', to: 'friday'),
+      (from: 'sabado', to: 'saturday'),
+      (from: 'linggo', to: 'sunday'),
+      (from: 'domingo', to: 'sunday'),
+    ]);
+
+    return normalized.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  String _replaceWholePhrases(
+    String input,
+    List<({String from, String to})> aliases,
+  ) {
+    var output = input;
+    for (final alias in aliases) {
+      output = output.replaceAllMapped(
+        RegExp(r'\b' + RegExp.escape(alias.from) + r'\b'),
+        (_) => alias.to,
+      );
+    }
+    return output;
   }
 
   bool _containsKeyword(String query, List<String> keywords) {
@@ -2088,6 +4112,16 @@ class NLPService {
       schedules = schedules
           .where((s) => s.facultyId == matchedFaculty.id)
           .toList();
+      if (schedules.isEmpty) {
+        return NLPResponse(
+          text: _buildScheduleCountMessage(
+            0,
+            "I couldn't find any classes for ${matchedFaculty.name}",
+            day,
+          ),
+          intent: NLPIntent.schedule,
+        );
+      }
     }
     if (section != null) {
       final requestedCandidates = _buildSectionCandidates(section);

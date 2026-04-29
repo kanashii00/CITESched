@@ -32,7 +32,10 @@ final chatHistoryProvider = FutureProvider.family<List<ChatHistory>, int>((
   limit,
 ) async {
   final activeRole = _activeRole(ref);
-  final items = await client.chatHistory.getMyHistory(limit: 200);
+  final items = await client.chatHistory.getMyHistory(
+    role: activeRole,
+    limit: 200,
+  );
   final filtered = items
       .where(
         (entry) => _matchesActiveRole(
@@ -51,7 +54,10 @@ final chatHistorySessionsProvider =
   limit,
 ) async {
   final activeRole = _activeRole(ref);
-  final sessions = await client.chatHistory.getMySessions(limit: 200);
+  final sessions = await client.chatHistory.getMySessions(
+    role: activeRole,
+    limit: 200,
+  );
   final filtered = sessions
       .where(
         (entry) => _matchesSessionRole(
@@ -72,6 +78,7 @@ final chatHistorySessionProvider =
   final activeRole = _activeRole(ref);
   final items = await client.chatHistory.getSessionHistory(
     sessionId: sessionId,
+    role: activeRole,
     limit: 200,
   );
   return items
@@ -88,5 +95,8 @@ final chatHistoryDeleteProvider = FutureProvider.family<bool, String>((
   ref,
   sessionId,
 ) async {
-  return await client.chatHistory.deleteSession(sessionId: sessionId);
+  return await client.nLP.deleteChatSession(
+    sessionId: sessionId,
+    role: _activeRole(ref),
+  );
 });

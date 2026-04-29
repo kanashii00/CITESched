@@ -1,0 +1,12 @@
+class: AiChatSession
+table: chat_sessions
+fields:
+  userId: String
+  roleType: String
+  title: String
+  createdAt: DateTime
+  updatedAt: DateTime
+
+indexes:
+  chat_sessions_user_role_updated_idx:
+    fields: userId, roleType, updatedAt

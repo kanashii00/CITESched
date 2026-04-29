@@ -1,0 +1,167 @@
+{
+    "__className__":  "serverpod.DatabaseMigration",
+    "actions":  [
+                    {
+                        "__className__":  "serverpod.DatabaseMigrationAction",
+                        "type":  "createTable",
+                        "createTable":  {
+                                            "__className__":  "serverpod.TableDefinition",
+                                            "name":  "chat_sessions",
+                                            "dartName":  "AiChatSession",
+                                            "module":  "citesched",
+                                            "schema":  "public",
+                                            "columns":  [
+                                                            {
+                                                                "__className__":  "serverpod.ColumnDefinition",
+                                                                "name":  "id",
+                                                                "columnType":  6,
+                                                                "isNullable":  false,
+                                                                "dartType":  "int?",
+                                                                "columnDefault":  "nextval(\u0027chat_sessions_id_seq\u0027::regclass)"
+                                                            },
+                                                            {
+                                                                "__className__":  "serverpod.ColumnDefinition",
+                                                                "name":  "userId",
+                                                                "columnType":  0,
+                                                                "isNullable":  false,
+                                                                "dartType":  "String"
+                                                            },
+                                                            {
+                                                                "__className__":  "serverpod.ColumnDefinition",
+                                                                "name":  "roleType",
+                                                                "columnType":  0,
+                                                                "isNullable":  false,
+                                                                "dartType":  "String"
+                                                            },
+                                                            {
+                                                                "__className__":  "serverpod.ColumnDefinition",
+                                                                "name":  "title",
+                                                                "columnType":  0,
+                                                                "isNullable":  false,
+                                                                "dartType":  "String"
+                                                            },
+                                                            {
+                                                                "__className__":  "serverpod.ColumnDefinition",
+                                                                "name":  "createdAt",
+                                                                "columnType":  4,
+                                                                "isNullable":  false,
+                                                                "dartType":  "DateTime"
+                                                            },
+                                                            {
+                                                                "__className__":  "serverpod.ColumnDefinition",
+                                                                "name":  "updatedAt",
+                                                                "columnType":  4,
+                                                                "isNullable":  false,
+                                                                "dartType":  "DateTime"
+                                                            }
+                                                        ],
+                                            "foreignKeys":  [
+
+                                                            ],
+                                            "indexes":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexDefinition",
+                                                                "indexName":  "chat_sessions_pkey",
+                                                                "elements":  [
+                                                                                 {
+                                                                                     "__className__":  "serverpod.IndexElementDefinition",
+                                                                                     "type":  0,
+                                                                                     "definition":  "id"
+                                                                                 }
+                                                                             ],
+                                                                "type":  "btree",
+                                                                "isUnique":  true,
+                                                                "isPrimary":  true
+                                                            }
+                                                        ],
+                                            "managed":  true
+                                        }
+                    },
+                    {
+                        "__className__":  "serverpod.DatabaseMigrationAction",
+                        "type":  "createTable",
+                        "createTable":  {
+                                            "__className__":  "serverpod.TableDefinition",
+                                            "name":  "chat_messages",
+                                            "dartName":  "AiChatMessage",
+                                            "module":  "citesched",
+                                            "schema":  "public",
+                                            "columns":  [
+                                                            {
+                                                                "__className__":  "serverpod.ColumnDefinition",
+                                                                "name":  "id",
+                                                                "columnType":  6,
+                                                                "isNullable":  false,
+                                                                "dartType":  "int?",
+                                                                "columnDefault":  "nextval(\u0027chat_messages_id_seq\u0027::regclass)"
+                                                            },
+                                                            {
+                                                                "__className__":  "serverpod.ColumnDefinition",
+                                                                "name":  "sessionRecordId",
+                                                                "columnType":  6,
+                                                                "isNullable":  false,
+                                                                "dartType":  "int"
+                                                            },
+                                                            {
+                                                                "__className__":  "serverpod.ColumnDefinition",
+                                                                "name":  "sender",
+                                                                "columnType":  0,
+                                                                "isNullable":  false,
+                                                                "dartType":  "String"
+                                                            },
+                                                            {
+                                                                "__className__":  "serverpod.ColumnDefinition",
+                                                                "name":  "message",
+                                                                "columnType":  0,
+                                                                "isNullable":  false,
+                                                                "dartType":  "String"
+                                                            },
+                                                            {
+                                                                "__className__":  "serverpod.ColumnDefinition",
+                                                                "name":  "timestamp",
+                                                                "columnType":  4,
+                                                                "isNullable":  false,
+                                                                "dartType":  "DateTime"
+                                                            }
+                                                        ],
+                                            "foreignKeys":  [
+                                                                {
+                                                                    "__className__":  "serverpod.ForeignKeyDefinition",
+                                                                    "constraintName":  "chat_messages_fk_0",
+                                                                    "columns":  [
+                                                                                    "sessionRecordId"
+                                                                                ],
+                                                                    "referenceTable":  "chat_sessions",
+                                                                    "referenceTableSchema":  "public",
+                                                                    "referenceColumns":  [
+                                                                                             "id"
+                                                                                         ],
+                                                                    "onUpdate":  3,
+                                                                    "onDelete":  3
+                                                                }
+                                                            ],
+                                            "indexes":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexDefinition",
+                                                                "indexName":  "chat_messages_pkey",
+                                                                "elements":  [
+                                                                                 {
+                                                                                     "__className__":  "serverpod.IndexElementDefinition",
+                                                                                     "type":  0,
+                                                                                     "definition":  "id"
+                                                                                 }
+                                                                             ],
+                                                                "type":  "btree",
+                                                                "isUnique":  true,
+                                                                "isPrimary":  true
+                                                            }
+                                                        ],
+                                            "managed":  true
+                                        }
+                    }
+                ],
+    "warnings":  [
+
+                 ],
+    "migrationApiVersion":  1
+}

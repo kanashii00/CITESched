@@ -19,30 +19,34 @@ import '../endpoints/chat_history_endpoint.dart' as _i6;
 import '../endpoints/custom_auth_endpoint.dart' as _i7;
 import '../endpoints/debug_endpoint.dart' as _i8;
 import '../endpoints/faculty_endpoint.dart' as _i9;
-import '../endpoints/nlp_endpoint.dart' as _i10;
-import '../endpoints/setup_endpoint.dart' as _i11;
-import '../endpoints/student_endpoint.dart' as _i12;
-import '../endpoints/student_schedule_endpoint.dart' as _i13;
-import '../endpoints/timetable_endpoint.dart' as _i14;
-import '../greetings/greeting_endpoint.dart' as _i15;
-import 'package:citesched_server/src/generated/faculty.dart' as _i16;
-import 'package:citesched_server/src/generated/student.dart' as _i17;
-import 'package:citesched_server/src/generated/room.dart' as _i18;
-import 'package:citesched_server/src/generated/subject.dart' as _i19;
-import 'package:citesched_server/src/generated/timeslot.dart' as _i20;
-import 'package:citesched_server/src/generated/schedule.dart' as _i21;
+import '../endpoints/nlp_endpoint.dart' as _i99;
+import '../endpoints/setup_endpoint.dart' as _i10;
+import '../endpoints/student_endpoint.dart' as _i11;
+import '../endpoints/student_schedule_endpoint.dart' as _i12;
+import '../endpoints/timetable_endpoint.dart' as _i13;
+import '../greetings/greeting_endpoint.dart' as _i14;
+import 'package:citesched_server/src/generated/faculty.dart' as _i15;
+import 'package:citesched_server/src/generated/student.dart' as _i16;
+import 'package:citesched_server/src/generated/room.dart' as _i17;
+import 'package:citesched_server/src/generated/subject.dart' as _i18;
+import 'package:citesched_server/src/generated/timeslot.dart' as _i19;
+import 'package:citesched_server/src/generated/schedule.dart' as _i20;
 import 'package:citesched_server/src/generated/generate_schedule_request.dart'
-    as _i22;
-import 'package:citesched_server/src/generated/section.dart' as _i23;
+    as _i21;
+import 'package:citesched_server/src/generated/section.dart' as _i22;
 import 'package:citesched_server/src/generated/faculty_availability.dart'
-    as _i24;
+    as _i23;
 import 'package:citesched_server/src/generated/timetable_filter_request.dart'
-    as _i25;
+    as _i24;
+import 'package:citesched_server/src/generated/day_of_week.dart' as _i100;
+import 'package:citesched_server/src/generated/program.dart' as _i101;
+import 'package:citesched_server/src/generated/ai_chat_session.dart' as _i102;
+import 'package:citesched_server/src/generated/ai_chat_message.dart' as _i103;
 import 'package:serverpod_auth_idp_server/serverpod_auth_idp_server.dart'
-    as _i26;
-import 'package:serverpod_auth_server/serverpod_auth_server.dart' as _i27;
+    as _i25;
+import 'package:serverpod_auth_server/serverpod_auth_server.dart' as _i26;
 import 'package:serverpod_auth_core_server/serverpod_auth_core_server.dart'
-    as _i28;
+    as _i27;
 
 class Endpoints extends _i1.EndpointDispatch {
   @override
@@ -96,37 +100,37 @@ class Endpoints extends _i1.EndpointDispatch {
           'faculty',
           null,
         ),
-      'nLP': _i10.NLPEndpoint()
+      'nLP': _i99.NLPEndpoint()
         ..initialize(
           server,
           'nLP',
           null,
         ),
-      'setup': _i11.SetupEndpoint()
+      'setup': _i10.SetupEndpoint()
         ..initialize(
           server,
           'setup',
           null,
         ),
-      'student': _i12.StudentEndpoint()
+      'student': _i11.StudentEndpoint()
         ..initialize(
           server,
           'student',
           null,
         ),
-      'studentSchedule': _i13.StudentScheduleEndpoint()
+      'studentSchedule': _i12.StudentScheduleEndpoint()
         ..initialize(
           server,
           'studentSchedule',
           null,
         ),
-      'timetable': _i14.TimetableEndpoint()
+      'timetable': _i13.TimetableEndpoint()
         ..initialize(
           server,
           'timetable',
           null,
         ),
-      'greeting': _i15.GreetingEndpoint()
+      'greeting': _i14.GreetingEndpoint()
         ..initialize(
           server,
           'greeting',
@@ -137,6 +141,51 @@ class Endpoints extends _i1.EndpointDispatch {
       name: 'emailIdp',
       endpoint: endpoints['emailIdp']!,
       methodConnectors: {
+        'startPasswordReset': _i1.MethodConnector(
+          name: 'startPasswordReset',
+          params: {
+            'email': _i1.ParameterDescription(
+              name: 'email',
+              type: _i1.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['emailIdp'] as _i2.EmailIdpEndpoint)
+                  .startPasswordReset(
+                    session,
+                    email: params['email'],
+                  ),
+        ),
+        'finishPasswordReset': _i1.MethodConnector(
+          name: 'finishPasswordReset',
+          params: {
+            'finishPasswordResetToken': _i1.ParameterDescription(
+              name: 'finishPasswordResetToken',
+              type: _i1.getType<String>(),
+              nullable: false,
+            ),
+            'newPassword': _i1.ParameterDescription(
+              name: 'newPassword',
+              type: _i1.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['emailIdp'] as _i2.EmailIdpEndpoint)
+                  .finishPasswordReset(
+                    session,
+                    finishPasswordResetToken:
+                        params['finishPasswordResetToken'],
+                    newPassword: params['newPassword'],
+                  ),
+        ),
         'login': _i1.MethodConnector(
           name: 'login',
           params: {
@@ -230,25 +279,6 @@ class Endpoints extends _i1.EndpointDispatch {
                     password: params['password'],
                   ),
         ),
-        'startPasswordReset': _i1.MethodConnector(
-          name: 'startPasswordReset',
-          params: {
-            'email': _i1.ParameterDescription(
-              name: 'email',
-              type: _i1.getType<String>(),
-              nullable: false,
-            ),
-          },
-          call:
-              (
-                _i1.Session session,
-                Map<String, dynamic> params,
-              ) async => (endpoints['emailIdp'] as _i2.EmailIdpEndpoint)
-                  .startPasswordReset(
-                    session,
-                    email: params['email'],
-                  ),
-        ),
         'verifyPasswordResetCode': _i1.MethodConnector(
           name: 'verifyPasswordResetCode',
           params: {
@@ -272,32 +302,6 @@ class Endpoints extends _i1.EndpointDispatch {
                     session,
                     passwordResetRequestId: params['passwordResetRequestId'],
                     verificationCode: params['verificationCode'],
-                  ),
-        ),
-        'finishPasswordReset': _i1.MethodConnector(
-          name: 'finishPasswordReset',
-          params: {
-            'finishPasswordResetToken': _i1.ParameterDescription(
-              name: 'finishPasswordResetToken',
-              type: _i1.getType<String>(),
-              nullable: false,
-            ),
-            'newPassword': _i1.ParameterDescription(
-              name: 'newPassword',
-              type: _i1.getType<String>(),
-              nullable: false,
-            ),
-          },
-          call:
-              (
-                _i1.Session session,
-                Map<String, dynamic> params,
-              ) async => (endpoints['emailIdp'] as _i2.EmailIdpEndpoint)
-                  .finishPasswordReset(
-                    session,
-                    finishPasswordResetToken:
-                        params['finishPasswordResetToken'],
-                    newPassword: params['newPassword'],
                   ),
         ),
         'hasAccount': _i1.MethodConnector(
@@ -421,7 +425,7 @@ class Endpoints extends _i1.EndpointDispatch {
           params: {
             'faculty': _i1.ParameterDescription(
               name: 'faculty',
-              type: _i1.getType<_i16.Faculty>(),
+              type: _i1.getType<_i15.Faculty>(),
               nullable: false,
             ),
           },
@@ -459,7 +463,7 @@ class Endpoints extends _i1.EndpointDispatch {
           params: {
             'faculty': _i1.ParameterDescription(
               name: 'faculty',
-              type: _i1.getType<_i16.Faculty>(),
+              type: _i1.getType<_i15.Faculty>(),
               nullable: false,
             ),
           },
@@ -497,7 +501,7 @@ class Endpoints extends _i1.EndpointDispatch {
           params: {
             'student': _i1.ParameterDescription(
               name: 'student',
-              type: _i1.getType<_i17.Student>(),
+              type: _i1.getType<_i16.Student>(),
               nullable: false,
             ),
           },
@@ -535,7 +539,7 @@ class Endpoints extends _i1.EndpointDispatch {
           params: {
             'student': _i1.ParameterDescription(
               name: 'student',
-              type: _i1.getType<_i17.Student>(),
+              type: _i1.getType<_i16.Student>(),
               nullable: false,
             ),
           },
@@ -583,7 +587,7 @@ class Endpoints extends _i1.EndpointDispatch {
           params: {
             'room': _i1.ParameterDescription(
               name: 'room',
-              type: _i1.getType<_i18.Room>(),
+              type: _i1.getType<_i17.Room>(),
               nullable: false,
             ),
           },
@@ -619,7 +623,7 @@ class Endpoints extends _i1.EndpointDispatch {
           params: {
             'room': _i1.ParameterDescription(
               name: 'room',
-              type: _i1.getType<_i18.Room>(),
+              type: _i1.getType<_i17.Room>(),
               nullable: false,
             ),
           },
@@ -655,7 +659,7 @@ class Endpoints extends _i1.EndpointDispatch {
           params: {
             'subject': _i1.ParameterDescription(
               name: 'subject',
-              type: _i1.getType<_i19.Subject>(),
+              type: _i1.getType<_i18.Subject>(),
               nullable: false,
             ),
           },
@@ -693,7 +697,7 @@ class Endpoints extends _i1.EndpointDispatch {
           params: {
             'subject': _i1.ParameterDescription(
               name: 'subject',
-              type: _i1.getType<_i19.Subject>(),
+              type: _i1.getType<_i18.Subject>(),
               nullable: false,
             ),
           },
@@ -731,7 +735,7 @@ class Endpoints extends _i1.EndpointDispatch {
           params: {
             'timeslot': _i1.ParameterDescription(
               name: 'timeslot',
-              type: _i1.getType<_i20.Timeslot>(),
+              type: _i1.getType<_i19.Timeslot>(),
               nullable: false,
             ),
           },
@@ -760,7 +764,7 @@ class Endpoints extends _i1.EndpointDispatch {
           params: {
             'timeslot': _i1.ParameterDescription(
               name: 'timeslot',
-              type: _i1.getType<_i20.Timeslot>(),
+              type: _i1.getType<_i19.Timeslot>(),
               nullable: false,
             ),
           },
@@ -798,7 +802,7 @@ class Endpoints extends _i1.EndpointDispatch {
           params: {
             'schedule': _i1.ParameterDescription(
               name: 'schedule',
-              type: _i1.getType<_i21.Schedule>(),
+              type: _i1.getType<_i20.Schedule>(),
               nullable: false,
             ),
           },
@@ -936,7 +940,7 @@ class Endpoints extends _i1.EndpointDispatch {
           params: {
             'schedule': _i1.ParameterDescription(
               name: 'schedule',
-              type: _i1.getType<_i21.Schedule>(),
+              type: _i1.getType<_i20.Schedule>(),
               nullable: false,
             ),
           },
@@ -974,7 +978,7 @@ class Endpoints extends _i1.EndpointDispatch {
           params: {
             'request': _i1.ParameterDescription(
               name: 'request',
-              type: _i1.getType<_i22.GenerateScheduleRequest>(),
+              type: _i1.getType<_i21.GenerateScheduleRequest>(),
               nullable: false,
             ),
           },
@@ -1003,7 +1007,7 @@ class Endpoints extends _i1.EndpointDispatch {
           params: {
             'schedule': _i1.ParameterDescription(
               name: 'schedule',
-              type: _i1.getType<_i21.Schedule>(),
+              type: _i1.getType<_i20.Schedule>(),
               nullable: false,
             ),
           },
@@ -1072,7 +1076,7 @@ class Endpoints extends _i1.EndpointDispatch {
           params: {
             'section': _i1.ParameterDescription(
               name: 'section',
-              type: _i1.getType<_i23.Section>(),
+              type: _i1.getType<_i22.Section>(),
               nullable: false,
             ),
           },
@@ -1101,7 +1105,7 @@ class Endpoints extends _i1.EndpointDispatch {
           params: {
             'section': _i1.ParameterDescription(
               name: 'section',
-              type: _i1.getType<_i23.Section>(),
+              type: _i1.getType<_i22.Section>(),
               nullable: false,
             ),
           },
@@ -1144,7 +1148,7 @@ class Endpoints extends _i1.EndpointDispatch {
             ),
             'availabilities': _i1.ParameterDescription(
               name: 'availabilities',
-              type: _i1.getType<List<_i24.FacultyAvailability>>(),
+              type: _i1.getType<List<_i23.FacultyAvailability>>(),
               nullable: false,
             ),
           },
@@ -1154,6 +1158,31 @@ class Endpoints extends _i1.EndpointDispatch {
                 Map<String, dynamic> params,
               ) async => (endpoints['admin'] as _i5.AdminEndpoint)
                   .setFacultyAvailability(
+                    session,
+                    params['facultyId'],
+                    params['availabilities'],
+                  ),
+        ),
+        'setFacultyAvailabilityImpl': _i1.MethodConnector(
+          name: 'setFacultyAvailabilityImpl',
+          params: {
+            'facultyId': _i1.ParameterDescription(
+              name: 'facultyId',
+              type: _i1.getType<int>(),
+              nullable: false,
+            ),
+            'availabilities': _i1.ParameterDescription(
+              name: 'availabilities',
+              type: _i1.getType<List<_i23.FacultyAvailability>>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['admin'] as _i5.AdminEndpoint)
+                  .setFacultyAvailabilityImpl(
                     session,
                     params['facultyId'],
                     params['availabilities'],
@@ -1236,6 +1265,11 @@ class Endpoints extends _i1.EndpointDispatch {
         'getMyHistory': _i1.MethodConnector(
           name: 'getMyHistory',
           params: {
+            'role': _i1.ParameterDescription(
+              name: 'role',
+              type: _i1.getType<String?>(),
+              nullable: true,
+            ),
             'limit': _i1.ParameterDescription(
               name: 'limit',
               type: _i1.getType<int>(),
@@ -1249,12 +1283,18 @@ class Endpoints extends _i1.EndpointDispatch {
               ) async => (endpoints['chatHistory'] as _i6.ChatHistoryEndpoint)
                   .getMyHistory(
                     session,
+                    role: params['role'],
                     limit: params['limit'],
                   ),
         ),
         'getMySessions': _i1.MethodConnector(
           name: 'getMySessions',
           params: {
+            'role': _i1.ParameterDescription(
+              name: 'role',
+              type: _i1.getType<String?>(),
+              nullable: true,
+            ),
             'limit': _i1.ParameterDescription(
               name: 'limit',
               type: _i1.getType<int>(),
@@ -1268,6 +1308,7 @@ class Endpoints extends _i1.EndpointDispatch {
               ) async => (endpoints['chatHistory'] as _i6.ChatHistoryEndpoint)
                   .getMySessions(
                     session,
+                    role: params['role'],
                     limit: params['limit'],
                   ),
         ),
@@ -1278,6 +1319,11 @@ class Endpoints extends _i1.EndpointDispatch {
               name: 'sessionId',
               type: _i1.getType<String>(),
               nullable: false,
+            ),
+            'role': _i1.ParameterDescription(
+              name: 'role',
+              type: _i1.getType<String?>(),
+              nullable: true,
             ),
             'limit': _i1.ParameterDescription(
               name: 'limit',
@@ -1293,6 +1339,7 @@ class Endpoints extends _i1.EndpointDispatch {
                   .getSessionHistory(
                     session,
                     sessionId: params['sessionId'],
+                    role: params['role'],
                     limit: params['limit'],
                   ),
         ),
@@ -1304,6 +1351,11 @@ class Endpoints extends _i1.EndpointDispatch {
               type: _i1.getType<String>(),
               nullable: false,
             ),
+            'role': _i1.ParameterDescription(
+              name: 'role',
+              type: _i1.getType<String?>(),
+              nullable: true,
+            ),
           },
           call:
               (
@@ -1313,6 +1365,7 @@ class Endpoints extends _i1.EndpointDispatch {
                   .deleteSession(
                     session,
                     sessionId: params['sessionId'],
+                    role: params['role'],
                   ),
         ),
       },
@@ -1423,12 +1476,312 @@ class Endpoints extends _i1.EndpointDispatch {
               (
                 _i1.Session session,
                 Map<String, dynamic> params,
-              ) async => (endpoints['nLP'] as _i10.NLPEndpoint).query(
+              ) async => (endpoints['nLP'] as _i99.NLPEndpoint).query(
                 session,
                 params['text'],
                 sessionId: params['sessionId'],
                 sessionTitle: params['sessionTitle'],
               ),
+        ),
+        'getFacultyLoad': _i1.MethodConnector(
+          name: 'getFacultyLoad',
+          params: {
+            'facultyId': _i1.ParameterDescription(
+              name: 'facultyId',
+              type: _i1.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['nLP'] as _i99.NLPEndpoint)
+                  .getFacultyLoad(
+                    session,
+                    facultyId: params['facultyId'],
+                  ),
+        ),
+        'getStudentSchedule': _i1.MethodConnector(
+          name: 'getStudentSchedule',
+          params: {
+            'studentId': _i1.ParameterDescription(
+              name: 'studentId',
+              type: _i1.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['nLP'] as _i99.NLPEndpoint)
+                  .getStudentSchedule(
+                    session,
+                    studentId: params['studentId'],
+                  ),
+        ),
+        'getSectionSchedule': _i1.MethodConnector(
+          name: 'getSectionSchedule',
+          params: {
+            'sectionId': _i1.ParameterDescription(
+              name: 'sectionId',
+              type: _i1.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['nLP'] as _i99.NLPEndpoint)
+                  .getSectionSchedule(
+                    session,
+                    sectionId: params['sectionId'],
+                  ),
+        ),
+        'getRoomAvailability': _i1.MethodConnector(
+          name: 'getRoomAvailability',
+          params: {
+            'roomId': _i1.ParameterDescription(
+              name: 'roomId',
+              type: _i1.getType<int>(),
+              nullable: false,
+            ),
+            'day': _i1.ParameterDescription(
+              name: 'day',
+              type: _i1.getType<_i100.DayOfWeek>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['nLP'] as _i99.NLPEndpoint)
+                  .getRoomAvailability(
+                    session,
+                    roomId: params['roomId'],
+                    day: params['day'],
+                  ),
+        ),
+        'getSubjectCatalog': _i1.MethodConnector(
+          name: 'getSubjectCatalog',
+          params: {
+            'program': _i1.ParameterDescription(
+              name: 'program',
+              type: _i1.getType<_i101.Program>(),
+              nullable: false,
+            ),
+            'yearLevel': _i1.ParameterDescription(
+              name: 'yearLevel',
+              type: _i1.getType<int?>(),
+              nullable: true,
+            ),
+          },
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['nLP'] as _i99.NLPEndpoint)
+                  .getSubjectCatalog(
+                    session,
+                    program: params['program'],
+                    yearLevel: params['yearLevel'],
+                  ),
+        ),
+        'getScheduleConflicts': _i1.MethodConnector(
+          name: 'getScheduleConflicts',
+          params: {},
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['nLP'] as _i99.NLPEndpoint)
+                  .getScheduleConflicts(session),
+        ),
+        'generateScheduleSuggestions': _i1.MethodConnector(
+          name: 'generateScheduleSuggestions',
+          params: {},
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['nLP'] as _i99.NLPEndpoint)
+                  .generateScheduleSuggestions(session),
+        ),
+        'searchSchedules': _i1.MethodConnector(
+          name: 'searchSchedules',
+          params: {
+            'query': _i1.ParameterDescription(
+              name: 'query',
+              type: _i1.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['nLP'] as _i99.NLPEndpoint).searchSchedules(
+                session,
+                query: params['query'],
+              ),
+        ),
+        'createChatSession': _i1.MethodConnector(
+          name: 'createChatSession',
+          params: {
+            'userId': _i1.ParameterDescription(
+              name: 'userId',
+              type: _i1.getType<String?>(),
+              nullable: true,
+            ),
+            'role': _i1.ParameterDescription(
+              name: 'role',
+              type: _i1.getType<String?>(),
+              nullable: true,
+            ),
+            'title': _i1.ParameterDescription(
+              name: 'title',
+              type: _i1.getType<String?>(),
+              nullable: true,
+            ),
+          },
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['nLP'] as _i99.NLPEndpoint)
+                  .createChatSession(
+                    session,
+                    userId: params['userId'],
+                    role: params['role'],
+                    title: params['title'],
+                  ),
+        ),
+        'getChatHistory': _i1.MethodConnector(
+          name: 'getChatHistory',
+          params: {
+            'userId': _i1.ParameterDescription(
+              name: 'userId',
+              type: _i1.getType<String?>(),
+              nullable: true,
+            ),
+            'role': _i1.ParameterDescription(
+              name: 'role',
+              type: _i1.getType<String?>(),
+              nullable: true,
+            ),
+            'limit': _i1.ParameterDescription(
+              name: 'limit',
+              type: _i1.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['nLP'] as _i99.NLPEndpoint)
+                  .getChatHistory(
+                    session,
+                    userId: params['userId'],
+                    role: params['role'],
+                    limit: params['limit'],
+                  ),
+        ),
+        'getChatMessages': _i1.MethodConnector(
+          name: 'getChatMessages',
+          params: {
+            'sessionId': _i1.ParameterDescription(
+              name: 'sessionId',
+              type: _i1.getType<String>(),
+              nullable: false,
+            ),
+            'role': _i1.ParameterDescription(
+              name: 'role',
+              type: _i1.getType<String?>(),
+              nullable: true,
+            ),
+            'limit': _i1.ParameterDescription(
+              name: 'limit',
+              type: _i1.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['nLP'] as _i99.NLPEndpoint)
+                  .getChatMessages(
+                    session,
+                    sessionId: params['sessionId'],
+                    role: params['role'],
+                    limit: params['limit'],
+                  ),
+        ),
+        'saveChatMessage': _i1.MethodConnector(
+          name: 'saveChatMessage',
+          params: {
+            'sessionId': _i1.ParameterDescription(
+              name: 'sessionId',
+              type: _i1.getType<String>(),
+              nullable: false,
+            ),
+            'sender': _i1.ParameterDescription(
+              name: 'sender',
+              type: _i1.getType<String>(),
+              nullable: false,
+            ),
+            'message': _i1.ParameterDescription(
+              name: 'message',
+              type: _i1.getType<String>(),
+              nullable: false,
+            ),
+            'role': _i1.ParameterDescription(
+              name: 'role',
+              type: _i1.getType<String?>(),
+              nullable: true,
+            ),
+          },
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['nLP'] as _i99.NLPEndpoint)
+                  .saveChatMessage(
+                    session,
+                    sessionId: params['sessionId'],
+                    sender: params['sender'],
+                    message: params['message'],
+                    role: params['role'],
+                  ),
+        ),
+        'deleteChatSession': _i1.MethodConnector(
+          name: 'deleteChatSession',
+          params: {
+            'sessionId': _i1.ParameterDescription(
+              name: 'sessionId',
+              type: _i1.getType<String>(),
+              nullable: false,
+            ),
+            'role': _i1.ParameterDescription(
+              name: 'role',
+              type: _i1.getType<String?>(),
+              nullable: true,
+            ),
+          },
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['nLP'] as _i99.NLPEndpoint)
+                  .deleteChatSession(
+                    session,
+                    sessionId: params['sessionId'],
+                    role: params['role'],
+                  ),
         ),
       },
     );
@@ -1505,7 +1858,7 @@ class Endpoints extends _i1.EndpointDispatch {
                 _i1.Session session,
                 Map<String, dynamic> params,
               ) async =>
-                  (endpoints['setup'] as _i11.SetupEndpoint).createAccount(
+                  (endpoints['setup'] as _i10.SetupEndpoint).createAccount(
                     session,
                     userName: params['userName'],
                     email: params['email'],
@@ -1535,7 +1888,7 @@ class Endpoints extends _i1.EndpointDispatch {
                 _i1.Session session,
                 Map<String, dynamic> params,
               ) async =>
-                  (endpoints['setup'] as _i11.SetupEndpoint).getUserInfoByEmail(
+                  (endpoints['setup'] as _i10.SetupEndpoint).getUserInfoByEmail(
                     session,
                     email: params['email'],
                   ),
@@ -1553,7 +1906,7 @@ class Endpoints extends _i1.EndpointDispatch {
               (
                 _i1.Session session,
                 Map<String, dynamic> params,
-              ) async => (endpoints['setup'] as _i11.SetupEndpoint)
+              ) async => (endpoints['setup'] as _i10.SetupEndpoint)
                   .getStudentProfileByEmail(
                     session,
                     email: params['email'],
@@ -1572,8 +1925,27 @@ class Endpoints extends _i1.EndpointDispatch {
               (
                 _i1.Session session,
                 Map<String, dynamic> params,
-              ) async => (endpoints['setup'] as _i11.SetupEndpoint)
+              ) async => (endpoints['setup'] as _i10.SetupEndpoint)
                   .getExistingAccountRoleByEmail(
+                    session,
+                    email: params['email'],
+                  ),
+        ),
+        'getExistingAccountRoleByEmailImpl': _i1.MethodConnector(
+          name: 'getExistingAccountRoleByEmailImpl',
+          params: {
+            'email': _i1.ParameterDescription(
+              name: 'email',
+              type: _i1.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['setup'] as _i10.SetupEndpoint)
+                  .getExistingAccountRoleByEmailImpl(
                     session,
                     email: params['email'],
                   ),
@@ -1591,7 +1963,7 @@ class Endpoints extends _i1.EndpointDispatch {
               (
                 _i1.Session session,
                 Map<String, dynamic> params,
-              ) async => (endpoints['setup'] as _i11.SetupEndpoint)
+              ) async => (endpoints['setup'] as _i10.SetupEndpoint)
                   .adoptExistingAccountByEmail(
                     session,
                     email: params['email'],
@@ -1610,7 +1982,7 @@ class Endpoints extends _i1.EndpointDispatch {
               (
                 _i1.Session session,
                 Map<String, dynamic> params,
-              ) async => (endpoints['student'] as _i12.StudentEndpoint)
+              ) async => (endpoints['student'] as _i11.StudentEndpoint)
                   .getSchedules(session),
         ),
         'getScheduleById': _i1.MethodConnector(
@@ -1626,7 +1998,7 @@ class Endpoints extends _i1.EndpointDispatch {
               (
                 _i1.Session session,
                 Map<String, dynamic> params,
-              ) async => (endpoints['student'] as _i12.StudentEndpoint)
+              ) async => (endpoints['student'] as _i11.StudentEndpoint)
                   .getScheduleById(
                     session,
                     params['id'],
@@ -1639,7 +2011,7 @@ class Endpoints extends _i1.EndpointDispatch {
               (
                 _i1.Session session,
                 Map<String, dynamic> params,
-              ) async => (endpoints['student'] as _i12.StudentEndpoint)
+              ) async => (endpoints['student'] as _i11.StudentEndpoint)
                   .getMyProfile(session),
         ),
         'updateMyProfile': _i1.MethodConnector(
@@ -1647,7 +2019,7 @@ class Endpoints extends _i1.EndpointDispatch {
           params: {
             'updatedProfile': _i1.ParameterDescription(
               name: 'updatedProfile',
-              type: _i1.getType<_i17.Student>(),
+              type: _i1.getType<_i16.Student>(),
               nullable: false,
             ),
           },
@@ -1655,7 +2027,7 @@ class Endpoints extends _i1.EndpointDispatch {
               (
                 _i1.Session session,
                 Map<String, dynamic> params,
-              ) async => (endpoints['student'] as _i12.StudentEndpoint)
+              ) async => (endpoints['student'] as _i11.StudentEndpoint)
                   .updateMyProfile(
                     session,
                     params['updatedProfile'],
@@ -1668,7 +2040,7 @@ class Endpoints extends _i1.EndpointDispatch {
               (
                 _i1.Session session,
                 Map<String, dynamic> params,
-              ) async => (endpoints['student'] as _i12.StudentEndpoint)
+              ) async => (endpoints['student'] as _i11.StudentEndpoint)
                   .getFaculty(session),
         ),
         'getRooms': _i1.MethodConnector(
@@ -1678,7 +2050,7 @@ class Endpoints extends _i1.EndpointDispatch {
               (
                 _i1.Session session,
                 Map<String, dynamic> params,
-              ) async => (endpoints['student'] as _i12.StudentEndpoint)
+              ) async => (endpoints['student'] as _i11.StudentEndpoint)
                   .getRooms(session),
         ),
         'getSubjects': _i1.MethodConnector(
@@ -1688,7 +2060,7 @@ class Endpoints extends _i1.EndpointDispatch {
               (
                 _i1.Session session,
                 Map<String, dynamic> params,
-              ) async => (endpoints['student'] as _i12.StudentEndpoint)
+              ) async => (endpoints['student'] as _i11.StudentEndpoint)
                   .getSubjects(session),
         ),
         'getTimeslots': _i1.MethodConnector(
@@ -1698,7 +2070,7 @@ class Endpoints extends _i1.EndpointDispatch {
               (
                 _i1.Session session,
                 Map<String, dynamic> params,
-              ) async => (endpoints['student'] as _i12.StudentEndpoint)
+              ) async => (endpoints['student'] as _i11.StudentEndpoint)
                   .getTimeslots(session),
         ),
       },
@@ -1715,7 +2087,7 @@ class Endpoints extends _i1.EndpointDispatch {
                 _i1.Session session,
                 Map<String, dynamic> params,
               ) async =>
-                  (endpoints['studentSchedule'] as _i13.StudentScheduleEndpoint)
+                  (endpoints['studentSchedule'] as _i12.StudentScheduleEndpoint)
                       .fetchMySchedule(session),
         ),
       },
@@ -1729,7 +2101,7 @@ class Endpoints extends _i1.EndpointDispatch {
           params: {
             'filter': _i1.ParameterDescription(
               name: 'filter',
-              type: _i1.getType<_i25.TimetableFilterRequest>(),
+              type: _i1.getType<_i24.TimetableFilterRequest>(),
               nullable: false,
             ),
           },
@@ -1737,7 +2109,7 @@ class Endpoints extends _i1.EndpointDispatch {
               (
                 _i1.Session session,
                 Map<String, dynamic> params,
-              ) async => (endpoints['timetable'] as _i14.TimetableEndpoint)
+              ) async => (endpoints['timetable'] as _i13.TimetableEndpoint)
                   .getSchedules(
                     session,
                     params['filter'],
@@ -1748,7 +2120,7 @@ class Endpoints extends _i1.EndpointDispatch {
           params: {
             'filter': _i1.ParameterDescription(
               name: 'filter',
-              type: _i1.getType<_i25.TimetableFilterRequest>(),
+              type: _i1.getType<_i24.TimetableFilterRequest>(),
               nullable: false,
             ),
           },
@@ -1757,7 +2129,7 @@ class Endpoints extends _i1.EndpointDispatch {
                 _i1.Session session,
                 Map<String, dynamic> params,
               ) async =>
-                  (endpoints['timetable'] as _i14.TimetableEndpoint).getSummary(
+                  (endpoints['timetable'] as _i13.TimetableEndpoint).getSummary(
                     session,
                     params['filter'],
                   ),
@@ -1769,7 +2141,7 @@ class Endpoints extends _i1.EndpointDispatch {
               (
                 _i1.Session session,
                 Map<String, dynamic> params,
-              ) async => (endpoints['timetable'] as _i14.TimetableEndpoint)
+              ) async => (endpoints['timetable'] as _i13.TimetableEndpoint)
                   .getPersonalSchedule(session),
         ),
       },
@@ -1791,17 +2163,17 @@ class Endpoints extends _i1.EndpointDispatch {
               (
                 _i1.Session session,
                 Map<String, dynamic> params,
-              ) async => (endpoints['greeting'] as _i15.GreetingEndpoint).hello(
+              ) async => (endpoints['greeting'] as _i14.GreetingEndpoint).hello(
                 session,
                 params['name'],
               ),
         ),
       },
     );
-    modules['serverpod_auth_idp'] = _i26.Endpoints()
+    modules['serverpod_auth_idp'] = _i25.Endpoints()
       ..initializeEndpoints(server);
-    modules['serverpod_auth'] = _i27.Endpoints()..initializeEndpoints(server);
-    modules['serverpod_auth_core'] = _i28.Endpoints()
+    modules['serverpod_auth'] = _i26.Endpoints()..initializeEndpoints(server);
+    modules['serverpod_auth_core'] = _i27.Endpoints()
       ..initializeEndpoints(server);
   }
 }

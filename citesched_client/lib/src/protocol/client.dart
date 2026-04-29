@@ -44,13 +44,17 @@ import 'package:citesched_client/src/protocol/chat_history.dart' as _i22;
 import 'package:citesched_client/src/protocol/chat_session_summary.dart'
     as _i23;
 import 'package:serverpod_auth_client/serverpod_auth_client.dart' as _i24;
-import 'package:citesched_client/src/protocol/nlp_response.dart' as _i25;
-import 'package:citesched_client/src/protocol/schedule_info.dart' as _i26;
+import 'package:citesched_client/src/protocol/schedule_info.dart' as _i25;
 import 'package:citesched_client/src/protocol/timetable_filter_request.dart'
-    as _i27;
-import 'package:citesched_client/src/protocol/timetable_summary.dart' as _i28;
-import 'package:citesched_client/src/protocol/greetings/greeting.dart' as _i29;
-import 'protocol.dart' as _i30;
+    as _i26;
+import 'package:citesched_client/src/protocol/timetable_summary.dart' as _i27;
+import 'package:citesched_client/src/protocol/greetings/greeting.dart' as _i28;
+import 'package:citesched_client/src/protocol/nlp_response.dart' as _i30;
+import 'package:citesched_client/src/protocol/ai_chat_session.dart' as _i31;
+import 'package:citesched_client/src/protocol/ai_chat_message.dart' as _i32;
+import 'package:citesched_client/src/protocol/day_of_week.dart' as _i33;
+import 'package:citesched_client/src/protocol/program.dart' as _i34;
+import 'protocol.dart' as _i29;
 
 /// By extending [EmailIdpBaseEndpoint], the email identity provider endpoints
 /// are made available on the server and enable the corresponding sign-in widget
@@ -61,6 +65,27 @@ class EndpointEmailIdp extends _i1.EndpointEmailIdpBase {
 
   @override
   String get name => 'emailIdp';
+
+  @override
+  _i3.Future<_i2.UuidValue> startPasswordReset({required String email}) =>
+      caller.callServerEndpoint<_i2.UuidValue>(
+        'emailIdp',
+        'startPasswordReset',
+        {'email': email},
+      );
+
+  @override
+  _i3.Future<void> finishPasswordReset({
+    required String finishPasswordResetToken,
+    required String newPassword,
+  }) => caller.callServerEndpoint<void>(
+    'emailIdp',
+    'finishPasswordReset',
+    {
+      'finishPasswordResetToken': finishPasswordResetToken,
+      'newPassword': newPassword,
+    },
+  );
 
   /// Logs in the user and returns a new session.
   ///
@@ -152,27 +177,6 @@ class EndpointEmailIdp extends _i1.EndpointEmailIdpBase {
     },
   );
 
-  /// Requests a password reset for [email].
-  ///
-  /// If the email address is registered, an email with reset instructions will
-  /// be send out. If the email is unknown, this method will have no effect.
-  ///
-  /// Always returns a password reset request ID, which can be used to complete
-  /// the reset. If the email is not registered, the returned ID will not be
-  /// valid.
-  ///
-  /// Throws an [EmailAccountPasswordResetException] in case of errors, with reason:
-  /// - [EmailAccountPasswordResetExceptionReason.tooManyAttempts] if the user has
-  ///   made too many attempts trying to request a password reset.
-  ///
-  @override
-  _i3.Future<_i2.UuidValue> startPasswordReset({required String email}) =>
-      caller.callServerEndpoint<_i2.UuidValue>(
-        'emailIdp',
-        'startPasswordReset',
-        {'email': email},
-      );
-
   /// Verifies a password reset code and returns a finishPasswordResetToken
   /// that can be used to finish the password reset.
   ///
@@ -197,33 +201,6 @@ class EndpointEmailIdp extends _i1.EndpointEmailIdpBase {
     {
       'passwordResetRequestId': passwordResetRequestId,
       'verificationCode': verificationCode,
-    },
-  );
-
-  /// Completes a password reset request by setting a new password.
-  ///
-  /// The [verificationCode] returned from [verifyPasswordResetCode] is used to
-  /// validate the password reset request.
-  ///
-  /// Throws an [EmailAccountPasswordResetException] in case of errors, with reason:
-  /// - [EmailAccountPasswordResetExceptionReason.expired] if the password reset
-  ///   request has already expired.
-  /// - [EmailAccountPasswordResetExceptionReason.policyViolation] if the new
-  ///   password does not comply with the password policy.
-  /// - [EmailAccountPasswordResetExceptionReason.invalid] if no request exists
-  ///   for the given [passwordResetRequestId] or [verificationCode] is invalid.
-  ///
-  /// Throws an [AuthUserBlockedException] if the auth user is blocked.
-  @override
-  _i3.Future<void> finishPasswordReset({
-    required String finishPasswordResetToken,
-    required String newPassword,
-  }) => caller.callServerEndpoint<void>(
-    'emailIdp',
-    'finishPasswordReset',
-    {
-      'finishPasswordResetToken': finishPasswordResetToken,
-      'newPassword': newPassword,
     },
   );
 
@@ -693,6 +670,18 @@ class EndpointAdmin extends _i2.EndpointRef {
     },
   );
 
+  _i3.Future<List<_i21.FacultyAvailability>> setFacultyAvailabilityImpl(
+    int facultyId,
+    List<_i21.FacultyAvailability> availabilities,
+  ) => caller.callServerEndpoint<List<_i21.FacultyAvailability>>(
+    'admin',
+    'setFacultyAvailabilityImpl',
+    {
+      'facultyId': facultyId,
+      'availabilities': availabilities,
+    },
+  );
+
   /// Get all availability entries for a specific faculty.
   _i3.Future<List<_i21.FacultyAvailability>> getFacultyAvailability(
     int facultyId,
@@ -744,39 +733,55 @@ class EndpointChatHistory extends _i2.EndpointRef {
   @override
   String get name => 'chatHistory';
 
-  _i3.Future<List<_i22.ChatHistory>> getMyHistory({required int limit}) =>
-      caller.callServerEndpoint<List<_i22.ChatHistory>>(
-        'chatHistory',
-        'getMyHistory',
-        {'limit': limit},
-      );
+  _i3.Future<List<_i22.ChatHistory>> getMyHistory({
+    String? role,
+    required int limit,
+  }) => caller.callServerEndpoint<List<_i22.ChatHistory>>(
+    'chatHistory',
+    'getMyHistory',
+    {
+      'role': role,
+      'limit': limit,
+    },
+  );
 
   _i3.Future<List<_i23.ChatSessionSummary>> getMySessions({
+    String? role,
     required int limit,
   }) => caller.callServerEndpoint<List<_i23.ChatSessionSummary>>(
     'chatHistory',
     'getMySessions',
-    {'limit': limit},
+    {
+      'role': role,
+      'limit': limit,
+    },
   );
 
   _i3.Future<List<_i22.ChatHistory>> getSessionHistory({
     required String sessionId,
+    String? role,
     required int limit,
   }) => caller.callServerEndpoint<List<_i22.ChatHistory>>(
     'chatHistory',
     'getSessionHistory',
     {
       'sessionId': sessionId,
+      'role': role,
       'limit': limit,
     },
   );
 
-  _i3.Future<bool> deleteSession({required String sessionId}) =>
-      caller.callServerEndpoint<bool>(
-        'chatHistory',
-        'deleteSession',
-        {'sessionId': sessionId},
-      );
+  _i3.Future<bool> deleteSession({
+    required String sessionId,
+    String? role,
+  }) => caller.callServerEndpoint<bool>(
+    'chatHistory',
+    'deleteSession',
+    {
+      'sessionId': sessionId,
+      'role': role,
+    },
+  );
 }
 
 /// {@category Endpoint}
@@ -847,28 +852,155 @@ class EndpointNLP extends _i2.EndpointRef {
   @override
   String get name => 'nLP';
 
-  /// Processes natural language queries from authenticated users
-  ///
-  /// Requires:
-  /// - Valid JWT authentication (enforced by Serverpod)
-  /// - Query must be 1-500 characters
-  ///
-  /// Security:
-  /// - Input validation (length checks)
-  /// - Forbidden keyword filtering
-  /// - Role-based access control (RBAC)
-  /// - No dynamic SQL execution
-  _i3.Future<_i25.NLPResponse> query(
+  _i3.Future<_i30.NLPResponse> query(
     String text, {
     String? sessionId,
     String? sessionTitle,
-  }) => caller.callServerEndpoint<_i25.NLPResponse>(
+  }) => caller.callServerEndpoint<_i30.NLPResponse>(
     'nLP',
     'query',
     {
       'text': text,
       'sessionId': sessionId,
       'sessionTitle': sessionTitle,
+    },
+  );
+
+  _i3.Future<List<_i11.Schedule>> getFacultyLoad({required int facultyId}) =>
+      caller.callServerEndpoint<List<_i11.Schedule>>(
+        'nLP',
+        'getFacultyLoad',
+        {'facultyId': facultyId},
+      );
+
+  _i3.Future<List<_i11.Schedule>> getStudentSchedule({
+    required int studentId,
+  }) => caller.callServerEndpoint<List<_i11.Schedule>>(
+    'nLP',
+    'getStudentSchedule',
+    {'studentId': studentId},
+  );
+
+  _i3.Future<List<_i11.Schedule>> getSectionSchedule({
+    required int sectionId,
+  }) => caller.callServerEndpoint<List<_i11.Schedule>>(
+    'nLP',
+    'getSectionSchedule',
+    {'sectionId': sectionId},
+  );
+
+  _i3.Future<List<_i11.Schedule>> getRoomAvailability({
+    required int roomId,
+    required _i33.DayOfWeek day,
+  }) => caller.callServerEndpoint<List<_i11.Schedule>>(
+    'nLP',
+    'getRoomAvailability',
+    {
+      'roomId': roomId,
+      'day': day,
+    },
+  );
+
+  _i3.Future<List<_i9.Subject>> getSubjectCatalog({
+    required _i34.Program program,
+    int? yearLevel,
+  }) => caller.callServerEndpoint<List<_i9.Subject>>(
+    'nLP',
+    'getSubjectCatalog',
+    {
+      'program': program,
+      'yearLevel': yearLevel,
+    },
+  );
+
+  _i3.Future<List<_i15.ScheduleConflict>> getScheduleConflicts() =>
+      caller.callServerEndpoint<List<_i15.ScheduleConflict>>(
+        'nLP',
+        'getScheduleConflicts',
+        {},
+      );
+
+  _i3.Future<List<String>> generateScheduleSuggestions() =>
+      caller.callServerEndpoint<List<String>>(
+        'nLP',
+        'generateScheduleSuggestions',
+        {},
+      );
+
+  _i3.Future<List<_i11.Schedule>> searchSchedules({required String query}) =>
+      caller.callServerEndpoint<List<_i11.Schedule>>(
+        'nLP',
+        'searchSchedules',
+        {'query': query},
+      );
+
+  _i3.Future<_i31.AiChatSession> createChatSession({
+    String? userId,
+    String? role,
+    String? title,
+  }) => caller.callServerEndpoint<_i31.AiChatSession>(
+    'nLP',
+    'createChatSession',
+    {
+      'userId': userId,
+      'role': role,
+      'title': title,
+    },
+  );
+
+  _i3.Future<List<_i23.ChatSessionSummary>> getChatHistory({
+    String? userId,
+    String? role,
+    int limit = 30,
+  }) => caller.callServerEndpoint<List<_i23.ChatSessionSummary>>(
+    'nLP',
+    'getChatHistory',
+    {
+      'userId': userId,
+      'role': role,
+      'limit': limit,
+    },
+  );
+
+  _i3.Future<List<_i32.AiChatMessage>> getChatMessages({
+    required String sessionId,
+    String? role,
+    int limit = 200,
+  }) => caller.callServerEndpoint<List<_i32.AiChatMessage>>(
+    'nLP',
+    'getChatMessages',
+    {
+      'sessionId': sessionId,
+      'role': role,
+      'limit': limit,
+    },
+  );
+
+  _i3.Future<_i32.AiChatMessage> saveChatMessage({
+    required String sessionId,
+    required String sender,
+    required String message,
+    String? role,
+  }) => caller.callServerEndpoint<_i32.AiChatMessage>(
+    'nLP',
+    'saveChatMessage',
+    {
+      'sessionId': sessionId,
+      'sender': sender,
+      'message': message,
+      'role': role,
+    },
+  );
+
+  _i3.Future<bool> deleteChatSession({
+    required String sessionId,
+    String? role,
+  }) => caller.callServerEndpoint<bool>(
+    'nLP',
+    'deleteChatSession',
+    {
+      'sessionId': sessionId,
+      'role': role,
     },
   );
 }
@@ -933,6 +1065,14 @@ class EndpointSetup extends _i2.EndpointRef {
         'getExistingAccountRoleByEmail',
         {'email': email},
       );
+
+  _i3.Future<String?> getExistingAccountRoleByEmailImpl({
+    required String email,
+  }) => caller.callServerEndpoint<String?>(
+    'setup',
+    'getExistingAccountRoleByEmailImpl',
+    {'email': email},
+  );
 
   _i3.Future<String?> adoptExistingAccountByEmail({required String email}) =>
       caller.callServerEndpoint<String?>(
@@ -1039,24 +1179,24 @@ class EndpointTimetable extends _i2.EndpointRef {
   @override
   String get name => 'timetable';
 
-  _i3.Future<List<_i26.ScheduleInfo>> getSchedules(
-    _i27.TimetableFilterRequest filter,
-  ) => caller.callServerEndpoint<List<_i26.ScheduleInfo>>(
+  _i3.Future<List<_i25.ScheduleInfo>> getSchedules(
+    _i26.TimetableFilterRequest filter,
+  ) => caller.callServerEndpoint<List<_i25.ScheduleInfo>>(
     'timetable',
     'getSchedules',
     {'filter': filter},
   );
 
-  _i3.Future<_i28.TimetableSummary> getSummary(
-    _i27.TimetableFilterRequest filter,
-  ) => caller.callServerEndpoint<_i28.TimetableSummary>(
+  _i3.Future<_i27.TimetableSummary> getSummary(
+    _i26.TimetableFilterRequest filter,
+  ) => caller.callServerEndpoint<_i27.TimetableSummary>(
     'timetable',
     'getSummary',
     {'filter': filter},
   );
 
-  _i3.Future<List<_i26.ScheduleInfo>> getPersonalSchedule() =>
-      caller.callServerEndpoint<List<_i26.ScheduleInfo>>(
+  _i3.Future<List<_i25.ScheduleInfo>> getPersonalSchedule() =>
+      caller.callServerEndpoint<List<_i25.ScheduleInfo>>(
         'timetable',
         'getPersonalSchedule',
         {},
@@ -1073,8 +1213,8 @@ class EndpointGreeting extends _i2.EndpointRef {
   String get name => 'greeting';
 
   /// Returns a personalized greeting message: "Hello {name}".
-  _i3.Future<_i29.Greeting> hello(String name) =>
-      caller.callServerEndpoint<_i29.Greeting>(
+  _i3.Future<_i28.Greeting> hello(String name) =>
+      caller.callServerEndpoint<_i28.Greeting>(
         'greeting',
         'hello',
         {'name': name},
@@ -1115,7 +1255,7 @@ class Client extends _i2.ServerpodClientShared {
     bool? disconnectStreamsOnLostInternetConnection,
   }) : super(
          host,
-         _i30.Protocol(),
+         _i29.Protocol(),
          securityContext: securityContext,
          streamingConnectionTimeout: streamingConnectionTimeout,
          connectionTimeout: connectionTimeout,

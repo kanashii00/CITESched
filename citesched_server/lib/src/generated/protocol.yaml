@@ -1,11 +1,11 @@
 emailIdp:
+  - startPasswordReset:
+  - finishPasswordReset:
   - login:
   - startRegistration:
   - verifyRegistrationCode:
   - finishRegistration:
-  - startPasswordReset:
   - verifyPasswordResetCode:
-  - finishPasswordReset:
   - hasAccount:
 googleIdp:
   - login:
@@ -57,6 +57,7 @@ admin:
   - updateSection:
   - deleteSection:
   - setFacultyAvailability:
+  - setFacultyAvailabilityImpl:
   - getFacultyAvailability:
   - getAllFacultyAvailabilities:
   - deleteFacultyAvailability:
@@ -74,13 +75,12 @@ debug:
 faculty:
   - getMySchedule:
   - getMyProfile:
-nLP:
-  - query:
 setup:
   - createAccount:
   - getUserInfoByEmail:
   - getStudentProfileByEmail:
   - getExistingAccountRoleByEmail:
+  - getExistingAccountRoleByEmailImpl:
   - adoptExistingAccountByEmail:
 student:
   - getSchedules:

@@ -1,0 +1,12 @@
+class: AiChatMessage
+table: chat_messages
+fields:
+  sessionRecordId: int
+  sessionRecord: AiChatSession?, relation(field=sessionRecordId)
+  sender: String
+  message: String
+  timestamp: DateTime
+
+indexes:
+  chat_messages_session_timestamp_idx:
+    fields: sessionRecordId, timestamp

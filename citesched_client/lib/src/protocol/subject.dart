@@ -65,7 +65,9 @@ abstract class Subject implements _i1.SerializableModel {
       ),
       program: _i3.Program.fromJson((jsonSerialization['program'] as String)),
       studentsCount: jsonSerialization['studentsCount'] as int,
-      isActive: jsonSerialization['isActive'] as bool?,
+      isActive: jsonSerialization['isActive'] == null
+          ? null
+          : _i1.BoolJsonExtension.fromJson(jsonSerialization['isActive']),
       createdAt: _i1.DateTimeJsonExtension.fromJson(
         jsonSerialization['createdAt'],
       ),

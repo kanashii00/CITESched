@@ -47,7 +47,9 @@ abstract class Section
       sectionCode: jsonSerialization['sectionCode'] as String,
       academicYear: jsonSerialization['academicYear'] as String,
       semester: jsonSerialization['semester'] as int,
-      isActive: jsonSerialization['isActive'] as bool?,
+      isActive: jsonSerialization['isActive'] == null
+          ? null
+          : _i1.BoolJsonExtension.fromJson(jsonSerialization['isActive']),
       createdAt: _i1.DateTimeJsonExtension.fromJson(
         jsonSerialization['createdAt'],
       ),
@@ -387,7 +389,7 @@ class SectionRepository {
   /// );
   /// ```
   Future<List<Section>> find(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     _i1.WhereExpressionBuilder<SectionTable>? where,
     int? limit,
     int? offset,
@@ -395,6 +397,8 @@ class SectionRepository {
     bool orderDescending = false,
     _i1.OrderByListBuilder<SectionTable>? orderByList,
     _i1.Transaction? transaction,
+    _i1.LockMode? lockMode,
+    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.find<Section>(
       where: where?.call(Section.t),
@@ -404,6 +408,8 @@ class SectionRepository {
       limit: limit,
       offset: offset,
       transaction: transaction,
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
     );
   }
 
@@ -425,13 +431,15 @@ class SectionRepository {
   /// );
   /// ```
   Future<Section?> findFirstRow(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     _i1.WhereExpressionBuilder<SectionTable>? where,
     int? offset,
     _i1.OrderByBuilder<SectionTable>? orderBy,
     bool orderDescending = false,
     _i1.OrderByListBuilder<SectionTable>? orderByList,
     _i1.Transaction? transaction,
+    _i1.LockMode? lockMode,
+    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.findFirstRow<Section>(
       where: where?.call(Section.t),
@@ -440,18 +448,24 @@ class SectionRepository {
       orderDescending: orderDescending,
       offset: offset,
       transaction: transaction,
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
     );
   }
 
   /// Finds a single [Section] by its [id] or null if no such row exists.
   Future<Section?> findById(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     int id, {
     _i1.Transaction? transaction,
+    _i1.LockMode? lockMode,
+    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.findById<Section>(
       id,
       transaction: transaction,
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
     );
   }
 
@@ -461,14 +475,20 @@ class SectionRepository {
   ///
   /// This is an atomic operation, meaning that if one of the rows fails to
   /// insert, none of the rows will be inserted.
+  ///
+  /// If [ignoreConflicts] is set to `true`, rows that conflict with existing
+  /// rows are silently skipped, and only the successfully inserted rows are
+  /// returned.
   Future<List<Section>> insert(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     List<Section> rows, {
     _i1.Transaction? transaction,
+    bool ignoreConflicts = false,
   }) async {
     return session.db.insert<Section>(
       rows,
       transaction: transaction,
+      ignoreConflicts: ignoreConflicts,
     );
   }
 
@@ -476,7 +496,7 @@ class SectionRepository {
   ///
   /// The returned [Section] will have its `id` field set.
   Future<Section> insertRow(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Section row, {
     _i1.Transaction? transaction,
   }) async {
@@ -492,7 +512,7 @@ class SectionRepository {
   /// This is an atomic operation, meaning that if one of the rows fails to
   /// update, none of the rows will be updated.
   Future<List<Section>> update(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     List<Section> rows, {
     _i1.ColumnSelections<SectionTable>? columns,
     _i1.Transaction? transaction,
@@ -508,7 +528,7 @@ class SectionRepository {
   /// Optionally, a list of [columns] can be provided to only update those
   /// columns. Defaults to all columns.
   Future<Section> updateRow(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Section row, {
     _i1.ColumnSelections<SectionTable>? columns,
     _i1.Transaction? transaction,
@@ -523,7 +543,7 @@ class SectionRepository {
   /// Updates a single [Section] by its [id] with the specified [columnValues].
   /// Returns the updated row or null if no row with the given id exists.
   Future<Section?> updateById(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     int id, {
     required _i1.ColumnValueListBuilder<SectionUpdateTable> columnValues,
     _i1.Transaction? transaction,
@@ -538,7 +558,7 @@ class SectionRepository {
   /// Updates all [Section]s matching the [where] expression with the specified [columnValues].
   /// Returns the list of updated rows.
   Future<List<Section>> updateWhere(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     required _i1.ColumnValueListBuilder<SectionUpdateTable> columnValues,
     required _i1.WhereExpressionBuilder<SectionTable> where,
     int? limit,
@@ -564,7 +584,7 @@ class SectionRepository {
   /// This is an atomic operation, meaning that if one of the rows fail to
   /// be deleted, none of the rows will be deleted.
   Future<List<Section>> delete(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     List<Section> rows, {
     _i1.Transaction? transaction,
   }) async {
@@ -576,7 +596,7 @@ class SectionRepository {
 
   /// Deletes a single [Section].
   Future<Section> deleteRow(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Section row, {
     _i1.Transaction? transaction,
   }) async {
@@ -588,7 +608,7 @@ class SectionRepository {
 
   /// Deletes all rows matching the [where] expression.
   Future<List<Section>> deleteWhere(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     required _i1.WhereExpressionBuilder<SectionTable> where,
     _i1.Transaction? transaction,
   }) async {
@@ -601,7 +621,7 @@ class SectionRepository {
   /// Counts the number of rows matching the [where] expression. If omitted,
   /// will return the count of all rows in the table.
   Future<int> count(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     _i1.WhereExpressionBuilder<SectionTable>? where,
     int? limit,
     _i1.Transaction? transaction,
@@ -609,6 +629,22 @@ class SectionRepository {
     return session.db.count<Section>(
       where: where?.call(Section.t),
       limit: limit,
+      transaction: transaction,
+    );
+  }
+
+  /// Acquires row-level locks on [Section] rows matching the [where] expression.
+  Future<void> lockRows(
+    _i1.DatabaseSession session, {
+    required _i1.WhereExpressionBuilder<SectionTable> where,
+    required _i1.LockMode lockMode,
+    required _i1.Transaction transaction,
+    _i1.LockBehavior lockBehavior = _i1.LockBehavior.wait,
+  }) async {
+    return session.db.lockRows<Section>(
+      where: where(Section.t),
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
       transaction: transaction,
     );
   }

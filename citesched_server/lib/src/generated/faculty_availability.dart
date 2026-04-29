@@ -56,7 +56,9 @@ abstract class FacultyAvailability
       ),
       startTime: jsonSerialization['startTime'] as String,
       endTime: jsonSerialization['endTime'] as String,
-      isPreferred: jsonSerialization['isPreferred'] as bool,
+      isPreferred: _i1.BoolJsonExtension.fromJson(
+        jsonSerialization['isPreferred'],
+      ),
       createdAt: _i1.DateTimeJsonExtension.fromJson(
         jsonSerialization['createdAt'],
       ),
@@ -415,7 +417,7 @@ class FacultyAvailabilityRepository {
   /// );
   /// ```
   Future<List<FacultyAvailability>> find(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     _i1.WhereExpressionBuilder<FacultyAvailabilityTable>? where,
     int? limit,
     int? offset,
@@ -424,6 +426,8 @@ class FacultyAvailabilityRepository {
     _i1.OrderByListBuilder<FacultyAvailabilityTable>? orderByList,
     _i1.Transaction? transaction,
     FacultyAvailabilityInclude? include,
+    _i1.LockMode? lockMode,
+    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.find<FacultyAvailability>(
       where: where?.call(FacultyAvailability.t),
@@ -434,6 +438,8 @@ class FacultyAvailabilityRepository {
       offset: offset,
       transaction: transaction,
       include: include,
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
     );
   }
 
@@ -455,7 +461,7 @@ class FacultyAvailabilityRepository {
   /// );
   /// ```
   Future<FacultyAvailability?> findFirstRow(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     _i1.WhereExpressionBuilder<FacultyAvailabilityTable>? where,
     int? offset,
     _i1.OrderByBuilder<FacultyAvailabilityTable>? orderBy,
@@ -463,6 +469,8 @@ class FacultyAvailabilityRepository {
     _i1.OrderByListBuilder<FacultyAvailabilityTable>? orderByList,
     _i1.Transaction? transaction,
     FacultyAvailabilityInclude? include,
+    _i1.LockMode? lockMode,
+    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.findFirstRow<FacultyAvailability>(
       where: where?.call(FacultyAvailability.t),
@@ -472,20 +480,26 @@ class FacultyAvailabilityRepository {
       offset: offset,
       transaction: transaction,
       include: include,
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
     );
   }
 
   /// Finds a single [FacultyAvailability] by its [id] or null if no such row exists.
   Future<FacultyAvailability?> findById(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     int id, {
     _i1.Transaction? transaction,
     FacultyAvailabilityInclude? include,
+    _i1.LockMode? lockMode,
+    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.findById<FacultyAvailability>(
       id,
       transaction: transaction,
       include: include,
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
     );
   }
 
@@ -495,14 +509,20 @@ class FacultyAvailabilityRepository {
   ///
   /// This is an atomic operation, meaning that if one of the rows fails to
   /// insert, none of the rows will be inserted.
+  ///
+  /// If [ignoreConflicts] is set to `true`, rows that conflict with existing
+  /// rows are silently skipped, and only the successfully inserted rows are
+  /// returned.
   Future<List<FacultyAvailability>> insert(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     List<FacultyAvailability> rows, {
     _i1.Transaction? transaction,
+    bool ignoreConflicts = false,
   }) async {
     return session.db.insert<FacultyAvailability>(
       rows,
       transaction: transaction,
+      ignoreConflicts: ignoreConflicts,
     );
   }
 
@@ -510,7 +530,7 @@ class FacultyAvailabilityRepository {
   ///
   /// The returned [FacultyAvailability] will have its `id` field set.
   Future<FacultyAvailability> insertRow(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     FacultyAvailability row, {
     _i1.Transaction? transaction,
   }) async {
@@ -526,7 +546,7 @@ class FacultyAvailabilityRepository {
   /// This is an atomic operation, meaning that if one of the rows fails to
   /// update, none of the rows will be updated.
   Future<List<FacultyAvailability>> update(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     List<FacultyAvailability> rows, {
     _i1.ColumnSelections<FacultyAvailabilityTable>? columns,
     _i1.Transaction? transaction,
@@ -542,7 +562,7 @@ class FacultyAvailabilityRepository {
   /// Optionally, a list of [columns] can be provided to only update those
   /// columns. Defaults to all columns.
   Future<FacultyAvailability> updateRow(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     FacultyAvailability row, {
     _i1.ColumnSelections<FacultyAvailabilityTable>? columns,
     _i1.Transaction? transaction,
@@ -557,7 +577,7 @@ class FacultyAvailabilityRepository {
   /// Updates a single [FacultyAvailability] by its [id] with the specified [columnValues].
   /// Returns the updated row or null if no row with the given id exists.
   Future<FacultyAvailability?> updateById(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     int id, {
     required _i1.ColumnValueListBuilder<FacultyAvailabilityUpdateTable>
     columnValues,
@@ -573,7 +593,7 @@ class FacultyAvailabilityRepository {
   /// Updates all [FacultyAvailability]s matching the [where] expression with the specified [columnValues].
   /// Returns the list of updated rows.
   Future<List<FacultyAvailability>> updateWhere(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     required _i1.ColumnValueListBuilder<FacultyAvailabilityUpdateTable>
     columnValues,
     required _i1.WhereExpressionBuilder<FacultyAvailabilityTable> where,
@@ -600,7 +620,7 @@ class FacultyAvailabilityRepository {
   /// This is an atomic operation, meaning that if one of the rows fail to
   /// be deleted, none of the rows will be deleted.
   Future<List<FacultyAvailability>> delete(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     List<FacultyAvailability> rows, {
     _i1.Transaction? transaction,
   }) async {
@@ -612,7 +632,7 @@ class FacultyAvailabilityRepository {
 
   /// Deletes a single [FacultyAvailability].
   Future<FacultyAvailability> deleteRow(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     FacultyAvailability row, {
     _i1.Transaction? transaction,
   }) async {
@@ -624,7 +644,7 @@ class FacultyAvailabilityRepository {
 
   /// Deletes all rows matching the [where] expression.
   Future<List<FacultyAvailability>> deleteWhere(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     required _i1.WhereExpressionBuilder<FacultyAvailabilityTable> where,
     _i1.Transaction? transaction,
   }) async {
@@ -637,7 +657,7 @@ class FacultyAvailabilityRepository {
   /// Counts the number of rows matching the [where] expression. If omitted,
   /// will return the count of all rows in the table.
   Future<int> count(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     _i1.WhereExpressionBuilder<FacultyAvailabilityTable>? where,
     int? limit,
     _i1.Transaction? transaction,
@@ -645,6 +665,22 @@ class FacultyAvailabilityRepository {
     return session.db.count<FacultyAvailability>(
       where: where?.call(FacultyAvailability.t),
       limit: limit,
+      transaction: transaction,
+    );
+  }
+
+  /// Acquires row-level locks on [FacultyAvailability] rows matching the [where] expression.
+  Future<void> lockRows(
+    _i1.DatabaseSession session, {
+    required _i1.WhereExpressionBuilder<FacultyAvailabilityTable> where,
+    required _i1.LockMode lockMode,
+    required _i1.Transaction transaction,
+    _i1.LockBehavior lockBehavior = _i1.LockBehavior.wait,
+  }) async {
+    return session.db.lockRows<FacultyAvailability>(
+      where: where(FacultyAvailability.t),
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
       transaction: transaction,
     );
   }
@@ -656,7 +692,7 @@ class FacultyAvailabilityAttachRowRepository {
   /// Creates a relation between the given [FacultyAvailability] and [Faculty]
   /// by setting the [FacultyAvailability]'s foreign key `facultyId` to refer to the [Faculty].
   Future<void> faculty(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     FacultyAvailability facultyAvailability,
     _i2.Faculty faculty, {
     _i1.Transaction? transaction,

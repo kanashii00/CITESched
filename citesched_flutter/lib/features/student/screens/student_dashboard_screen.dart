@@ -844,7 +844,7 @@ class StudentDashboardScreen extends ConsumerWidget {
       children: [
         scaffold,
         DraggableFab(
-          child: FloatingActionButton.extended(
+          child: FloatingActionButton(
             onPressed: () {
               showDialog(
                 context: context,
@@ -853,8 +853,7 @@ class StudentDashboardScreen extends ConsumerWidget {
             },
             backgroundColor: const Color(0xFF4f003b),
             foregroundColor: Colors.white,
-            icon: const Icon(Icons.auto_awesome),
-            label: const Text('Ask Me!'),
+            child: const Icon(Icons.auto_awesome_rounded),
             tooltip: 'Hey ask me some questions!',
           ),
         ),

@@ -11,40 +11,32 @@
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:serverpod_client/serverpod_client.dart' as _i1;
-import 'room_type.dart' as _i2;
-import 'program.dart' as _i3;
 
-abstract class Room implements _i1.SerializableModel {
-  Room._({
+abstract class AiChatSession implements _i1.SerializableModel {
+  AiChatSession._({
     this.id,
-    required this.name,
-    required this.capacity,
-    required this.type,
-    required this.program,
-    required this.isActive,
+    required this.userId,
+    required this.roleType,
+    required this.title,
     required this.createdAt,
     required this.updatedAt,
   });
 
-  factory Room({
+  factory AiChatSession({
     int? id,
-    required String name,
-    required int capacity,
-    required _i2.RoomType type,
-    required _i3.Program program,
-    required bool isActive,
+    required String userId,
+    required String roleType,
+    required String title,
     required DateTime createdAt,
     required DateTime updatedAt,
-  }) = _RoomImpl;
+  }) = _AiChatSessionImpl;
 
-  factory Room.fromJson(Map<String, dynamic> jsonSerialization) {
-    return Room(
+  factory AiChatSession.fromJson(Map<String, dynamic> jsonSerialization) {
+    return AiChatSession(
       id: jsonSerialization['id'] as int?,
-      name: jsonSerialization['name'] as String,
-      capacity: jsonSerialization['capacity'] as int,
-      type: _i2.RoomType.fromJson((jsonSerialization['type'] as String)),
-      program: _i3.Program.fromJson((jsonSerialization['program'] as String)),
-      isActive: _i1.BoolJsonExtension.fromJson(jsonSerialization['isActive']),
+      userId: jsonSerialization['userId'] as String,
+      roleType: jsonSerialization['roleType'] as String,
+      title: jsonSerialization['title'] as String,
       createdAt: _i1.DateTimeJsonExtension.fromJson(
         jsonSerialization['createdAt'],
       ),
@@ -59,43 +51,35 @@ abstract class Room implements _i1.SerializableModel {
   /// the id will be null.
   int? id;
 
-  String name;
+  String userId;
 
-  int capacity;
+  String roleType;
 
-  _i2.RoomType type;
-
-  _i3.Program program;
-
-  bool isActive;
+  String title;
 
   DateTime createdAt;
 
   DateTime updatedAt;
 
-  /// Returns a shallow copy of this [Room]
+  /// Returns a shallow copy of this [AiChatSession]
   /// with some or all fields replaced by the given arguments.
   @_i1.useResult
-  Room copyWith({
+  AiChatSession copyWith({
     int? id,
-    String? name,
-    int? capacity,
-    _i2.RoomType? type,
-    _i3.Program? program,
-    bool? isActive,
+    String? userId,
+    String? roleType,
+    String? title,
     DateTime? createdAt,
     DateTime? updatedAt,
   });
   @override
   Map<String, dynamic> toJson() {
     return {
-      '__className__': 'Room',
+      '__className__': 'AiChatSession',
       if (id != null) 'id': id,
-      'name': name,
-      'capacity': capacity,
-      'type': type.toJson(),
-      'program': program.toJson(),
-      'isActive': isActive,
+      'userId': userId,
+      'roleType': roleType,
+      'title': title,
       'createdAt': createdAt.toJson(),
       'updatedAt': updatedAt.toJson(),
     };
@@ -109,48 +93,40 @@ abstract class Room implements _i1.SerializableModel {
 
 class _Undefined {}
 
-class _RoomImpl extends Room {
-  _RoomImpl({
+class _AiChatSessionImpl extends AiChatSession {
+  _AiChatSessionImpl({
     int? id,
-    required String name,
-    required int capacity,
-    required _i2.RoomType type,
-    required _i3.Program program,
-    required bool isActive,
+    required String userId,
+    required String roleType,
+    required String title,
     required DateTime createdAt,
     required DateTime updatedAt,
   }) : super._(
          id: id,
-         name: name,
-         capacity: capacity,
-         type: type,
-         program: program,
-         isActive: isActive,
+         userId: userId,
+         roleType: roleType,
+         title: title,
          createdAt: createdAt,
          updatedAt: updatedAt,
        );
 
-  /// Returns a shallow copy of this [Room]
+  /// Returns a shallow copy of this [AiChatSession]
   /// with some or all fields replaced by the given arguments.
   @_i1.useResult
   @override
-  Room copyWith({
+  AiChatSession copyWith({
     Object? id = _Undefined,
-    String? name,
-    int? capacity,
-    _i2.RoomType? type,
-    _i3.Program? program,
-    bool? isActive,
+    String? userId,
+    String? roleType,
+    String? title,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
-    return Room(
+    return AiChatSession(
       id: id is int? ? id : this.id,
-      name: name ?? this.name,
-      capacity: capacity ?? this.capacity,
-      type: type ?? this.type,
-      program: program ?? this.program,
-      isActive: isActive ?? this.isActive,
+      userId: userId ?? this.userId,
+      roleType: roleType ?? this.roleType,
+      title: title ?? this.title,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

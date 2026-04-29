@@ -46,7 +46,9 @@ abstract class Section implements _i1.SerializableModel {
       sectionCode: jsonSerialization['sectionCode'] as String,
       academicYear: jsonSerialization['academicYear'] as String,
       semester: jsonSerialization['semester'] as int,
-      isActive: jsonSerialization['isActive'] as bool?,
+      isActive: jsonSerialization['isActive'] == null
+          ? null
+          : _i1.BoolJsonExtension.fromJson(jsonSerialization['isActive']),
       createdAt: _i1.DateTimeJsonExtension.fromJson(
         jsonSerialization['createdAt'],
       ),

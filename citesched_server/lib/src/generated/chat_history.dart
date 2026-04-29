@@ -406,7 +406,7 @@ class ChatHistoryRepository {
   /// );
   /// ```
   Future<List<ChatHistory>> find(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     _i1.WhereExpressionBuilder<ChatHistoryTable>? where,
     int? limit,
     int? offset,
@@ -414,6 +414,8 @@ class ChatHistoryRepository {
     bool orderDescending = false,
     _i1.OrderByListBuilder<ChatHistoryTable>? orderByList,
     _i1.Transaction? transaction,
+    _i1.LockMode? lockMode,
+    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.find<ChatHistory>(
       where: where?.call(ChatHistory.t),
@@ -423,6 +425,8 @@ class ChatHistoryRepository {
       limit: limit,
       offset: offset,
       transaction: transaction,
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
     );
   }
 
@@ -444,13 +448,15 @@ class ChatHistoryRepository {
   /// );
   /// ```
   Future<ChatHistory?> findFirstRow(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     _i1.WhereExpressionBuilder<ChatHistoryTable>? where,
     int? offset,
     _i1.OrderByBuilder<ChatHistoryTable>? orderBy,
     bool orderDescending = false,
     _i1.OrderByListBuilder<ChatHistoryTable>? orderByList,
     _i1.Transaction? transaction,
+    _i1.LockMode? lockMode,
+    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.findFirstRow<ChatHistory>(
       where: where?.call(ChatHistory.t),
@@ -459,18 +465,24 @@ class ChatHistoryRepository {
       orderDescending: orderDescending,
       offset: offset,
       transaction: transaction,
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
     );
   }
 
   /// Finds a single [ChatHistory] by its [id] or null if no such row exists.
   Future<ChatHistory?> findById(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     int id, {
     _i1.Transaction? transaction,
+    _i1.LockMode? lockMode,
+    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.findById<ChatHistory>(
       id,
       transaction: transaction,
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
     );
   }
 
@@ -480,14 +492,20 @@ class ChatHistoryRepository {
   ///
   /// This is an atomic operation, meaning that if one of the rows fails to
   /// insert, none of the rows will be inserted.
+  ///
+  /// If [ignoreConflicts] is set to `true`, rows that conflict with existing
+  /// rows are silently skipped, and only the successfully inserted rows are
+  /// returned.
   Future<List<ChatHistory>> insert(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     List<ChatHistory> rows, {
     _i1.Transaction? transaction,
+    bool ignoreConflicts = false,
   }) async {
     return session.db.insert<ChatHistory>(
       rows,
       transaction: transaction,
+      ignoreConflicts: ignoreConflicts,
     );
   }
 
@@ -495,7 +513,7 @@ class ChatHistoryRepository {
   ///
   /// The returned [ChatHistory] will have its `id` field set.
   Future<ChatHistory> insertRow(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     ChatHistory row, {
     _i1.Transaction? transaction,
   }) async {
@@ -511,7 +529,7 @@ class ChatHistoryRepository {
   /// This is an atomic operation, meaning that if one of the rows fails to
   /// update, none of the rows will be updated.
   Future<List<ChatHistory>> update(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     List<ChatHistory> rows, {
     _i1.ColumnSelections<ChatHistoryTable>? columns,
     _i1.Transaction? transaction,
@@ -527,7 +545,7 @@ class ChatHistoryRepository {
   /// Optionally, a list of [columns] can be provided to only update those
   /// columns. Defaults to all columns.
   Future<ChatHistory> updateRow(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     ChatHistory row, {
     _i1.ColumnSelections<ChatHistoryTable>? columns,
     _i1.Transaction? transaction,
@@ -542,7 +560,7 @@ class ChatHistoryRepository {
   /// Updates a single [ChatHistory] by its [id] with the specified [columnValues].
   /// Returns the updated row or null if no row with the given id exists.
   Future<ChatHistory?> updateById(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     int id, {
     required _i1.ColumnValueListBuilder<ChatHistoryUpdateTable> columnValues,
     _i1.Transaction? transaction,
@@ -557,7 +575,7 @@ class ChatHistoryRepository {
   /// Updates all [ChatHistory]s matching the [where] expression with the specified [columnValues].
   /// Returns the list of updated rows.
   Future<List<ChatHistory>> updateWhere(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     required _i1.ColumnValueListBuilder<ChatHistoryUpdateTable> columnValues,
     required _i1.WhereExpressionBuilder<ChatHistoryTable> where,
     int? limit,
@@ -583,7 +601,7 @@ class ChatHistoryRepository {
   /// This is an atomic operation, meaning that if one of the rows fail to
   /// be deleted, none of the rows will be deleted.
   Future<List<ChatHistory>> delete(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     List<ChatHistory> rows, {
     _i1.Transaction? transaction,
   }) async {
@@ -595,7 +613,7 @@ class ChatHistoryRepository {
 
   /// Deletes a single [ChatHistory].
   Future<ChatHistory> deleteRow(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     ChatHistory row, {
     _i1.Transaction? transaction,
   }) async {
@@ -607,7 +625,7 @@ class ChatHistoryRepository {
 
   /// Deletes all rows matching the [where] expression.
   Future<List<ChatHistory>> deleteWhere(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     required _i1.WhereExpressionBuilder<ChatHistoryTable> where,
     _i1.Transaction? transaction,
   }) async {
@@ -620,7 +638,7 @@ class ChatHistoryRepository {
   /// Counts the number of rows matching the [where] expression. If omitted,
   /// will return the count of all rows in the table.
   Future<int> count(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     _i1.WhereExpressionBuilder<ChatHistoryTable>? where,
     int? limit,
     _i1.Transaction? transaction,
@@ -628,6 +646,22 @@ class ChatHistoryRepository {
     return session.db.count<ChatHistory>(
       where: where?.call(ChatHistory.t),
       limit: limit,
+      transaction: transaction,
+    );
+  }
+
+  /// Acquires row-level locks on [ChatHistory] rows matching the [where] expression.
+  Future<void> lockRows(
+    _i1.DatabaseSession session, {
+    required _i1.WhereExpressionBuilder<ChatHistoryTable> where,
+    required _i1.LockMode lockMode,
+    required _i1.Transaction transaction,
+    _i1.LockBehavior lockBehavior = _i1.LockBehavior.wait,
+  }) async {
+    return session.db.lockRows<ChatHistory>(
+      where: where(ChatHistory.t),
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
       transaction: transaction,
     );
   }

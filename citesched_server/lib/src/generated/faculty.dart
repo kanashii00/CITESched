@@ -73,7 +73,7 @@ abstract class Faculty
       program: jsonSerialization['program'] == null
           ? null
           : _i4.Program.fromJson((jsonSerialization['program'] as String)),
-      isActive: jsonSerialization['isActive'] as bool,
+      isActive: _i1.BoolJsonExtension.fromJson(jsonSerialization['isActive']),
       currentLoad: (jsonSerialization['currentLoad'] as num?)?.toDouble(),
       createdAt: _i1.DateTimeJsonExtension.fromJson(
         jsonSerialization['createdAt'],
@@ -532,7 +532,7 @@ class FacultyRepository {
   /// );
   /// ```
   Future<List<Faculty>> find(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     _i1.WhereExpressionBuilder<FacultyTable>? where,
     int? limit,
     int? offset,
@@ -540,6 +540,8 @@ class FacultyRepository {
     bool orderDescending = false,
     _i1.OrderByListBuilder<FacultyTable>? orderByList,
     _i1.Transaction? transaction,
+    _i1.LockMode? lockMode,
+    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.find<Faculty>(
       where: where?.call(Faculty.t),
@@ -549,6 +551,8 @@ class FacultyRepository {
       limit: limit,
       offset: offset,
       transaction: transaction,
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
     );
   }
 
@@ -570,13 +574,15 @@ class FacultyRepository {
   /// );
   /// ```
   Future<Faculty?> findFirstRow(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     _i1.WhereExpressionBuilder<FacultyTable>? where,
     int? offset,
     _i1.OrderByBuilder<FacultyTable>? orderBy,
     bool orderDescending = false,
     _i1.OrderByListBuilder<FacultyTable>? orderByList,
     _i1.Transaction? transaction,
+    _i1.LockMode? lockMode,
+    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.findFirstRow<Faculty>(
       where: where?.call(Faculty.t),
@@ -585,18 +591,24 @@ class FacultyRepository {
       orderDescending: orderDescending,
       offset: offset,
       transaction: transaction,
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
     );
   }
 
   /// Finds a single [Faculty] by its [id] or null if no such row exists.
   Future<Faculty?> findById(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     int id, {
     _i1.Transaction? transaction,
+    _i1.LockMode? lockMode,
+    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.findById<Faculty>(
       id,
       transaction: transaction,
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
     );
   }
 
@@ -606,14 +618,20 @@ class FacultyRepository {
   ///
   /// This is an atomic operation, meaning that if one of the rows fails to
   /// insert, none of the rows will be inserted.
+  ///
+  /// If [ignoreConflicts] is set to `true`, rows that conflict with existing
+  /// rows are silently skipped, and only the successfully inserted rows are
+  /// returned.
   Future<List<Faculty>> insert(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     List<Faculty> rows, {
     _i1.Transaction? transaction,
+    bool ignoreConflicts = false,
   }) async {
     return session.db.insert<Faculty>(
       rows,
       transaction: transaction,
+      ignoreConflicts: ignoreConflicts,
     );
   }
 
@@ -621,7 +639,7 @@ class FacultyRepository {
   ///
   /// The returned [Faculty] will have its `id` field set.
   Future<Faculty> insertRow(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Faculty row, {
     _i1.Transaction? transaction,
   }) async {
@@ -637,7 +655,7 @@ class FacultyRepository {
   /// This is an atomic operation, meaning that if one of the rows fails to
   /// update, none of the rows will be updated.
   Future<List<Faculty>> update(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     List<Faculty> rows, {
     _i1.ColumnSelections<FacultyTable>? columns,
     _i1.Transaction? transaction,
@@ -653,7 +671,7 @@ class FacultyRepository {
   /// Optionally, a list of [columns] can be provided to only update those
   /// columns. Defaults to all columns.
   Future<Faculty> updateRow(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Faculty row, {
     _i1.ColumnSelections<FacultyTable>? columns,
     _i1.Transaction? transaction,
@@ -668,7 +686,7 @@ class FacultyRepository {
   /// Updates a single [Faculty] by its [id] with the specified [columnValues].
   /// Returns the updated row or null if no row with the given id exists.
   Future<Faculty?> updateById(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     int id, {
     required _i1.ColumnValueListBuilder<FacultyUpdateTable> columnValues,
     _i1.Transaction? transaction,
@@ -683,7 +701,7 @@ class FacultyRepository {
   /// Updates all [Faculty]s matching the [where] expression with the specified [columnValues].
   /// Returns the list of updated rows.
   Future<List<Faculty>> updateWhere(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     required _i1.ColumnValueListBuilder<FacultyUpdateTable> columnValues,
     required _i1.WhereExpressionBuilder<FacultyTable> where,
     int? limit,
@@ -709,7 +727,7 @@ class FacultyRepository {
   /// This is an atomic operation, meaning that if one of the rows fail to
   /// be deleted, none of the rows will be deleted.
   Future<List<Faculty>> delete(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     List<Faculty> rows, {
     _i1.Transaction? transaction,
   }) async {
@@ -721,7 +739,7 @@ class FacultyRepository {
 
   /// Deletes a single [Faculty].
   Future<Faculty> deleteRow(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Faculty row, {
     _i1.Transaction? transaction,
   }) async {
@@ -733,7 +751,7 @@ class FacultyRepository {
 
   /// Deletes all rows matching the [where] expression.
   Future<List<Faculty>> deleteWhere(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     required _i1.WhereExpressionBuilder<FacultyTable> where,
     _i1.Transaction? transaction,
   }) async {
@@ -746,7 +764,7 @@ class FacultyRepository {
   /// Counts the number of rows matching the [where] expression. If omitted,
   /// will return the count of all rows in the table.
   Future<int> count(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     _i1.WhereExpressionBuilder<FacultyTable>? where,
     int? limit,
     _i1.Transaction? transaction,
@@ -754,6 +772,22 @@ class FacultyRepository {
     return session.db.count<Faculty>(
       where: where?.call(Faculty.t),
       limit: limit,
+      transaction: transaction,
+    );
+  }
+
+  /// Acquires row-level locks on [Faculty] rows matching the [where] expression.
+  Future<void> lockRows(
+    _i1.DatabaseSession session, {
+    required _i1.WhereExpressionBuilder<FacultyTable> where,
+    required _i1.LockMode lockMode,
+    required _i1.Transaction transaction,
+    _i1.LockBehavior lockBehavior = _i1.LockBehavior.wait,
+  }) async {
+    return session.db.lockRows<Faculty>(
+      where: where(Faculty.t),
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
       transaction: transaction,
     );
   }

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:citesched_client/citesched_client.dart';
 import 'package:citesched_flutter/core/utils/date_utils.dart';
+import 'package:citesched_flutter/core/utils/schedule_export_service.dart';
 import 'package:citesched_flutter/core/widgets/full_screen_calendar_scaffold.dart';
 import 'package:citesched_flutter/features/auth/providers/auth_provider.dart';
 import 'package:citesched_flutter/features/admin/widgets/weekly_calendar_view.dart';
@@ -24,13 +25,26 @@ class NLPQueryDialog extends ConsumerStatefulWidget {
 class _NLPQueryDialogState extends ConsumerState<NLPQueryDialog> {
   final TextEditingController _queryController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _inputFocusNode = FocusNode();
   bool _showHistory = false;
   bool _showSuggestionsPanel = false;
+  bool _showJumpToBottom = false;
   double? _dialogWidth;
   double? _dialogHeight;
   String? _selectedSessionId;
+  Offset _dialogOffset = Offset.zero;
 
   final Color maroonColor = const Color(0xFF720045);
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_handleScrollChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusInput();
+      _jumpToBottom(immediate: true);
+    });
+  }
 
   Future<void> _sendQuery() async {
     final query = _queryController.text.trim();
@@ -45,19 +59,44 @@ class _NLPQueryDialogState extends ConsumerState<NLPQueryDialog> {
 
   void _scrollToBottom() {
     Future.delayed(const Duration(milliseconds: 100), () {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
+      _jumpToBottom();
     });
+  }
+
+  void _jumpToBottom({bool immediate = false}) {
+    if (!_scrollController.hasClients) return;
+    final target = _scrollController.position.maxScrollExtent;
+    if (immediate) {
+      _scrollController.jumpTo(target);
+      return;
+    }
+    _scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _handleScrollChanged() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    final shouldShow =
+        position.maxScrollExtent - position.pixels > 120;
+    if (shouldShow != _showJumpToBottom && mounted) {
+      setState(() => _showJumpToBottom = shouldShow);
+    }
+  }
+
+  void _focusInput() {
+    if (!mounted) return;
+    FocusScope.of(context).requestFocus(_inputFocusNode);
   }
 
   @override
   void dispose() {
     _queryController.dispose();
+    _inputFocusNode.dispose();
+    _scrollController.removeListener(_handleScrollChanged);
     _scrollController.dispose();
     super.dispose();
   }
@@ -68,6 +107,10 @@ class _NLPQueryDialogState extends ConsumerState<NLPQueryDialog> {
       _showSuggestionsPanel = false;
       _selectedSessionId = null;
     });
+    if (!_showHistory) {
+      _focusInput();
+      _scrollToBottom();
+    }
   }
 
   void _toggleSuggestions() {
@@ -76,6 +119,10 @@ class _NLPQueryDialogState extends ConsumerState<NLPQueryDialog> {
       _showHistory = false;
       _selectedSessionId = null;
     });
+    if (!_showSuggestionsPanel) {
+      _focusInput();
+      _scrollToBottom();
+    }
   }
 
   List<String> _roleSuggestions() {
@@ -90,37 +137,44 @@ class _NLPQueryDialogState extends ConsumerState<NLPQueryDialog> {
     }
     if (selectedRole == 'faculty') {
       return [
-        'Show my schedule',
-        'Show my teaching load this term',
-        'Show my timetable for this week',
-        'Do I have any schedule conflicts?',
+        'Show my schedule today',
+        'Show my weekly timetable',
+        'Check teaching load',
+        'Detect my schedule conflicts',
+        'Show my assigned sections',
+        'Find my available hours',
         'What is my next class?',
       ];
     }
     if (selectedRole == 'student') {
       return [
-        'Show our section schedule',
-        'Show our class timetable this week',
-        'Where is my next class?',
-        'Do we have any schedule conflicts?',
-        'Which room is assigned for our next class?',
+        'Show my schedule today',
+        'Show my weekly class timetable',
+        'View my subjects',
+        'Show my section timetable',
+        'Find next class',
+        'What room is my next class?',
+        'Do I have class conflicts?',
       ];
     }
     if (scopes.contains('faculty')) {
       return [
-        'Show my schedule',
-        'Show my teaching load this term',
-        'Show my timetable for this week',
-        'Do I have any schedule conflicts?',
+        'Show my schedule today',
+        'Show my weekly timetable',
+        'Check teaching load',
+        'Detect my schedule conflicts',
+        'Show my assigned sections',
+        'Find my available hours',
         'What is my next class?',
       ];
     }
     return [
-      'Show our section schedule',
-      'Show our class timetable this week',
-      'Where is my next class?',
-      'Do we have any schedule conflicts?',
-      'Which room is assigned for our next class?',
+      'Show my schedule today',
+      'Show my weekly class timetable',
+      'View my subjects',
+      'Show my section timetable',
+      'Find next class',
+      'Do I have class conflicts?',
     ];
   }
 
@@ -136,33 +190,39 @@ class _NLPQueryDialogState extends ConsumerState<NLPQueryDialog> {
 
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(16),
-      child: Container(
-        width: bounds.width,
-        height: bounds.height,
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 24,
-              offset: const Offset(0, 12),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      child: Align(
+        alignment: Alignment.bottomRight,
+        child: Transform.translate(
+          offset: _dialogOffset,
+          child: Container(
+            width: bounds.width,
+            height: bounds.height,
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 24,
+                  offset: const Offset(0, 12),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            _buildDialogContent(
-              auth: auth,
-              isDark: isDark,
-              messages: chatState.messages,
-              isLoading: chatState.isLoading,
-              sessionsAsync: sessionsAsync,
-              historyAsync: historyAsync,
+            child: Stack(
+              children: [
+                _buildDialogContent(
+                  auth: auth,
+                  isDark: isDark,
+                  messages: chatState.messages,
+                  isLoading: chatState.isLoading,
+                  sessionsAsync: sessionsAsync,
+                  historyAsync: historyAsync,
+                ),
+                ..._buildResizeHandles(bounds),
+              ],
             ),
-            ..._buildResizeHandles(bounds),
-          ],
+          ),
         ),
       ),
     );
@@ -180,17 +240,20 @@ class _NLPQueryDialogState extends ConsumerState<NLPQueryDialog> {
 
   _DialogBounds _dialogBounds(BuildContext context) {
     final media = MediaQuery.of(context);
-    const preferredMinWidth = 360.0;
-    const preferredMinHeight = 420.0;
-    final maxWidth = media.size.width * 0.95;
-    final maxHeight = media.size.height * 0.9;
+    final isMobile = media.size.width < 768;
+    const preferredMinWidth = 320.0;
+    const preferredMinHeight = 360.0;
+    final maxWidth = isMobile ? media.size.width * 0.96 : media.size.width * 0.52;
+    final maxHeight = isMobile ? media.size.height * 0.86 : media.size.height * 0.82;
     final minWidth = math.min(preferredMinWidth, maxWidth);
     final minHeight = math.min(preferredMinHeight, maxHeight);
-    final width = (_dialogWidth ?? (media.size.width * 0.75)).clamp(
+    final defaultWidth = isMobile ? media.size.width * 0.92 : 460.0;
+    final defaultHeight = isMobile ? media.size.height * 0.72 : 620.0;
+    final width = (_dialogWidth ?? defaultWidth).clamp(
       minWidth,
       maxWidth,
     );
-    final height = (_dialogHeight ?? (media.size.height * 0.75)).clamp(
+    final height = (_dialogHeight ?? defaultHeight).clamp(
       minHeight,
       maxHeight,
     );
@@ -227,22 +290,39 @@ class _NLPQueryDialogState extends ConsumerState<NLPQueryDialog> {
   }
 
   Widget _buildDialogHeader(UserInfo? auth) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [maroonColor, const Color(0xFF9d005f)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return GestureDetector(
+      onPanUpdate: (details) {
+        setState(() {
+          final media = MediaQuery.of(context);
+          final bounds = _dialogBounds(context);
+          final proposed = _dialogOffset + details.delta;
+          final minDx = -(media.size.width - bounds.width - 12);
+          final maxDx = 0.0;
+          final minDy = -(media.size.height - bounds.height - media.padding.top - 12);
+          final maxDy = 0.0;
+          _dialogOffset = Offset(
+            proposed.dx.clamp(minDx, maxDx),
+            proposed.dy.clamp(minDy, maxDy),
+          );
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [maroonColor, const Color(0xFF9d005f)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return constraints.maxWidth < 700
-              ? _buildCompactHeader(context, auth)
-              : _buildWideHeader(context, auth);
-        },
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return constraints.maxWidth < 560
+                ? _buildCompactHeader(context, auth)
+                : _buildWideHeader(context, auth);
+          },
+        ),
       ),
     );
   }
@@ -353,6 +433,24 @@ class _NLPQueryDialogState extends ConsumerState<NLPQueryDialog> {
               return _MessageBubble(messageData: msg, maroonColor: maroonColor);
             },
           ),
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: AnimatedOpacity(
+              opacity: _showJumpToBottom ? 1 : 0,
+              duration: const Duration(milliseconds: 180),
+              child: IgnorePointer(
+                ignoring: !_showJumpToBottom,
+                child: FloatingActionButton.small(
+                  heroTag: 'nlp_jump_bottom',
+                  backgroundColor: maroonColor,
+                  foregroundColor: Colors.white,
+                  onPressed: _scrollToBottom,
+                  child: const Icon(Icons.keyboard_arrow_down_rounded),
+                ),
+              ),
+            ),
+          ),
           if (_showHistory)
             Align(
               alignment: Alignment.centerRight,
@@ -385,6 +483,8 @@ class _NLPQueryDialogState extends ConsumerState<NLPQueryDialog> {
           Expanded(
             child: TextField(
               controller: _queryController,
+              focusNode: _inputFocusNode,
+              autofocus: true,
               onSubmitted: (_) => _sendQuery(),
               style: GoogleFonts.poppins(fontSize: 14),
               decoration: InputDecoration(
@@ -922,17 +1022,28 @@ class _NLPQueryDialogState extends ConsumerState<NLPQueryDialog> {
     if (sessionId == null) return;
     await _deleteSession(sessionId);
     if (!mounted) return;
-    setState(() => _selectedSessionId = null);
+    setState(() {
+      _selectedSessionId = null;
+      _showHistory = false;
+    });
+    _focusInput();
+    _scrollToBottom();
   }
 
   Future<void> _deleteSession(String sessionId) async {
     await ref.read(chatHistoryDeleteProvider(sessionId).future);
+    ref.read(nlpQueryChatProvider.notifier).closeDeletedSession(sessionId);
     ref.invalidate(chatHistorySessionsProvider);
     ref.invalidate(chatHistorySessionProvider);
     if (!mounted) return;
-    if (_selectedSessionId == sessionId) {
-      setState(() => _selectedSessionId = null);
-    }
+    setState(() {
+      if (_selectedSessionId == sessionId) {
+        _selectedSessionId = null;
+        _showHistory = false;
+      }
+    });
+    _focusInput();
+    _scrollToBottom();
   }
 
   Future<void> _openSession(ChatSessionSummary entry) async {
@@ -952,6 +1063,7 @@ class _NLPQueryDialogState extends ConsumerState<NLPQueryDialog> {
       _showSuggestionsPanel = false;
       _selectedSessionId = entry.sessionId;
     });
+    _focusInput();
     _scrollToBottom();
   }
 }
@@ -1187,6 +1299,7 @@ class _MessageBubble extends StatelessWidget {
     final text = messageData['text'] as String;
     final schedules = messageData['schedules'] as List?;
     final dataJson = messageData['dataJson'] as String?;
+    final scheduleView = messageData['scheduleView'] as String?;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
@@ -1196,7 +1309,7 @@ class _MessageBubble extends StatelessWidget {
             : CrossAxisAlignment.start,
         children: [
           _buildMessageRow(context, isUser, isError, text),
-          ..._buildMessageExtras(context, schedules, dataJson),
+          ..._buildMessageExtras(context, schedules, dataJson, scheduleView),
         ],
       ),
     );
@@ -1252,20 +1365,27 @@ class _MessageBubble extends StatelessWidget {
     BuildContext context,
     List? schedules,
     String? dataJson,
+    String? scheduleView,
   ) {
     final widgets = <Widget>[];
     final hasSchedules = schedules != null && schedules.isNotEmpty;
+    final showTimetable = messageData['showTimetable'] == true;
 
     if (hasSchedules) {
       widgets.add(const SizedBox(height: 12));
-      widgets.add(_buildScheduleCards(context, schedules));
-      widgets.add(
-        _buildTimetablePreview(
-          context,
-          schedules,
-          messageData['showTimetable'] == true,
-        ),
-      );
+      if (showTimetable) {
+        widgets.add(
+          _buildStructuredSchedulePreview(
+            context,
+            schedules,
+            scheduleView ?? 'calendar',
+          ),
+        );
+      } else {
+        widgets.add(_buildScheduleCards(context, schedules));
+      }
+      widgets.add(const SizedBox(height: 10));
+      widgets.add(_buildScheduleExportActions(context, schedules));
     }
 
     if (dataJson != null) {
@@ -1305,89 +1425,205 @@ class _MessageBubble extends StatelessWidget {
   }
 
   Widget _buildScheduleCards(BuildContext context, List schedules) {
+    final scrollController = ScrollController();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
-      padding: const EdgeInsets.only(left: 48), // Align with bot bubble
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: schedules.map((s) {
-            return Container(
-              width: 200,
-              margin: const EdgeInsets.only(right: 12),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.white.withValues(alpha: 0.05)
-                    : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: maroonColor.withValues(alpha: 0.1),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.only(left: 48),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (schedules.length > 1)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8, right: 12),
+              child: Row(
                 children: [
                   Text(
-                    s.subject?.name ?? 'Unknown Subject',
+                    '${schedules.length} schedules',
                     style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
                       color: maroonColor,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.room_outlined,
-                        size: 10,
-                        color: Colors.grey,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        s.room?.name ?? 'TBA',
-                        style: GoogleFonts.poppins(
-                          fontSize: 10,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
+                  const Spacer(),
+                  Text(
+                    'Swipe to view more',
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      color: isDark ? Colors.white60 : Colors.grey.shade600,
+                    ),
                   ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.access_time_rounded,
-                        size: 10,
-                        color: Colors.grey,
-                      ),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          s.timeslot != null
-                              ? CITESchedDateUtils.formatTimeslot(
-                                  s.timeslot!.day,
-                                  s.timeslot!.startTime,
-                                  s.timeslot!.endTime,
-                                )
-                              : 'TBA',
-                          style: GoogleFonts.poppins(
-                            fontSize: 10,
-                            color: Colors.grey,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.swipe_rounded,
+                    size: 14,
+                    color: isDark ? Colors.white60 : Colors.grey.shade600,
                   ),
                 ],
               ),
-            );
-          }).toList(),
-        ),
+            ),
+          SizedBox(
+            height: 122,
+            child: Scrollbar(
+              controller: scrollController,
+              thumbVisibility: schedules.length > 1,
+              child: ListView.separated(
+                controller: scrollController,
+                scrollDirection: Axis.horizontal,
+                primary: false,
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.only(right: 12),
+                itemCount: schedules.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  final s = schedules[index];
+                  return Container(
+                    width: 208,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.05)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: maroonColor.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          s.subject?.name ?? 'Unknown Subject',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: maroonColor,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.room_outlined,
+                              size: 10,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                s.room?.name ?? 'TBA',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 10,
+                                  color: Colors.grey,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.access_time_rounded,
+                              size: 10,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                s.timeslot != null
+                                    ? CITESchedDateUtils.formatTimeslot(
+                                        s.timeslot!.day,
+                                        s.timeslot!.startTime,
+                                        s.timeslot!.endTime,
+                                      )
+                                    : 'TBA',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 10,
+                                  color: Colors.grey,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScheduleExportActions(BuildContext context, List schedules) {
+    final normalizedSchedules = schedules.whereType<Schedule>().toList();
+    if (normalizedSchedules.isEmpty) return const SizedBox.shrink();
+
+    final buttonStyle = OutlinedButton.styleFrom(
+      foregroundColor: maroonColor,
+      side: BorderSide(color: maroonColor.withValues(alpha: 0.35)),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      textStyle: GoogleFonts.poppins(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+
+    Future<void> exportCsv() async {
+      await ScheduleExportService.exportSchedulesCsv(
+        title: 'CITESched_AI_Schedule',
+        schedules: normalizedSchedules,
+      );
+    }
+
+    Future<void> exportPdf() async {
+      await ScheduleExportService.exportSchedulesPdf(
+        title: 'CITESched AI Schedule',
+        schedules: normalizedSchedules,
+      );
+    }
+
+    Future<void> exportDocx() async {
+      await ScheduleExportService.exportSchedulesDocx(
+        title: 'CITESched AI Schedule',
+        schedules: normalizedSchedules,
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 48),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          OutlinedButton.icon(
+            onPressed: exportCsv,
+            style: buttonStyle,
+            icon: const Icon(Icons.table_chart_rounded, size: 16),
+            label: const Text('CSV'),
+          ),
+          OutlinedButton.icon(
+            onPressed: exportPdf,
+            style: buttonStyle,
+            icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
+            label: const Text('PDF'),
+          ),
+          OutlinedButton.icon(
+            onPressed: exportDocx,
+            style: buttonStyle,
+            icon: const Icon(Icons.description_rounded, size: 16),
+            label: const Text('DOCX'),
+          ),
+        ],
       ),
     );
   }
@@ -1531,6 +1767,28 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
+  Widget _buildStructuredSchedulePreview(
+    BuildContext context,
+    List schedules,
+    String preferredView,
+  ) {
+    final scheduleInfos = schedules
+        .cast<Schedule>()
+        .map((s) => ScheduleInfo(schedule: s, conflicts: const []))
+        .toList();
+    if (scheduleInfos.isEmpty) return const SizedBox();
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 48, top: 4),
+      child: _ChatScheduleViewSwitcher(
+        maroonColor: maroonColor,
+        isDark: Theme.of(context).brightness == Brightness.dark,
+        scheduleInfos: scheduleInfos,
+        preferredView: preferredView,
+      ),
+    );
+  }
+
   Widget _buildSmallChip(BuildContext context, String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -1546,6 +1804,162 @@ class _MessageBubble extends StatelessWidget {
           fontWeight: FontWeight.bold,
           color: color,
         ),
+      ),
+    );
+  }
+}
+
+enum _ChatScheduleView { table, calendar }
+
+class _ChatScheduleViewSwitcher extends StatefulWidget {
+  final Color maroonColor;
+  final bool isDark;
+  final List<ScheduleInfo> scheduleInfos;
+  final String preferredView;
+
+  const _ChatScheduleViewSwitcher({
+    required this.maroonColor,
+    required this.isDark,
+    required this.scheduleInfos,
+    required this.preferredView,
+  });
+
+  @override
+  State<_ChatScheduleViewSwitcher> createState() =>
+      _ChatScheduleViewSwitcherState();
+}
+
+class _ChatScheduleViewSwitcherState extends State<_ChatScheduleViewSwitcher> {
+  late _ChatScheduleView _view;
+
+  @override
+  void initState() {
+    super.initState();
+    _view = widget.preferredView == 'table'
+        ? _ChatScheduleView.table
+        : _ChatScheduleView.calendar;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cardBg = widget.isDark
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.white;
+    final isTableView = _view == _ChatScheduleView.table;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ChoiceChip(
+              label: const Text('Table View'),
+              selected: isTableView,
+              selectedColor: widget.maroonColor,
+              checkmarkColor: Colors.white,
+              labelStyle: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                color: isTableView
+                    ? Colors.white
+                    : (widget.isDark ? Colors.white70 : widget.maroonColor),
+              ),
+              onSelected: (_) => setState(() => _view = _ChatScheduleView.table),
+            ),
+            ChoiceChip(
+              label: const Text('Calendar View'),
+              selected: !isTableView,
+              selectedColor: widget.maroonColor,
+              checkmarkColor: Colors.white,
+              labelStyle: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                color: !isTableView
+                    ? Colors.white
+                    : (widget.isDark ? Colors.white70 : widget.maroonColor),
+              ),
+              onSelected: (_) =>
+                  setState(() => _view = _ChatScheduleView.calendar),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (isTableView)
+          _buildScheduleTable(context, cardBg)
+        else
+          _buildScheduleCalendar(context, cardBg),
+      ],
+    );
+  }
+
+  Widget _buildScheduleTable(BuildContext context, Color cardBg) {
+    final scrollController = ScrollController();
+    final sorted = List<ScheduleInfo>.from(widget.scheduleInfos)
+      ..sort((a, b) {
+        final dayCompare =
+            a.schedule.timeslot?.day.index.compareTo(b.schedule.timeslot?.day.index ?? 0) ?? 0;
+        if (dayCompare != 0) return dayCompare;
+        return (a.schedule.timeslot?.startTime ?? '').compareTo(
+          b.schedule.timeslot?.startTime ?? '',
+        );
+      });
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: widget.maroonColor.withValues(alpha: 0.15)),
+      ),
+      child: Scrollbar(
+        controller: scrollController,
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          controller: scrollController,
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            columns: const [
+              DataColumn(label: Text('Day')),
+              DataColumn(label: Text('Time')),
+              DataColumn(label: Text('Subject')),
+              DataColumn(label: Text('Section')),
+              DataColumn(label: Text('Room')),
+            ],
+            rows: sorted.map((info) {
+              final s = info.schedule;
+              final ts = s.timeslot;
+              return DataRow(
+                cells: [
+                  DataCell(Text(ts?.day.name.toUpperCase() ?? 'TBA')),
+                  DataCell(Text(
+                    ts == null
+                        ? 'TBA'
+                        : '${ts.startTime} - ${ts.endTime}',
+                  )),
+                  DataCell(Text(s.subject?.name ?? s.subject?.code ?? 'Unknown')),
+                  DataCell(Text(s.section)),
+                  DataCell(Text(s.room?.name ?? 'TBA')),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScheduleCalendar(BuildContext context, Color cardBg) {
+    return Container(
+      height: 240,
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: widget.maroonColor.withValues(alpha: 0.15)),
+      ),
+      child: WeeklyCalendarView(
+        schedules: widget.scheduleInfos,
+        maroonColor: widget.maroonColor,
+        isStudentView: true,
       ),
     );
   }

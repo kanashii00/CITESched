@@ -103,7 +103,9 @@ abstract class Schedule
             ),
       units: (jsonSerialization['units'] as num?)?.toDouble(),
       hours: (jsonSerialization['hours'] as num?)?.toDouble(),
-      isActive: jsonSerialization['isActive'] as bool?,
+      isActive: jsonSerialization['isActive'] == null
+          ? null
+          : _i1.BoolJsonExtension.fromJson(jsonSerialization['isActive']),
       createdAt: _i1.DateTimeJsonExtension.fromJson(
         jsonSerialization['createdAt'],
       ),
@@ -719,7 +721,7 @@ class ScheduleRepository {
   /// );
   /// ```
   Future<List<Schedule>> find(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     _i1.WhereExpressionBuilder<ScheduleTable>? where,
     int? limit,
     int? offset,
@@ -728,6 +730,8 @@ class ScheduleRepository {
     _i1.OrderByListBuilder<ScheduleTable>? orderByList,
     _i1.Transaction? transaction,
     ScheduleInclude? include,
+    _i1.LockMode? lockMode,
+    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.find<Schedule>(
       where: where?.call(Schedule.t),
@@ -738,6 +742,8 @@ class ScheduleRepository {
       offset: offset,
       transaction: transaction,
       include: include,
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
     );
   }
 
@@ -759,7 +765,7 @@ class ScheduleRepository {
   /// );
   /// ```
   Future<Schedule?> findFirstRow(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     _i1.WhereExpressionBuilder<ScheduleTable>? where,
     int? offset,
     _i1.OrderByBuilder<ScheduleTable>? orderBy,
@@ -767,6 +773,8 @@ class ScheduleRepository {
     _i1.OrderByListBuilder<ScheduleTable>? orderByList,
     _i1.Transaction? transaction,
     ScheduleInclude? include,
+    _i1.LockMode? lockMode,
+    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.findFirstRow<Schedule>(
       where: where?.call(Schedule.t),
@@ -776,20 +784,26 @@ class ScheduleRepository {
       offset: offset,
       transaction: transaction,
       include: include,
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
     );
   }
 
   /// Finds a single [Schedule] by its [id] or null if no such row exists.
   Future<Schedule?> findById(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     int id, {
     _i1.Transaction? transaction,
     ScheduleInclude? include,
+    _i1.LockMode? lockMode,
+    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.findById<Schedule>(
       id,
       transaction: transaction,
       include: include,
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
     );
   }
 
@@ -799,14 +813,20 @@ class ScheduleRepository {
   ///
   /// This is an atomic operation, meaning that if one of the rows fails to
   /// insert, none of the rows will be inserted.
+  ///
+  /// If [ignoreConflicts] is set to `true`, rows that conflict with existing
+  /// rows are silently skipped, and only the successfully inserted rows are
+  /// returned.
   Future<List<Schedule>> insert(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     List<Schedule> rows, {
     _i1.Transaction? transaction,
+    bool ignoreConflicts = false,
   }) async {
     return session.db.insert<Schedule>(
       rows,
       transaction: transaction,
+      ignoreConflicts: ignoreConflicts,
     );
   }
 
@@ -814,7 +834,7 @@ class ScheduleRepository {
   ///
   /// The returned [Schedule] will have its `id` field set.
   Future<Schedule> insertRow(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Schedule row, {
     _i1.Transaction? transaction,
   }) async {
@@ -830,7 +850,7 @@ class ScheduleRepository {
   /// This is an atomic operation, meaning that if one of the rows fails to
   /// update, none of the rows will be updated.
   Future<List<Schedule>> update(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     List<Schedule> rows, {
     _i1.ColumnSelections<ScheduleTable>? columns,
     _i1.Transaction? transaction,
@@ -846,7 +866,7 @@ class ScheduleRepository {
   /// Optionally, a list of [columns] can be provided to only update those
   /// columns. Defaults to all columns.
   Future<Schedule> updateRow(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Schedule row, {
     _i1.ColumnSelections<ScheduleTable>? columns,
     _i1.Transaction? transaction,
@@ -861,7 +881,7 @@ class ScheduleRepository {
   /// Updates a single [Schedule] by its [id] with the specified [columnValues].
   /// Returns the updated row or null if no row with the given id exists.
   Future<Schedule?> updateById(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     int id, {
     required _i1.ColumnValueListBuilder<ScheduleUpdateTable> columnValues,
     _i1.Transaction? transaction,
@@ -876,7 +896,7 @@ class ScheduleRepository {
   /// Updates all [Schedule]s matching the [where] expression with the specified [columnValues].
   /// Returns the list of updated rows.
   Future<List<Schedule>> updateWhere(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     required _i1.ColumnValueListBuilder<ScheduleUpdateTable> columnValues,
     required _i1.WhereExpressionBuilder<ScheduleTable> where,
     int? limit,
@@ -902,7 +922,7 @@ class ScheduleRepository {
   /// This is an atomic operation, meaning that if one of the rows fail to
   /// be deleted, none of the rows will be deleted.
   Future<List<Schedule>> delete(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     List<Schedule> rows, {
     _i1.Transaction? transaction,
   }) async {
@@ -914,7 +934,7 @@ class ScheduleRepository {
 
   /// Deletes a single [Schedule].
   Future<Schedule> deleteRow(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Schedule row, {
     _i1.Transaction? transaction,
   }) async {
@@ -926,7 +946,7 @@ class ScheduleRepository {
 
   /// Deletes all rows matching the [where] expression.
   Future<List<Schedule>> deleteWhere(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     required _i1.WhereExpressionBuilder<ScheduleTable> where,
     _i1.Transaction? transaction,
   }) async {
@@ -939,7 +959,7 @@ class ScheduleRepository {
   /// Counts the number of rows matching the [where] expression. If omitted,
   /// will return the count of all rows in the table.
   Future<int> count(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     _i1.WhereExpressionBuilder<ScheduleTable>? where,
     int? limit,
     _i1.Transaction? transaction,
@@ -947,6 +967,22 @@ class ScheduleRepository {
     return session.db.count<Schedule>(
       where: where?.call(Schedule.t),
       limit: limit,
+      transaction: transaction,
+    );
+  }
+
+  /// Acquires row-level locks on [Schedule] rows matching the [where] expression.
+  Future<void> lockRows(
+    _i1.DatabaseSession session, {
+    required _i1.WhereExpressionBuilder<ScheduleTable> where,
+    required _i1.LockMode lockMode,
+    required _i1.Transaction transaction,
+    _i1.LockBehavior lockBehavior = _i1.LockBehavior.wait,
+  }) async {
+    return session.db.lockRows<Schedule>(
+      where: where(Schedule.t),
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
       transaction: transaction,
     );
   }
@@ -958,7 +994,7 @@ class ScheduleAttachRowRepository {
   /// Creates a relation between the given [Schedule] and [Subject]
   /// by setting the [Schedule]'s foreign key `subjectId` to refer to the [Subject].
   Future<void> subject(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Schedule schedule,
     _i2.Subject subject, {
     _i1.Transaction? transaction,
@@ -981,7 +1017,7 @@ class ScheduleAttachRowRepository {
   /// Creates a relation between the given [Schedule] and [Faculty]
   /// by setting the [Schedule]'s foreign key `facultyId` to refer to the [Faculty].
   Future<void> faculty(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Schedule schedule,
     _i3.Faculty faculty, {
     _i1.Transaction? transaction,
@@ -1004,7 +1040,7 @@ class ScheduleAttachRowRepository {
   /// Creates a relation between the given [Schedule] and [Room]
   /// by setting the [Schedule]'s foreign key `roomId` to refer to the [Room].
   Future<void> room(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Schedule schedule,
     _i4.Room room, {
     _i1.Transaction? transaction,
@@ -1027,7 +1063,7 @@ class ScheduleAttachRowRepository {
   /// Creates a relation between the given [Schedule] and [Timeslot]
   /// by setting the [Schedule]'s foreign key `timeslotId` to refer to the [Timeslot].
   Future<void> timeslot(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Schedule schedule,
     _i5.Timeslot timeslot, {
     _i1.Transaction? transaction,
@@ -1050,7 +1086,7 @@ class ScheduleAttachRowRepository {
   /// Creates a relation between the given [Schedule] and [Section]
   /// by setting the [Schedule]'s foreign key `sectionId` to refer to the [Section].
   Future<void> sectionRef(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Schedule schedule,
     _i6.Section sectionRef, {
     _i1.Transaction? transaction,
@@ -1080,7 +1116,7 @@ class ScheduleDetachRowRepository {
   /// This removes the association between the two models without deleting
   /// the related record.
   Future<void> room(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Schedule schedule, {
     _i1.Transaction? transaction,
   }) async {
@@ -1102,7 +1138,7 @@ class ScheduleDetachRowRepository {
   /// This removes the association between the two models without deleting
   /// the related record.
   Future<void> timeslot(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Schedule schedule, {
     _i1.Transaction? transaction,
   }) async {
@@ -1124,7 +1160,7 @@ class ScheduleDetachRowRepository {
   /// This removes the association between the two models without deleting
   /// the related record.
   Future<void> sectionRef(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Schedule schedule, {
     _i1.Transaction? transaction,
   }) async {

@@ -1350,6 +1350,13 @@ class AdminEndpoint extends Endpoint {
       session,
       where: (t) =>
           isActive == null ? Constant.bool(true) : t.isActive.equals(isActive),
+      include: Schedule.include(
+        subject: Subject.include(),
+        faculty: Faculty.include(),
+        room: Room.include(),
+        timeslot: Timeslot.include(),
+        sectionRef: Section.include(),
+      ),
     );
   }
 

@@ -63,7 +63,9 @@ abstract class Student implements _i1.SerializableModel {
               jsonSerialization['sectionRef'],
             ),
       userInfoId: jsonSerialization['userInfoId'] as int,
-      isActive: jsonSerialization['isActive'] as bool?,
+      isActive: jsonSerialization['isActive'] == null
+          ? null
+          : _i1.BoolJsonExtension.fromJson(jsonSerialization['isActive']),
       createdAt: _i1.DateTimeJsonExtension.fromJson(
         jsonSerialization['createdAt'],
       ),

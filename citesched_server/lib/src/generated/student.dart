@@ -65,7 +65,9 @@ abstract class Student
               jsonSerialization['sectionRef'],
             ),
       userInfoId: jsonSerialization['userInfoId'] as int,
-      isActive: jsonSerialization['isActive'] as bool?,
+      isActive: jsonSerialization['isActive'] == null
+          ? null
+          : _i1.BoolJsonExtension.fromJson(jsonSerialization['isActive']),
       createdAt: _i1.DateTimeJsonExtension.fromJson(
         jsonSerialization['createdAt'],
       ),
@@ -509,7 +511,7 @@ class StudentRepository {
   /// );
   /// ```
   Future<List<Student>> find(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     _i1.WhereExpressionBuilder<StudentTable>? where,
     int? limit,
     int? offset,
@@ -518,6 +520,8 @@ class StudentRepository {
     _i1.OrderByListBuilder<StudentTable>? orderByList,
     _i1.Transaction? transaction,
     StudentInclude? include,
+    _i1.LockMode? lockMode,
+    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.find<Student>(
       where: where?.call(Student.t),
@@ -528,6 +532,8 @@ class StudentRepository {
       offset: offset,
       transaction: transaction,
       include: include,
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
     );
   }
 
@@ -549,7 +555,7 @@ class StudentRepository {
   /// );
   /// ```
   Future<Student?> findFirstRow(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     _i1.WhereExpressionBuilder<StudentTable>? where,
     int? offset,
     _i1.OrderByBuilder<StudentTable>? orderBy,
@@ -557,6 +563,8 @@ class StudentRepository {
     _i1.OrderByListBuilder<StudentTable>? orderByList,
     _i1.Transaction? transaction,
     StudentInclude? include,
+    _i1.LockMode? lockMode,
+    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.findFirstRow<Student>(
       where: where?.call(Student.t),
@@ -566,20 +574,26 @@ class StudentRepository {
       offset: offset,
       transaction: transaction,
       include: include,
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
     );
   }
 
   /// Finds a single [Student] by its [id] or null if no such row exists.
   Future<Student?> findById(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     int id, {
     _i1.Transaction? transaction,
     StudentInclude? include,
+    _i1.LockMode? lockMode,
+    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.findById<Student>(
       id,
       transaction: transaction,
       include: include,
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
     );
   }
 
@@ -589,14 +603,20 @@ class StudentRepository {
   ///
   /// This is an atomic operation, meaning that if one of the rows fails to
   /// insert, none of the rows will be inserted.
+  ///
+  /// If [ignoreConflicts] is set to `true`, rows that conflict with existing
+  /// rows are silently skipped, and only the successfully inserted rows are
+  /// returned.
   Future<List<Student>> insert(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     List<Student> rows, {
     _i1.Transaction? transaction,
+    bool ignoreConflicts = false,
   }) async {
     return session.db.insert<Student>(
       rows,
       transaction: transaction,
+      ignoreConflicts: ignoreConflicts,
     );
   }
 
@@ -604,7 +624,7 @@ class StudentRepository {
   ///
   /// The returned [Student] will have its `id` field set.
   Future<Student> insertRow(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Student row, {
     _i1.Transaction? transaction,
   }) async {
@@ -620,7 +640,7 @@ class StudentRepository {
   /// This is an atomic operation, meaning that if one of the rows fails to
   /// update, none of the rows will be updated.
   Future<List<Student>> update(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     List<Student> rows, {
     _i1.ColumnSelections<StudentTable>? columns,
     _i1.Transaction? transaction,
@@ -636,7 +656,7 @@ class StudentRepository {
   /// Optionally, a list of [columns] can be provided to only update those
   /// columns. Defaults to all columns.
   Future<Student> updateRow(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Student row, {
     _i1.ColumnSelections<StudentTable>? columns,
     _i1.Transaction? transaction,
@@ -651,7 +671,7 @@ class StudentRepository {
   /// Updates a single [Student] by its [id] with the specified [columnValues].
   /// Returns the updated row or null if no row with the given id exists.
   Future<Student?> updateById(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     int id, {
     required _i1.ColumnValueListBuilder<StudentUpdateTable> columnValues,
     _i1.Transaction? transaction,
@@ -666,7 +686,7 @@ class StudentRepository {
   /// Updates all [Student]s matching the [where] expression with the specified [columnValues].
   /// Returns the list of updated rows.
   Future<List<Student>> updateWhere(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     required _i1.ColumnValueListBuilder<StudentUpdateTable> columnValues,
     required _i1.WhereExpressionBuilder<StudentTable> where,
     int? limit,
@@ -692,7 +712,7 @@ class StudentRepository {
   /// This is an atomic operation, meaning that if one of the rows fail to
   /// be deleted, none of the rows will be deleted.
   Future<List<Student>> delete(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     List<Student> rows, {
     _i1.Transaction? transaction,
   }) async {
@@ -704,7 +724,7 @@ class StudentRepository {
 
   /// Deletes a single [Student].
   Future<Student> deleteRow(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Student row, {
     _i1.Transaction? transaction,
   }) async {
@@ -716,7 +736,7 @@ class StudentRepository {
 
   /// Deletes all rows matching the [where] expression.
   Future<List<Student>> deleteWhere(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     required _i1.WhereExpressionBuilder<StudentTable> where,
     _i1.Transaction? transaction,
   }) async {
@@ -729,7 +749,7 @@ class StudentRepository {
   /// Counts the number of rows matching the [where] expression. If omitted,
   /// will return the count of all rows in the table.
   Future<int> count(
-    _i1.Session session, {
+    _i1.DatabaseSession session, {
     _i1.WhereExpressionBuilder<StudentTable>? where,
     int? limit,
     _i1.Transaction? transaction,
@@ -737,6 +757,22 @@ class StudentRepository {
     return session.db.count<Student>(
       where: where?.call(Student.t),
       limit: limit,
+      transaction: transaction,
+    );
+  }
+
+  /// Acquires row-level locks on [Student] rows matching the [where] expression.
+  Future<void> lockRows(
+    _i1.DatabaseSession session, {
+    required _i1.WhereExpressionBuilder<StudentTable> where,
+    required _i1.LockMode lockMode,
+    required _i1.Transaction transaction,
+    _i1.LockBehavior lockBehavior = _i1.LockBehavior.wait,
+  }) async {
+    return session.db.lockRows<Student>(
+      where: where(Student.t),
+      lockMode: lockMode,
+      lockBehavior: lockBehavior,
       transaction: transaction,
     );
   }
@@ -748,7 +784,7 @@ class StudentAttachRowRepository {
   /// Creates a relation between the given [Student] and [Section]
   /// by setting the [Student]'s foreign key `sectionId` to refer to the [Section].
   Future<void> sectionRef(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Student student,
     _i2.Section sectionRef, {
     _i1.Transaction? transaction,
@@ -778,7 +814,7 @@ class StudentDetachRowRepository {
   /// This removes the association between the two models without deleting
   /// the related record.
   Future<void> sectionRef(
-    _i1.Session session,
+    _i1.DatabaseSession session,
     Student student, {
     _i1.Transaction? transaction,
   }) async {
