@@ -1,0 +1,5 @@
+enum: StudentAcademicStatus
+values:
+  - active
+  - failed
+  - graduated

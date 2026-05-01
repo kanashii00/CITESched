@@ -44,7 +44,7 @@ abstract class Room implements _i1.SerializableModel {
       capacity: jsonSerialization['capacity'] as int,
       type: _i2.RoomType.fromJson((jsonSerialization['type'] as String)),
       program: _i3.Program.fromJson((jsonSerialization['program'] as String)),
-      isActive: _i1.BoolJsonExtension.fromJson(jsonSerialization['isActive']),
+      isActive: jsonSerialization['isActive'] as bool,
       createdAt: _i1.DateTimeJsonExtension.fromJson(
         jsonSerialization['createdAt'],
       ),

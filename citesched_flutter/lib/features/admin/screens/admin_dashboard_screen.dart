@@ -2,6 +2,7 @@ import 'package:citesched_client/citesched_client.dart';
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:citesched_flutter/core/providers/admin_providers.dart';
 import 'package:citesched_flutter/core/utils/responsive_helper.dart';
 import 'package:citesched_flutter/features/admin/widgets/conflict_list_modal.dart';
 import 'package:citesched_flutter/features/admin/widgets/admin_header_container.dart';
@@ -57,6 +58,7 @@ final recentStudentSignupsProvider = FutureProvider<List<Student>>((ref) async {
 const _adminDashboardTitle = 'CITESched • Admin Dashboard';
 const _yearLevelDistributionTitle = 'Year Level Distribution';
 const _sectionDistributionTitle = 'Section Distribution';
+const _defaultSectionCapacity = 40;
 
 class _StatCardConfig {
   final String label;
@@ -88,6 +90,9 @@ class AdminDashboardScreen extends ConsumerStatefulWidget {
 
 class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   final FlutterSecureStorage _notificationStorage = const FlutterSecureStorage();
+  List<Student>? _lastStudentPromotionBackup;
+  bool? _isBulkPromotingStudents;
+  bool? _isRestoringStudentPromotion;
   final Set<int> _readStudentNotificationIds = <int>{};
   final Set<int> _readFacultyNotificationIds = <int>{};
   final Set<int> _dismissedStudentNotificationIds = <int>{};
@@ -121,6 +126,520 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   bool _isFacultyNotificationDismissed(Faculty faculty) {
     final id = faculty.id;
     return id != null && _dismissedFacultyNotificationIds.contains(id);
+  }
+
+  Program? _programFromCourse(String? course) {
+    switch ((course ?? '').trim().toUpperCase()) {
+      case 'BSIT':
+        return Program.it;
+      case 'BSEMC':
+        return Program.emc;
+      default:
+        return null;
+    }
+  }
+
+  String _normalizeSectionCode(String value) => value.trim().toUpperCase();
+
+  String? _sectionSuffix(String? sectionCode) {
+    final match = RegExp(
+      r'^\s*(\d+)\s*([A-Za-z][A-Za-z0-9]*)\s*$',
+    ).firstMatch(sectionCode ?? '');
+    return match?.group(2)?.toUpperCase();
+  }
+
+  String _sectionCountKey(Program? program, int yearLevel, String sectionCode) {
+    final programKey = program?.name ?? 'unknown';
+    return '$programKey|$yearLevel|${_normalizeSectionCode(sectionCode)}';
+  }
+
+  List<String> _candidateSectionCodes({
+    required int yearLevel,
+    required String preferredSuffix,
+    required List<Section> sections,
+    required Program? program,
+  }) {
+    final normalizedPreferred = preferredSuffix.trim().toUpperCase();
+    final orderedSuffixes = <String>[];
+
+    if (normalizedPreferred.isNotEmpty) {
+      orderedSuffixes.add(normalizedPreferred);
+    }
+
+    if (normalizedPreferred.length == 1) {
+      final startCode = normalizedPreferred.codeUnitAt(0);
+      for (var code = startCode + 1; code <= 'Z'.codeUnitAt(0); code++) {
+        orderedSuffixes.add(String.fromCharCode(code));
+      }
+      for (var code = 'A'.codeUnitAt(0); code < startCode; code++) {
+        orderedSuffixes.add(String.fromCharCode(code));
+      }
+    }
+
+    for (final section in sections) {
+      if (!section.isActive || section.yearLevel != yearLevel) continue;
+      final matchesProgram =
+          program == null ||
+          section.program == program ||
+          section.program == Program.both;
+      if (!matchesProgram) continue;
+      final suffix = _sectionSuffix(section.sectionCode);
+      if (suffix == null || suffix.isEmpty) continue;
+      if (!orderedSuffixes.contains(suffix)) {
+        orderedSuffixes.add(suffix);
+      }
+    }
+
+    for (var code = 'A'.codeUnitAt(0); code <= 'Z'.codeUnitAt(0); code++) {
+      final suffix = String.fromCharCode(code);
+      if (!orderedSuffixes.contains(suffix)) {
+        orderedSuffixes.add(suffix);
+      }
+    }
+
+    return orderedSuffixes
+        .where((suffix) => suffix.isNotEmpty)
+        .map((suffix) => '$yearLevel$suffix')
+        .toList();
+  }
+
+  Map<String, int> _buildProjectedSectionCounts(List<Student> students) {
+    final counts = <String, int>{};
+    for (final student in students) {
+      final sectionCode = student.section?.trim();
+      if (sectionCode == null || sectionCode.isEmpty) continue;
+      final program = _programFromCourse(student.course);
+      final key = _sectionCountKey(program, student.yearLevel, sectionCode);
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  int _maxYearForCourse(List<Section> sections, String? course) {
+    final program = _programFromCourse(course);
+    final matchingSections = sections.where((section) {
+      if (!section.isActive) return false;
+      if (program == null) return true;
+      return section.program == program || section.program == Program.both;
+    });
+    final maxYear = matchingSections.fold<int>(0, (max, section) {
+      return section.yearLevel > max ? section.yearLevel : max;
+    });
+    return maxYear <= 0 ? 4 : maxYear;
+  }
+
+  String? _nextSectionCode(
+    Student student,
+    int nextYearLevel,
+    List<Section> sections,
+    Map<String, int> projectedCounts,
+  ) {
+    final rawSection = student.section?.trim();
+    if (rawSection == null || rawSection.isEmpty) return null;
+
+    final program = _programFromCourse(student.course);
+    final suffix = _sectionSuffix(rawSection);
+    if (suffix != null && suffix.isNotEmpty) {
+      final candidates = _candidateSectionCodes(
+        yearLevel: nextYearLevel,
+        preferredSuffix: suffix,
+        sections: sections,
+        program: program,
+      );
+      for (final candidate in candidates) {
+        final countKey = _sectionCountKey(program, nextYearLevel, candidate);
+        final currentCount = projectedCounts[countKey] ?? 0;
+        if (currentCount >= _defaultSectionCapacity) continue;
+        projectedCounts[countKey] = currentCount + 1;
+        return candidate;
+      }
+
+      final fallback = '$nextYearLevel$suffix';
+      final fallbackKey = _sectionCountKey(program, nextYearLevel, fallback);
+      projectedCounts[fallbackKey] = (projectedCounts[fallbackKey] ?? 0) + 1;
+      return fallback;
+    }
+
+    return rawSection.toUpperCase();
+  }
+
+  Future<void> _refreshStudentDashboardData() async {
+    ref.invalidate(studentsProvider);
+    ref.invalidate(archivedStudentsProvider);
+    ref.invalidate(studentSectionsProvider);
+    ref.invalidate(sectionListProvider);
+    ref.invalidate(dashboardStatsProvider);
+    ref.invalidate(recentStudentSignupsProvider);
+  }
+
+  Future<void> _showGraduatedStudentsDialog() async {
+    try {
+      final activeStudents = await client.admin.getAllStudents(isActive: true);
+      final inactiveStudents = await client.admin.getAllStudents(isActive: false);
+      final graduatedStudents = [...activeStudents, ...inactiveStudents]
+          .where(
+            (student) => student.academicStatus == StudentAcademicStatus.graduated,
+          )
+          .toList()
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+      if (!mounted) return;
+
+      showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          return Dialog(
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 24,
+              vertical: 24,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720, maxHeight: 640),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Graduated Students',
+                            style: GoogleFonts.poppins(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(dialogContext),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${graduatedStudents.length} graduated student(s)',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: const Color(0xFF666666),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    if (graduatedStudents.isEmpty)
+                      Expanded(
+                        child: Center(
+                          child: Text(
+                            'No graduated students yet.',
+                            style: GoogleFonts.poppins(
+                              fontSize: 15,
+                              color: const Color(0xFF666666),
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      Expanded(
+                        child: ListView.separated(
+                          itemCount: graduatedStudents.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (context, index) {
+                            final student = graduatedStudents[index];
+                            return Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEEF1F6),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: Colors.black.withValues(alpha: 0.06),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    backgroundColor: const Color(0xFF720045),
+                                    child: Text(
+                                      student.name.isEmpty
+                                          ? '?'
+                                          : student.name[0].toUpperCase(),
+                                      style: GoogleFonts.poppins(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          student.name,
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          '${student.studentNumber} • ${student.email}',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 12,
+                                            color: const Color(0xFF666666),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF2E7D32)
+                                          .withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      '${student.course} • Year ${student.yearLevel}',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: const Color(0xFF2E7D32),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load graduated students: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _confirmAndPromoteStudents() async {
+    if (_isBulkPromotingStudents ?? false) return;
+
+    setState(() => _isBulkPromotingStudents = true);
+    try {
+      final students = await client.admin.getAllStudents(isActive: true);
+      final sections = await client.admin.getAllSections();
+      final projectedCounts = _buildProjectedSectionCounts(students);
+      final candidates = <Student>[];
+
+      for (final student in students) {
+        if (student.academicStatus != StudentAcademicStatus.active) continue;
+        final maxYear = _maxYearForCourse(sections, student.course);
+        if (student.yearLevel >= maxYear) continue;
+        candidates.add(student);
+      }
+
+      if (!mounted) return;
+
+      if (candidates.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No students are eligible for year level promotion.'),
+          ),
+        );
+        return;
+      }
+
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: Text(
+            'Update Year Level and Section',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+          ),
+          content: Text(
+            'This will update all eligible active students across year levels and sections. Each student will be moved to the next year level, and section assignments will also be advanced automatically such as 1A to 2A, 2A to 3A, or 3A to 4A, with overflow assigned to another available section when needed. Fourth-year students are not promoted automatically and should be handled manually as graduated or failed. This will affect ${candidates.length} student account(s). Do you want to continue?',
+            style: GoogleFonts.poppins(height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text('Cancel', style: GoogleFonts.poppins()),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF720045),
+                foregroundColor: Colors.white,
+              ),
+              child: Text('Proceed', style: GoogleFonts.poppins()),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true || !mounted) return;
+
+      final backup = <Student>[];
+      var promotedCount = 0;
+
+      for (final student in candidates) {
+        final maxYear = _maxYearForCourse(sections, student.course);
+        if (student.yearLevel >= maxYear) continue;
+        final nextYearLevel = student.yearLevel + 1;
+        final currentSection = student.section?.trim();
+        if (currentSection != null && currentSection.isNotEmpty) {
+          final currentKey = _sectionCountKey(
+            _programFromCourse(student.course),
+            student.yearLevel,
+            currentSection,
+          );
+          final currentCount = projectedCounts[currentKey] ?? 0;
+          if (currentCount > 0) {
+            projectedCounts[currentKey] = currentCount - 1;
+          }
+        }
+        final updatedSection = _nextSectionCode(
+          student,
+          nextYearLevel,
+          sections,
+          projectedCounts,
+        );
+
+        backup.add(student.copyWith());
+        await client.admin.updateStudent(
+          student.copyWith(
+            yearLevel: nextYearLevel,
+            section: updatedSection,
+            updatedAt: DateTime.now(),
+          ),
+        );
+        promotedCount++;
+      }
+
+      await _refreshStudentDashboardData();
+
+      if (!mounted) return;
+      setState(() {
+        _lastStudentPromotionBackup = backup;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            promotedCount == 0
+                ? 'No students were promoted.'
+                : '$promotedCount student(s) promoted successfully.',
+          ),
+          backgroundColor: promotedCount == 0 ? Colors.orange : Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update year levels: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isBulkPromotingStudents = false);
+      }
+    }
+  }
+
+  Future<void> _restoreLastStudentPromotion() async {
+    if ((_isRestoringStudentPromotion ?? false) ||
+        !(_lastStudentPromotionBackup?.isNotEmpty ?? false)) {
+      return;
+    }
+
+    final backups = List<Student>.from(_lastStudentPromotionBackup ?? const []);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+        ),
+        title: Text(
+          'Restore Previous Promotion',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          'This will restore ${backups.length} student record(s) to their previous year level and section. Do you want to continue?',
+          style: GoogleFonts.poppins(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text('Cancel', style: GoogleFonts.poppins()),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF720045),
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Restore', style: GoogleFonts.poppins()),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isRestoringStudentPromotion = true);
+    try {
+      for (final student in backups) {
+        await client.admin.updateStudent(
+          student.copyWith(updatedAt: DateTime.now()),
+        );
+      }
+
+      await _refreshStudentDashboardData();
+
+      if (!mounted) return;
+      setState(() {
+        _lastStudentPromotionBackup = const [];
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Previous student promotion restored successfully.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to restore student promotion: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isRestoringStudentPromotion = false);
+      }
+    }
   }
 
   List<Student> _visibleStudentNotifications(List<Student> recentStudents) {
@@ -816,6 +1335,90 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               ),
               side: const BorderSide(color: Colors.white, width: 2),
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+        if (!isMobile)
+          OutlinedButton.icon(
+            onPressed: () => _showGraduatedStudentsDialog(),
+            icon: const Icon(Icons.workspace_premium_rounded, size: 24),
+            label: const Text('Graduated Students'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              textStyle: GoogleFonts.poppins(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+              side: const BorderSide(color: Colors.white, width: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+        if (!isMobile)
+          OutlinedButton.icon(
+            onPressed: (_isBulkPromotingStudents ?? false)
+                ? null
+                : () => _confirmAndPromoteStudents(),
+            icon: (_isBulkPromotingStudents ?? false)
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.trending_up_rounded, size: 24),
+            label: Text(
+              (_isBulkPromotingStudents ?? false)
+                  ? 'Updating Students...'
+                  : 'Update Year Level and Section',
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              textStyle: GoogleFonts.poppins(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+              side: const BorderSide(color: Colors.white, width: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+        if (!isMobile && (_lastStudentPromotionBackup?.isNotEmpty ?? false))
+          OutlinedButton.icon(
+            onPressed: (_isRestoringStudentPromotion ?? false)
+                ? null
+                : () => _restoreLastStudentPromotion(),
+            icon: (_isRestoringStudentPromotion ?? false)
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.restore_rounded, size: 24),
+            label: Text(
+              (_isRestoringStudentPromotion ?? false)
+                  ? 'Restoring...'
+                  : 'Restore Previous Update',
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              textStyle: GoogleFonts.poppins(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+              side: const BorderSide(color: Colors.white, width: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),

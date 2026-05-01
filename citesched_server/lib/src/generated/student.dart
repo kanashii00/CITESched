@@ -12,8 +12,9 @@
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:serverpod/serverpod.dart' as _i1;
-import 'section.dart' as _i2;
-import 'package:citesched_server/src/generated/protocol.dart' as _i3;
+import 'student_academic_status.dart' as _i2;
+import 'section.dart' as _i3;
+import 'package:citesched_server/src/generated/protocol.dart' as _i4;
 
 abstract class Student
     implements _i1.TableRow<int?>, _i1.ProtocolSerialization {
@@ -28,10 +29,12 @@ abstract class Student
     this.sectionId,
     this.sectionRef,
     required this.userInfoId,
+    _i2.StudentAcademicStatus? academicStatus,
     bool? isActive,
     required this.createdAt,
     required this.updatedAt,
-  }) : isActive = isActive ?? true;
+  }) : academicStatus = academicStatus ?? _i2.StudentAcademicStatus.active,
+       isActive = isActive ?? true;
 
   factory Student({
     int? id,
@@ -42,8 +45,9 @@ abstract class Student
     required int yearLevel,
     String? section,
     int? sectionId,
-    _i2.Section? sectionRef,
+    _i3.Section? sectionRef,
     required int userInfoId,
+    _i2.StudentAcademicStatus? academicStatus,
     bool? isActive,
     required DateTime createdAt,
     required DateTime updatedAt,
@@ -61,13 +65,16 @@ abstract class Student
       sectionId: jsonSerialization['sectionId'] as int?,
       sectionRef: jsonSerialization['sectionRef'] == null
           ? null
-          : _i3.Protocol().deserialize<_i2.Section>(
+          : _i4.Protocol().deserialize<_i3.Section>(
               jsonSerialization['sectionRef'],
             ),
       userInfoId: jsonSerialization['userInfoId'] as int,
-      isActive: jsonSerialization['isActive'] == null
+      academicStatus: jsonSerialization['academicStatus'] == null
           ? null
-          : _i1.BoolJsonExtension.fromJson(jsonSerialization['isActive']),
+          : _i2.StudentAcademicStatus.fromJson(
+              (jsonSerialization['academicStatus'] as String),
+            ),
+      isActive: jsonSerialization['isActive'] as bool?,
       createdAt: _i1.DateTimeJsonExtension.fromJson(
         jsonSerialization['createdAt'],
       ),
@@ -98,9 +105,11 @@ abstract class Student
 
   int? sectionId;
 
-  _i2.Section? sectionRef;
+  _i3.Section? sectionRef;
 
   int userInfoId;
+
+  _i2.StudentAcademicStatus academicStatus;
 
   bool isActive;
 
@@ -123,8 +132,9 @@ abstract class Student
     int? yearLevel,
     String? section,
     int? sectionId,
-    _i2.Section? sectionRef,
+    _i3.Section? sectionRef,
     int? userInfoId,
+    _i2.StudentAcademicStatus? academicStatus,
     bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -143,6 +153,7 @@ abstract class Student
       if (sectionId != null) 'sectionId': sectionId,
       if (sectionRef != null) 'sectionRef': sectionRef?.toJson(),
       'userInfoId': userInfoId,
+      'academicStatus': academicStatus.toJson(),
       'isActive': isActive,
       'createdAt': createdAt.toJson(),
       'updatedAt': updatedAt.toJson(),
@@ -163,13 +174,14 @@ abstract class Student
       if (sectionId != null) 'sectionId': sectionId,
       if (sectionRef != null) 'sectionRef': sectionRef?.toJsonForProtocol(),
       'userInfoId': userInfoId,
+      'academicStatus': academicStatus.toJson(),
       'isActive': isActive,
       'createdAt': createdAt.toJson(),
       'updatedAt': updatedAt.toJson(),
     };
   }
 
-  static StudentInclude include({_i2.SectionInclude? sectionRef}) {
+  static StudentInclude include({_i3.SectionInclude? sectionRef}) {
     return StudentInclude._(sectionRef: sectionRef);
   }
 
@@ -211,8 +223,9 @@ class _StudentImpl extends Student {
     required int yearLevel,
     String? section,
     int? sectionId,
-    _i2.Section? sectionRef,
+    _i3.Section? sectionRef,
     required int userInfoId,
+    _i2.StudentAcademicStatus? academicStatus,
     bool? isActive,
     required DateTime createdAt,
     required DateTime updatedAt,
@@ -227,6 +240,7 @@ class _StudentImpl extends Student {
          sectionId: sectionId,
          sectionRef: sectionRef,
          userInfoId: userInfoId,
+         academicStatus: academicStatus,
          isActive: isActive,
          createdAt: createdAt,
          updatedAt: updatedAt,
@@ -247,6 +261,7 @@ class _StudentImpl extends Student {
     Object? sectionId = _Undefined,
     Object? sectionRef = _Undefined,
     int? userInfoId,
+    _i2.StudentAcademicStatus? academicStatus,
     bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -260,10 +275,11 @@ class _StudentImpl extends Student {
       yearLevel: yearLevel ?? this.yearLevel,
       section: section is String? ? section : this.section,
       sectionId: sectionId is int? ? sectionId : this.sectionId,
-      sectionRef: sectionRef is _i2.Section?
+      sectionRef: sectionRef is _i3.Section?
           ? sectionRef
           : this.sectionRef?.copyWith(),
       userInfoId: userInfoId ?? this.userInfoId,
+      academicStatus: academicStatus ?? this.academicStatus,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -312,6 +328,12 @@ class StudentUpdateTable extends _i1.UpdateTable<StudentTable> {
 
   _i1.ColumnValue<int, int> userInfoId(int value) => _i1.ColumnValue(
     table.userInfoId,
+    value,
+  );
+
+  _i1.ColumnValue<_i2.StudentAcademicStatus, _i2.StudentAcademicStatus>
+  academicStatus(_i2.StudentAcademicStatus value) => _i1.ColumnValue(
+    table.academicStatus,
     value,
   );
 
@@ -368,6 +390,12 @@ class StudentTable extends _i1.Table<int?> {
       'userInfoId',
       this,
     );
+    academicStatus = _i1.ColumnEnum(
+      'academicStatus',
+      this,
+      _i1.EnumSerialization.byName,
+      hasDefault: true,
+    );
     isActive = _i1.ColumnBool(
       'isActive',
       this,
@@ -399,9 +427,11 @@ class StudentTable extends _i1.Table<int?> {
 
   late final _i1.ColumnInt sectionId;
 
-  _i2.SectionTable? _sectionRef;
+  _i3.SectionTable? _sectionRef;
 
   late final _i1.ColumnInt userInfoId;
+
+  late final _i1.ColumnEnum<_i2.StudentAcademicStatus> academicStatus;
 
   late final _i1.ColumnBool isActive;
 
@@ -409,15 +439,15 @@ class StudentTable extends _i1.Table<int?> {
 
   late final _i1.ColumnDateTime updatedAt;
 
-  _i2.SectionTable get sectionRef {
+  _i3.SectionTable get sectionRef {
     if (_sectionRef != null) return _sectionRef!;
     _sectionRef = _i1.createRelationTable(
       relationFieldName: 'sectionRef',
       field: Student.t.sectionId,
-      foreignField: _i2.Section.t.id,
+      foreignField: _i3.Section.t.id,
       tableRelation: tableRelation,
       createTable: (foreignTableRelation) =>
-          _i2.SectionTable(tableRelation: foreignTableRelation),
+          _i3.SectionTable(tableRelation: foreignTableRelation),
     );
     return _sectionRef!;
   }
@@ -433,6 +463,7 @@ class StudentTable extends _i1.Table<int?> {
     section,
     sectionId,
     userInfoId,
+    academicStatus,
     isActive,
     createdAt,
     updatedAt,
@@ -448,11 +479,11 @@ class StudentTable extends _i1.Table<int?> {
 }
 
 class StudentInclude extends _i1.IncludeObject {
-  StudentInclude._({_i2.SectionInclude? sectionRef}) {
+  StudentInclude._({_i3.SectionInclude? sectionRef}) {
     _sectionRef = sectionRef;
   }
 
-  _i2.SectionInclude? _sectionRef;
+  _i3.SectionInclude? _sectionRef;
 
   @override
   Map<String, _i1.Include?> get includes => {'sectionRef': _sectionRef};
@@ -511,7 +542,7 @@ class StudentRepository {
   /// );
   /// ```
   Future<List<Student>> find(
-    _i1.DatabaseSession session, {
+    _i1.Session session, {
     _i1.WhereExpressionBuilder<StudentTable>? where,
     int? limit,
     int? offset,
@@ -520,8 +551,6 @@ class StudentRepository {
     _i1.OrderByListBuilder<StudentTable>? orderByList,
     _i1.Transaction? transaction,
     StudentInclude? include,
-    _i1.LockMode? lockMode,
-    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.find<Student>(
       where: where?.call(Student.t),
@@ -532,8 +561,6 @@ class StudentRepository {
       offset: offset,
       transaction: transaction,
       include: include,
-      lockMode: lockMode,
-      lockBehavior: lockBehavior,
     );
   }
 
@@ -555,7 +582,7 @@ class StudentRepository {
   /// );
   /// ```
   Future<Student?> findFirstRow(
-    _i1.DatabaseSession session, {
+    _i1.Session session, {
     _i1.WhereExpressionBuilder<StudentTable>? where,
     int? offset,
     _i1.OrderByBuilder<StudentTable>? orderBy,
@@ -563,8 +590,6 @@ class StudentRepository {
     _i1.OrderByListBuilder<StudentTable>? orderByList,
     _i1.Transaction? transaction,
     StudentInclude? include,
-    _i1.LockMode? lockMode,
-    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.findFirstRow<Student>(
       where: where?.call(Student.t),
@@ -574,26 +599,20 @@ class StudentRepository {
       offset: offset,
       transaction: transaction,
       include: include,
-      lockMode: lockMode,
-      lockBehavior: lockBehavior,
     );
   }
 
   /// Finds a single [Student] by its [id] or null if no such row exists.
   Future<Student?> findById(
-    _i1.DatabaseSession session,
+    _i1.Session session,
     int id, {
     _i1.Transaction? transaction,
     StudentInclude? include,
-    _i1.LockMode? lockMode,
-    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.findById<Student>(
       id,
       transaction: transaction,
       include: include,
-      lockMode: lockMode,
-      lockBehavior: lockBehavior,
     );
   }
 
@@ -603,20 +622,14 @@ class StudentRepository {
   ///
   /// This is an atomic operation, meaning that if one of the rows fails to
   /// insert, none of the rows will be inserted.
-  ///
-  /// If [ignoreConflicts] is set to `true`, rows that conflict with existing
-  /// rows are silently skipped, and only the successfully inserted rows are
-  /// returned.
   Future<List<Student>> insert(
-    _i1.DatabaseSession session,
+    _i1.Session session,
     List<Student> rows, {
     _i1.Transaction? transaction,
-    bool ignoreConflicts = false,
   }) async {
     return session.db.insert<Student>(
       rows,
       transaction: transaction,
-      ignoreConflicts: ignoreConflicts,
     );
   }
 
@@ -624,7 +637,7 @@ class StudentRepository {
   ///
   /// The returned [Student] will have its `id` field set.
   Future<Student> insertRow(
-    _i1.DatabaseSession session,
+    _i1.Session session,
     Student row, {
     _i1.Transaction? transaction,
   }) async {
@@ -640,7 +653,7 @@ class StudentRepository {
   /// This is an atomic operation, meaning that if one of the rows fails to
   /// update, none of the rows will be updated.
   Future<List<Student>> update(
-    _i1.DatabaseSession session,
+    _i1.Session session,
     List<Student> rows, {
     _i1.ColumnSelections<StudentTable>? columns,
     _i1.Transaction? transaction,
@@ -656,7 +669,7 @@ class StudentRepository {
   /// Optionally, a list of [columns] can be provided to only update those
   /// columns. Defaults to all columns.
   Future<Student> updateRow(
-    _i1.DatabaseSession session,
+    _i1.Session session,
     Student row, {
     _i1.ColumnSelections<StudentTable>? columns,
     _i1.Transaction? transaction,
@@ -671,7 +684,7 @@ class StudentRepository {
   /// Updates a single [Student] by its [id] with the specified [columnValues].
   /// Returns the updated row or null if no row with the given id exists.
   Future<Student?> updateById(
-    _i1.DatabaseSession session,
+    _i1.Session session,
     int id, {
     required _i1.ColumnValueListBuilder<StudentUpdateTable> columnValues,
     _i1.Transaction? transaction,
@@ -686,7 +699,7 @@ class StudentRepository {
   /// Updates all [Student]s matching the [where] expression with the specified [columnValues].
   /// Returns the list of updated rows.
   Future<List<Student>> updateWhere(
-    _i1.DatabaseSession session, {
+    _i1.Session session, {
     required _i1.ColumnValueListBuilder<StudentUpdateTable> columnValues,
     required _i1.WhereExpressionBuilder<StudentTable> where,
     int? limit,
@@ -712,7 +725,7 @@ class StudentRepository {
   /// This is an atomic operation, meaning that if one of the rows fail to
   /// be deleted, none of the rows will be deleted.
   Future<List<Student>> delete(
-    _i1.DatabaseSession session,
+    _i1.Session session,
     List<Student> rows, {
     _i1.Transaction? transaction,
   }) async {
@@ -724,7 +737,7 @@ class StudentRepository {
 
   /// Deletes a single [Student].
   Future<Student> deleteRow(
-    _i1.DatabaseSession session,
+    _i1.Session session,
     Student row, {
     _i1.Transaction? transaction,
   }) async {
@@ -736,7 +749,7 @@ class StudentRepository {
 
   /// Deletes all rows matching the [where] expression.
   Future<List<Student>> deleteWhere(
-    _i1.DatabaseSession session, {
+    _i1.Session session, {
     required _i1.WhereExpressionBuilder<StudentTable> where,
     _i1.Transaction? transaction,
   }) async {
@@ -749,7 +762,7 @@ class StudentRepository {
   /// Counts the number of rows matching the [where] expression. If omitted,
   /// will return the count of all rows in the table.
   Future<int> count(
-    _i1.DatabaseSession session, {
+    _i1.Session session, {
     _i1.WhereExpressionBuilder<StudentTable>? where,
     int? limit,
     _i1.Transaction? transaction,
@@ -757,22 +770,6 @@ class StudentRepository {
     return session.db.count<Student>(
       where: where?.call(Student.t),
       limit: limit,
-      transaction: transaction,
-    );
-  }
-
-  /// Acquires row-level locks on [Student] rows matching the [where] expression.
-  Future<void> lockRows(
-    _i1.DatabaseSession session, {
-    required _i1.WhereExpressionBuilder<StudentTable> where,
-    required _i1.LockMode lockMode,
-    required _i1.Transaction transaction,
-    _i1.LockBehavior lockBehavior = _i1.LockBehavior.wait,
-  }) async {
-    return session.db.lockRows<Student>(
-      where: where(Student.t),
-      lockMode: lockMode,
-      lockBehavior: lockBehavior,
       transaction: transaction,
     );
   }
@@ -784,9 +781,9 @@ class StudentAttachRowRepository {
   /// Creates a relation between the given [Student] and [Section]
   /// by setting the [Student]'s foreign key `sectionId` to refer to the [Section].
   Future<void> sectionRef(
-    _i1.DatabaseSession session,
+    _i1.Session session,
     Student student,
-    _i2.Section sectionRef, {
+    _i3.Section sectionRef, {
     _i1.Transaction? transaction,
   }) async {
     if (student.id == null) {
@@ -814,7 +811,7 @@ class StudentDetachRowRepository {
   /// This removes the association between the two models without deleting
   /// the related record.
   Future<void> sectionRef(
-    _i1.DatabaseSession session,
+    _i1.Session session,
     Student student, {
     _i1.Transaction? transaction,
   }) async {

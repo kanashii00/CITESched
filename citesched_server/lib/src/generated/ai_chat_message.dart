@@ -338,7 +338,7 @@ class AiChatMessageRepository {
   /// );
   /// ```
   Future<List<AiChatMessage>> find(
-    _i1.DatabaseSession session, {
+    _i1.Session session, {
     _i1.WhereExpressionBuilder<AiChatMessageTable>? where,
     int? limit,
     int? offset,
@@ -347,8 +347,6 @@ class AiChatMessageRepository {
     _i1.OrderByListBuilder<AiChatMessageTable>? orderByList,
     _i1.Transaction? transaction,
     AiChatMessageInclude? include,
-    _i1.LockMode? lockMode,
-    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.find<AiChatMessage>(
       where: where?.call(AiChatMessage.t),
@@ -359,8 +357,6 @@ class AiChatMessageRepository {
       offset: offset,
       transaction: transaction,
       include: include,
-      lockMode: lockMode,
-      lockBehavior: lockBehavior,
     );
   }
 
@@ -382,7 +378,7 @@ class AiChatMessageRepository {
   /// );
   /// ```
   Future<AiChatMessage?> findFirstRow(
-    _i1.DatabaseSession session, {
+    _i1.Session session, {
     _i1.WhereExpressionBuilder<AiChatMessageTable>? where,
     int? offset,
     _i1.OrderByBuilder<AiChatMessageTable>? orderBy,
@@ -390,8 +386,6 @@ class AiChatMessageRepository {
     _i1.OrderByListBuilder<AiChatMessageTable>? orderByList,
     _i1.Transaction? transaction,
     AiChatMessageInclude? include,
-    _i1.LockMode? lockMode,
-    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.findFirstRow<AiChatMessage>(
       where: where?.call(AiChatMessage.t),
@@ -401,26 +395,20 @@ class AiChatMessageRepository {
       offset: offset,
       transaction: transaction,
       include: include,
-      lockMode: lockMode,
-      lockBehavior: lockBehavior,
     );
   }
 
   /// Finds a single [AiChatMessage] by its [id] or null if no such row exists.
   Future<AiChatMessage?> findById(
-    _i1.DatabaseSession session,
+    _i1.Session session,
     int id, {
     _i1.Transaction? transaction,
     AiChatMessageInclude? include,
-    _i1.LockMode? lockMode,
-    _i1.LockBehavior? lockBehavior,
   }) async {
     return session.db.findById<AiChatMessage>(
       id,
       transaction: transaction,
       include: include,
-      lockMode: lockMode,
-      lockBehavior: lockBehavior,
     );
   }
 
@@ -430,20 +418,14 @@ class AiChatMessageRepository {
   ///
   /// This is an atomic operation, meaning that if one of the rows fails to
   /// insert, none of the rows will be inserted.
-  ///
-  /// If [ignoreConflicts] is set to `true`, rows that conflict with existing
-  /// rows are silently skipped, and only the successfully inserted rows are
-  /// returned.
   Future<List<AiChatMessage>> insert(
-    _i1.DatabaseSession session,
+    _i1.Session session,
     List<AiChatMessage> rows, {
     _i1.Transaction? transaction,
-    bool ignoreConflicts = false,
   }) async {
     return session.db.insert<AiChatMessage>(
       rows,
       transaction: transaction,
-      ignoreConflicts: ignoreConflicts,
     );
   }
 
@@ -451,7 +433,7 @@ class AiChatMessageRepository {
   ///
   /// The returned [AiChatMessage] will have its `id` field set.
   Future<AiChatMessage> insertRow(
-    _i1.DatabaseSession session,
+    _i1.Session session,
     AiChatMessage row, {
     _i1.Transaction? transaction,
   }) async {
@@ -467,7 +449,7 @@ class AiChatMessageRepository {
   /// This is an atomic operation, meaning that if one of the rows fails to
   /// update, none of the rows will be updated.
   Future<List<AiChatMessage>> update(
-    _i1.DatabaseSession session,
+    _i1.Session session,
     List<AiChatMessage> rows, {
     _i1.ColumnSelections<AiChatMessageTable>? columns,
     _i1.Transaction? transaction,
@@ -483,7 +465,7 @@ class AiChatMessageRepository {
   /// Optionally, a list of [columns] can be provided to only update those
   /// columns. Defaults to all columns.
   Future<AiChatMessage> updateRow(
-    _i1.DatabaseSession session,
+    _i1.Session session,
     AiChatMessage row, {
     _i1.ColumnSelections<AiChatMessageTable>? columns,
     _i1.Transaction? transaction,
@@ -498,7 +480,7 @@ class AiChatMessageRepository {
   /// Updates a single [AiChatMessage] by its [id] with the specified [columnValues].
   /// Returns the updated row or null if no row with the given id exists.
   Future<AiChatMessage?> updateById(
-    _i1.DatabaseSession session,
+    _i1.Session session,
     int id, {
     required _i1.ColumnValueListBuilder<AiChatMessageUpdateTable> columnValues,
     _i1.Transaction? transaction,
@@ -513,7 +495,7 @@ class AiChatMessageRepository {
   /// Updates all [AiChatMessage]s matching the [where] expression with the specified [columnValues].
   /// Returns the list of updated rows.
   Future<List<AiChatMessage>> updateWhere(
-    _i1.DatabaseSession session, {
+    _i1.Session session, {
     required _i1.ColumnValueListBuilder<AiChatMessageUpdateTable> columnValues,
     required _i1.WhereExpressionBuilder<AiChatMessageTable> where,
     int? limit,
@@ -539,7 +521,7 @@ class AiChatMessageRepository {
   /// This is an atomic operation, meaning that if one of the rows fail to
   /// be deleted, none of the rows will be deleted.
   Future<List<AiChatMessage>> delete(
-    _i1.DatabaseSession session,
+    _i1.Session session,
     List<AiChatMessage> rows, {
     _i1.Transaction? transaction,
   }) async {
@@ -551,7 +533,7 @@ class AiChatMessageRepository {
 
   /// Deletes a single [AiChatMessage].
   Future<AiChatMessage> deleteRow(
-    _i1.DatabaseSession session,
+    _i1.Session session,
     AiChatMessage row, {
     _i1.Transaction? transaction,
   }) async {
@@ -563,7 +545,7 @@ class AiChatMessageRepository {
 
   /// Deletes all rows matching the [where] expression.
   Future<List<AiChatMessage>> deleteWhere(
-    _i1.DatabaseSession session, {
+    _i1.Session session, {
     required _i1.WhereExpressionBuilder<AiChatMessageTable> where,
     _i1.Transaction? transaction,
   }) async {
@@ -576,7 +558,7 @@ class AiChatMessageRepository {
   /// Counts the number of rows matching the [where] expression. If omitted,
   /// will return the count of all rows in the table.
   Future<int> count(
-    _i1.DatabaseSession session, {
+    _i1.Session session, {
     _i1.WhereExpressionBuilder<AiChatMessageTable>? where,
     int? limit,
     _i1.Transaction? transaction,
@@ -584,22 +566,6 @@ class AiChatMessageRepository {
     return session.db.count<AiChatMessage>(
       where: where?.call(AiChatMessage.t),
       limit: limit,
-      transaction: transaction,
-    );
-  }
-
-  /// Acquires row-level locks on [AiChatMessage] rows matching the [where] expression.
-  Future<void> lockRows(
-    _i1.DatabaseSession session, {
-    required _i1.WhereExpressionBuilder<AiChatMessageTable> where,
-    required _i1.LockMode lockMode,
-    required _i1.Transaction transaction,
-    _i1.LockBehavior lockBehavior = _i1.LockBehavior.wait,
-  }) async {
-    return session.db.lockRows<AiChatMessage>(
-      where: where(AiChatMessage.t),
-      lockMode: lockMode,
-      lockBehavior: lockBehavior,
       transaction: transaction,
     );
   }
@@ -611,7 +577,7 @@ class AiChatMessageAttachRowRepository {
   /// Creates a relation between the given [AiChatMessage] and [AiChatSession]
   /// by setting the [AiChatMessage]'s foreign key `sessionRecordId` to refer to the [AiChatSession].
   Future<void> sessionRecord(
-    _i1.DatabaseSession session,
+    _i1.Session session,
     AiChatMessage aiChatMessage,
     _i2.AiChatSession sessionRecord, {
     _i1.Transaction? transaction,

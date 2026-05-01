@@ -11,8 +11,9 @@
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:serverpod_client/serverpod_client.dart' as _i1;
-import 'section.dart' as _i2;
-import 'package:citesched_client/src/protocol/protocol.dart' as _i3;
+import 'student_academic_status.dart' as _i2;
+import 'section.dart' as _i3;
+import 'package:citesched_client/src/protocol/protocol.dart' as _i4;
 
 abstract class Student implements _i1.SerializableModel {
   Student._({
@@ -26,10 +27,12 @@ abstract class Student implements _i1.SerializableModel {
     this.sectionId,
     this.sectionRef,
     required this.userInfoId,
+    _i2.StudentAcademicStatus? academicStatus,
     bool? isActive,
     required this.createdAt,
     required this.updatedAt,
-  }) : isActive = isActive ?? true;
+  }) : academicStatus = academicStatus ?? _i2.StudentAcademicStatus.active,
+       isActive = isActive ?? true;
 
   factory Student({
     int? id,
@@ -40,8 +43,9 @@ abstract class Student implements _i1.SerializableModel {
     required int yearLevel,
     String? section,
     int? sectionId,
-    _i2.Section? sectionRef,
+    _i3.Section? sectionRef,
     required int userInfoId,
+    _i2.StudentAcademicStatus? academicStatus,
     bool? isActive,
     required DateTime createdAt,
     required DateTime updatedAt,
@@ -59,13 +63,16 @@ abstract class Student implements _i1.SerializableModel {
       sectionId: jsonSerialization['sectionId'] as int?,
       sectionRef: jsonSerialization['sectionRef'] == null
           ? null
-          : _i3.Protocol().deserialize<_i2.Section>(
+          : _i4.Protocol().deserialize<_i3.Section>(
               jsonSerialization['sectionRef'],
             ),
       userInfoId: jsonSerialization['userInfoId'] as int,
-      isActive: jsonSerialization['isActive'] == null
+      academicStatus: jsonSerialization['academicStatus'] == null
           ? null
-          : _i1.BoolJsonExtension.fromJson(jsonSerialization['isActive']),
+          : _i2.StudentAcademicStatus.fromJson(
+              (jsonSerialization['academicStatus'] as String),
+            ),
+      isActive: jsonSerialization['isActive'] as bool?,
       createdAt: _i1.DateTimeJsonExtension.fromJson(
         jsonSerialization['createdAt'],
       ),
@@ -94,9 +101,11 @@ abstract class Student implements _i1.SerializableModel {
 
   int? sectionId;
 
-  _i2.Section? sectionRef;
+  _i3.Section? sectionRef;
 
   int userInfoId;
+
+  _i2.StudentAcademicStatus academicStatus;
 
   bool isActive;
 
@@ -116,8 +125,9 @@ abstract class Student implements _i1.SerializableModel {
     int? yearLevel,
     String? section,
     int? sectionId,
-    _i2.Section? sectionRef,
+    _i3.Section? sectionRef,
     int? userInfoId,
+    _i2.StudentAcademicStatus? academicStatus,
     bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -136,6 +146,7 @@ abstract class Student implements _i1.SerializableModel {
       if (sectionId != null) 'sectionId': sectionId,
       if (sectionRef != null) 'sectionRef': sectionRef?.toJson(),
       'userInfoId': userInfoId,
+      'academicStatus': academicStatus.toJson(),
       'isActive': isActive,
       'createdAt': createdAt.toJson(),
       'updatedAt': updatedAt.toJson(),
@@ -160,8 +171,9 @@ class _StudentImpl extends Student {
     required int yearLevel,
     String? section,
     int? sectionId,
-    _i2.Section? sectionRef,
+    _i3.Section? sectionRef,
     required int userInfoId,
+    _i2.StudentAcademicStatus? academicStatus,
     bool? isActive,
     required DateTime createdAt,
     required DateTime updatedAt,
@@ -176,6 +188,7 @@ class _StudentImpl extends Student {
          sectionId: sectionId,
          sectionRef: sectionRef,
          userInfoId: userInfoId,
+         academicStatus: academicStatus,
          isActive: isActive,
          createdAt: createdAt,
          updatedAt: updatedAt,
@@ -196,6 +209,7 @@ class _StudentImpl extends Student {
     Object? sectionId = _Undefined,
     Object? sectionRef = _Undefined,
     int? userInfoId,
+    _i2.StudentAcademicStatus? academicStatus,
     bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -209,10 +223,11 @@ class _StudentImpl extends Student {
       yearLevel: yearLevel ?? this.yearLevel,
       section: section is String? ? section : this.section,
       sectionId: sectionId is int? ? sectionId : this.sectionId,
-      sectionRef: sectionRef is _i2.Section?
+      sectionRef: sectionRef is _i3.Section?
           ? sectionRef
           : this.sectionRef?.copyWith(),
       userInfoId: userInfoId ?? this.userInfoId,
+      academicStatus: academicStatus ?? this.academicStatus,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

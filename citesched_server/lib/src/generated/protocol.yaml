@@ -75,6 +75,21 @@ debug:
 faculty:
   - getMySchedule:
   - getMyProfile:
+nLP:
+  - query:
+  - getFacultyLoad:
+  - getStudentSchedule:
+  - getSectionSchedule:
+  - getRoomAvailability:
+  - getSubjectCatalog:
+  - getScheduleConflicts:
+  - generateScheduleSuggestions:
+  - searchSchedules:
+  - createChatSession:
+  - getChatHistory:
+  - getChatMessages:
+  - saveChatMessage:
+  - deleteChatSession:
 setup:
   - createAccount:
   - getUserInfoByEmail:

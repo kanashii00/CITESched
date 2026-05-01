@@ -35,6 +35,8 @@ class _UserListModalState extends ConsumerState<UserListModal>
   String? _selectedStudentProgram;
   int? _selectedStudentYearLevel;
   String? _selectedStudentSection;
+  final Map<String, List<_StudentAvailabilityEntry>> _studentAvailabilityDrafts =
+      {};
 
   void _archiveFaculty(Faculty faculty) async {
     final confirm = await showDialog<bool>(
@@ -359,7 +361,10 @@ class _UserListModalState extends ConsumerState<UserListModal>
 
   void _restoreStudent(Student student) async {
     try {
-      final restored = student.copyWith(isActive: true);
+      final restored = student.copyWith(
+        isActive: true,
+        academicStatus: StudentAcademicStatus.active,
+      );
       await client.admin.updateStudent(restored);
       _fetchData();
       if (mounted) {
@@ -508,6 +513,122 @@ class _UserListModalState extends ConsumerState<UserListModal>
         ),
       );
     }
+  }
+
+  int _studentMaxYearForCourse(String course) {
+    switch (course.trim().toUpperCase()) {
+      case 'BSIT':
+      case 'BSEMC':
+        return 4;
+      default:
+        return 4;
+    }
+  }
+
+  bool _isManualSeniorStudent(Student student) {
+    return student.academicStatus == StudentAcademicStatus.active &&
+        student.yearLevel >= _studentMaxYearForCourse(student.course);
+  }
+
+  Future<void> _updateStudentAcademicStatus(
+    Student student,
+    StudentAcademicStatus status, {
+    required String title,
+    required String message,
+    required String successMessage,
+    bool setInactive = false,
+  }) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          title,
+          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          message,
+          style: GoogleFonts.poppins(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: GoogleFonts.poppins()),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF720045),
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Proceed', style: GoogleFonts.poppins()),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    try {
+      final updated = student.copyWith(
+        academicStatus: status,
+        isActive: setInactive ? false : student.isActive,
+        updatedAt: DateTime.now(),
+      );
+      await client.admin.updateStudent(updated);
+      await _fetchData();
+      ref.invalidate(studentsProvider);
+      ref.invalidate(archivedStudentsProvider);
+      ref.invalidate(studentSectionsProvider);
+      ref.invalidate(sectionListProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(successMessage),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      _showError('Error updating student status: $e');
+    }
+  }
+
+  Widget _buildStudentAcademicStatusBadge(Student student) {
+    late final Color color;
+    late final String label;
+
+    switch (student.academicStatus) {
+      case StudentAcademicStatus.failed:
+        color = const Color(0xFFD97706);
+        label = 'FAILED';
+        break;
+      case StudentAcademicStatus.graduated:
+        color = const Color(0xFF2E7D32);
+        label = 'GRADUATED';
+        break;
+      case StudentAcademicStatus.active:
+        color = Colors.green;
+        label = 'STUDENT';
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.poppins(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
+      ),
+    );
   }
 
   String _nameInitial(String name) {
@@ -1157,6 +1278,36 @@ class _UserListModalState extends ConsumerState<UserListModal>
                   textMuted: textMuted,
                   bgBody: bgBody,
                 ),
+                OutlinedButton.icon(
+                  onPressed: sectionOptions.isEmpty
+                      ? null
+                      : () => _showStudentAvailabilityDialog(
+                            _selectedStudentSection,
+                          ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: primaryColor,
+                    side: BorderSide(
+                      color: primaryColor.withValues(alpha: 0.24),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  icon: const Icon(Icons.event_available_rounded, size: 18),
+                  label: Text(
+                    _selectedStudentSection == null
+                        ? 'Set Section Availability'
+                        : 'Set ${_selectedStudentSection!} Availability',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
                 if (_hasActiveStudentFilters)
                   OutlinedButton.icon(
                     onPressed: _clearStudentFilters,
@@ -1638,27 +1789,7 @@ class _UserListModalState extends ConsumerState<UserListModal>
                                   color: textMuted,
                                 ),
                               ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.green.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                    color: Colors.green.withValues(alpha: 0.3),
-                                  ),
-                                ),
-                                child: Text(
-                                  'STUDENT',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.green,
-                                  ),
-                                ),
-                              ),
+                              _buildStudentAcademicStatusBadge(s),
                               if (_isNewSignup(s.createdAt)) _buildNewBadge(),
                             ],
                           ),
@@ -1713,6 +1844,52 @@ class _UserListModalState extends ConsumerState<UserListModal>
                       ),
                     ),
                     if (!_isShowingArchivedStudents) ...[
+                      if (_isManualSeniorStudent(s))
+                        _buildActionIcon(
+                          icon: Icons.workspace_premium_rounded,
+                          color: const Color(0xFF2E7D32),
+                          tooltip: 'Mark as Graduated',
+                          onTap: () => _updateStudentAcademicStatus(
+                            s,
+                            StudentAcademicStatus.graduated,
+                            title: 'Graduate Student',
+                            message:
+                                'Mark "${s.name}" as graduated? This will move the student out of active lists and into the graduated list.',
+                            successMessage:
+                                'Student marked as graduated successfully.',
+                            setInactive: true,
+                          ),
+                        ),
+                      if (_isManualSeniorStudent(s))
+                        _buildActionIcon(
+                          icon: Icons.gpp_bad_rounded,
+                          color: const Color(0xFFD97706),
+                          tooltip: 'Mark as Failed',
+                          onTap: () => _updateStudentAcademicStatus(
+                            s,
+                            StudentAcademicStatus.failed,
+                            title: 'Mark Student as Failed',
+                            message:
+                                'Mark "${s.name}" as failed? This student will stay manual and will not be included in automatic year level promotion.',
+                            successMessage:
+                                'Student marked as failed successfully.',
+                          ),
+                        ),
+                      if (s.academicStatus == StudentAcademicStatus.failed)
+                        _buildActionIcon(
+                          icon: Icons.restore_rounded,
+                          color: const Color(0xFF2E7D32),
+                          tooltip: 'Restore Active Status',
+                          onTap: () => _updateStudentAcademicStatus(
+                            s,
+                            StudentAcademicStatus.active,
+                            title: 'Restore Active Status',
+                            message:
+                                'Restore "${s.name}" to active academic status?',
+                            successMessage:
+                                'Student restored to active status successfully.',
+                          ),
+                        ),
                       _buildActionIcon(
                         icon: Icons.edit_outlined,
                         color: primaryColor,
@@ -1789,27 +1966,7 @@ class _UserListModalState extends ConsumerState<UserListModal>
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.green.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: Colors.green.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Text(
-                              'STUDENT',
-                              style: GoogleFonts.poppins(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green,
-                              ),
-                            ),
-                          ),
+                          _buildStudentAcademicStatusBadge(s),
                           if (_isNewSignup(s.createdAt)) ...[
                             const SizedBox(width: 8),
                             _buildNewBadge(),
@@ -1857,6 +2014,56 @@ class _UserListModalState extends ConsumerState<UserListModal>
                 ),
                 const SizedBox(width: 8),
                 if (!_isShowingArchivedStudents) ...[
+                  if (_isManualSeniorStudent(s))
+                    _buildActionIcon(
+                      icon: Icons.workspace_premium_rounded,
+                      color: const Color(0xFF2E7D32),
+                      tooltip: 'Mark as Graduated',
+                      onTap: () => _updateStudentAcademicStatus(
+                        s,
+                        StudentAcademicStatus.graduated,
+                        title: 'Graduate Student',
+                        message:
+                            'Mark "${s.name}" as graduated? This will move the student out of active lists and into the graduated list.',
+                        successMessage:
+                            'Student marked as graduated successfully.',
+                        setInactive: true,
+                      ),
+                    ),
+                  if (_isManualSeniorStudent(s)) const SizedBox(width: 6),
+                  if (_isManualSeniorStudent(s))
+                    _buildActionIcon(
+                      icon: Icons.gpp_bad_rounded,
+                      color: const Color(0xFFD97706),
+                      tooltip: 'Mark as Failed',
+                      onTap: () => _updateStudentAcademicStatus(
+                        s,
+                        StudentAcademicStatus.failed,
+                        title: 'Mark Student as Failed',
+                        message:
+                            'Mark "${s.name}" as failed? This student will stay manual and will not be included in automatic year level promotion.',
+                        successMessage:
+                            'Student marked as failed successfully.',
+                      ),
+                    ),
+                  if (_isManualSeniorStudent(s)) const SizedBox(width: 6),
+                  if (s.academicStatus == StudentAcademicStatus.failed)
+                    _buildActionIcon(
+                      icon: Icons.restore_rounded,
+                      color: const Color(0xFF2E7D32),
+                      tooltip: 'Restore Active Status',
+                      onTap: () => _updateStudentAcademicStatus(
+                        s,
+                        StudentAcademicStatus.active,
+                        title: 'Restore Active Status',
+                        message:
+                            'Restore "${s.name}" to active academic status?',
+                        successMessage:
+                            'Student restored to active status successfully.',
+                      ),
+                    ),
+                  if (s.academicStatus == StudentAcademicStatus.failed)
+                    const SizedBox(width: 6),
                   _buildActionIcon(
                     icon: Icons.edit_outlined,
                     color: primaryColor,
@@ -1924,6 +2131,670 @@ class _UserListModalState extends ConsumerState<UserListModal>
         _buildSortChip('A → Z', 'asc', primaryColor, textPrimary),
         _buildSortChip('Z → A', 'desc', primaryColor, textPrimary),
       ],
+    );
+  }
+
+  Future<void> _showStudentAvailabilityDialog(String? section) async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = isDark
+        ? const Color(0xFFa21caf)
+        : const Color(0xFF720045);
+    final accentColor = const Color(0xFFb5179e);
+    final textPrimary = isDark
+        ? const Color(0xFFE2E8F0)
+        : const Color(0xFF333333);
+    final textMuted = isDark
+        ? const Color(0xFF94A3B8)
+        : const Color(0xFF666666);
+    final bgBody = isDark ? const Color(0xFF0F172A) : const Color(0xFFEEF1F6);
+    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    const days = [
+      DayOfWeek.mon,
+      DayOfWeek.tue,
+      DayOfWeek.wed,
+      DayOfWeek.thu,
+      DayOfWeek.fri,
+      DayOfWeek.sat,
+    ];
+    const dayLabels = {
+      DayOfWeek.mon: 'Mon',
+      DayOfWeek.tue: 'Tue',
+      DayOfWeek.wed: 'Wed',
+      DayOfWeek.thu: 'Thu',
+      DayOfWeek.fri: 'Fri',
+      DayOfWeek.sat: 'Sat',
+    };
+    final sectionOptions = _studentSectionOptions;
+    var currentSection = (() {
+      final normalized = (section ?? '').trim();
+      if (normalized.isNotEmpty && sectionOptions.contains(normalized)) {
+        return normalized;
+      }
+      if (sectionOptions.isNotEmpty) {
+        return sectionOptions.first;
+      }
+      return '';
+    })();
+    var selectedDay = days.first;
+    var startTime = const TimeOfDay(hour: 8, minute: 0);
+    var endTime = const TimeOfDay(hour: 12, minute: 0);
+    final availabilities = List<_StudentAvailabilityEntry>.from(
+      _studentAvailabilityDrafts[currentSection] ?? const [],
+    );
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            void loadSectionAvailability(String nextSection) {
+              availabilities
+                ..clear()
+                ..addAll(
+                  List<_StudentAvailabilityEntry>.from(
+                    _studentAvailabilityDrafts[nextSection] ?? const [],
+                  ),
+                );
+            }
+
+            void persistCurrentSectionAvailability() {
+              _studentAvailabilityDrafts[currentSection] =
+                  List<_StudentAvailabilityEntry>.from(availabilities);
+            }
+
+            Future<void> pickTime({
+              required bool isStart,
+            }) async {
+              final picked = await showTimePicker(
+                context: context,
+                initialTime: isStart ? startTime : endTime,
+                helpText: isStart ? 'Select Start Time' : 'Select End Time',
+              );
+              if (picked == null) return;
+              setDialogState(() {
+                if (isStart) {
+                  startTime = picked;
+                } else {
+                  endTime = picked;
+                }
+              });
+            }
+
+            void addAvailability() {
+              final startMinutes = startTime.hour * 60 + startTime.minute;
+              final endMinutes = endTime.hour * 60 + endTime.minute;
+
+              if (endMinutes <= startMinutes) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('End time must be after start time.'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
+
+              for (final entry in availabilities) {
+                if (entry.day != selectedDay) continue;
+                final existingStart =
+                    entry.start.hour * 60 + entry.start.minute;
+                final existingEnd = entry.end.hour * 60 + entry.end.minute;
+                if (startMinutes < existingEnd && existingStart < endMinutes) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Overlapping availability for same day.'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                  return;
+                }
+              }
+
+              setDialogState(() {
+                availabilities.add(
+                  _StudentAvailabilityEntry(
+                    day: selectedDay,
+                    start: startTime,
+                    end: endTime,
+                  ),
+                );
+              });
+            }
+
+            Widget buildTimeCard({
+              required String label,
+              required TimeOfDay time,
+              required VoidCallback onTap,
+            }) {
+              return Expanded(
+                child: InkWell(
+                  onTap: onTap,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    decoration: BoxDecoration(
+                      color: bgBody,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: Colors.black.withValues(alpha: 0.08),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.access_time_rounded,
+                          color: primaryColor,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              label,
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: textMuted,
+                              ),
+                            ),
+                            Text(
+                              time.format(context),
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              child: Container(
+                width: 640,
+                constraints: const BoxConstraints(maxWidth: 640, maxHeight: 760),
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: primaryColor.withValues(alpha: 0.16),
+                      blurRadius: 30,
+                      offset: const Offset(0, 16),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 20,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [primaryColor, accentColor],
+                        ),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(24),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.event_available_rounded,
+                              color: Colors.white,
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Section Availability',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                Text(
+                                  currentSection.isEmpty
+                                      ? 'No sections available'
+                                      : currentSection,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    color: Colors.white.withValues(alpha: 0.9),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(context),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: Colors.white,
+                            ),
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.white.withValues(alpha: 0.15),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Select Section',
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14),
+                              decoration: BoxDecoration(
+                                color: bgBody,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: Colors.black.withValues(alpha: 0.08),
+                                ),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  isExpanded: true,
+                                  value: currentSection.isEmpty
+                                      ? null
+                                      : currentSection,
+                                  hint: Text(
+                                    'Select a section',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 13,
+                                      color: textMuted,
+                                    ),
+                                  ),
+                                  items: sectionOptions
+                                      .map(
+                                        (sectionOption) => DropdownMenuItem<String>(
+                                          value: sectionOption,
+                                          child: Text(
+                                            sectionOption,
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 13,
+                                              color: textPrimary,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: sectionOptions.isEmpty
+                                      ? null
+                                      : (value) {
+                                          if (value == null || value == currentSection) {
+                                            return;
+                                          }
+                                          setDialogState(() {
+                                            persistCurrentSectionAvailability();
+                                            currentSection = value;
+                                            loadSectionAvailability(value);
+                                          });
+                                        },
+                                  icon: Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    color: textMuted,
+                                  ),
+                                  dropdownColor: cardBg,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: days.map((day) {
+                                final isSelected = selectedDay == day;
+                                return InkWell(
+                                  onTap: () => setDialogState(() {
+                                    selectedDay = day;
+                                  }),
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 180),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 18,
+                                      vertical: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: isSelected ? primaryColor : cardBg,
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? primaryColor
+                                            : Colors.black.withValues(alpha: 0.2),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      dayLabels[day]!,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : textPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 14),
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                if (constraints.maxWidth < 420) {
+                                  return Column(
+                                    children: [
+                                      Row(
+                                        children: [
+                                          buildTimeCard(
+                                            label: 'Start',
+                                            time: startTime,
+                                            onTap: () => pickTime(isStart: true),
+                                          ),
+                                        ],
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 10,
+                                        ),
+                                        child: Text(
+                                          '→',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 18,
+                                            color: textMuted,
+                                          ),
+                                        ),
+                                      ),
+                                      Row(
+                                        children: [
+                                          buildTimeCard(
+                                            label: 'End',
+                                            time: endTime,
+                                            onTap: () => pickTime(isStart: false),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  );
+                                }
+
+                                return Row(
+                                  children: [
+                                    buildTimeCard(
+                                      label: 'Start',
+                                      time: startTime,
+                                      onTap: () => pickTime(isStart: true),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                      ),
+                                      child: Text(
+                                        '→',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 18,
+                                          color: textMuted,
+                                        ),
+                                      ),
+                                    ),
+                                    buildTimeCard(
+                                      label: 'End',
+                                      time: endTime,
+                                      onTap: () => pickTime(isStart: false),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 14),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: addAvailability,
+                                icon: const Icon(Icons.add_circle_outline_rounded),
+                                label: Text(
+                                  'Add Availability',
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: primaryColor,
+                                  side: BorderSide(color: primaryColor, width: 1.5),
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            if (availabilities.isEmpty)
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(18),
+                                decoration: BoxDecoration(
+                                  color: bgBody,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: Colors.black.withValues(alpha: 0.06),
+                                  ),
+                                ),
+                                child: Text(
+                                  'No availability added yet.',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    color: textMuted,
+                                  ),
+                                ),
+                              )
+                            else
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: primaryColor.withValues(alpha: 0.04),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: primaryColor.withValues(alpha: 0.14),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Added Availability (${availabilities.length})',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: primaryColor,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    ...availabilities.asMap().entries.map((entry) {
+                                      final availability = entry.value;
+                                      return Container(
+                                        margin: EdgeInsets.only(
+                                          bottom: entry.key == availabilities.length - 1
+                                              ? 0
+                                              : 10,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 10,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: cardBg,
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: primaryColor.withValues(
+                                              alpha: 0.12,
+                                            ),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 10,
+                                                vertical: 5,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: primaryColor,
+                                                borderRadius:
+                                                    BorderRadius.circular(999),
+                                              ),
+                                              child: Text(
+                                                dayLabels[availability.day]!,
+                                                style: GoogleFonts.poppins(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Text(
+                                                '${availability.start.format(context)} - ${availability.end.format(context)}',
+                                                style: GoogleFonts.poppins(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: textPrimary,
+                                                ),
+                                              ),
+                                            ),
+                                            IconButton(
+                                              onPressed: () => setDialogState(() {
+                                                availabilities.removeAt(entry.key);
+                                              }),
+                                              icon: const Icon(
+                                                Icons.close_rounded,
+                                                size: 18,
+                                              ),
+                                              color: Colors.redAccent,
+                                              tooltip: 'Remove',
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }),
+                                  ],
+                                ),
+                              ),
+                            const SizedBox(height: 24),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: textMuted,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        side: BorderSide(
+                                          color: Colors.black.withValues(alpha: 0.1),
+                                        ),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'Cancel',
+                                      style: GoogleFonts.poppins(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  flex: 2,
+                                  child: ElevatedButton(
+                                    onPressed: () {
+                                      persistCurrentSectionAvailability();
+                                      Navigator.pop(context);
+                                      ScaffoldMessenger.of(dialogContext)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            availabilities.isEmpty
+                                                ? '$currentSection availability cleared.'
+                                                : '$currentSection availability saved.',
+                                          ),
+                                          backgroundColor: Colors.green,
+                                        ),
+                                      );
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: primaryColor,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      elevation: 0,
+                                    ),
+                                    child: Text(
+                                      'Save Availability',
+                                      style: GoogleFonts.poppins(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -2521,4 +3392,16 @@ class _EditStudentDialogState extends State<_EditStudentDialog> {
       ),
     );
   }
+}
+
+class _StudentAvailabilityEntry {
+  final DayOfWeek day;
+  final TimeOfDay start;
+  final TimeOfDay end;
+
+  const _StudentAvailabilityEntry({
+    required this.day,
+    required this.start,
+    required this.end,
+  });
 }

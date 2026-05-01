@@ -72,7 +72,7 @@ abstract class Faculty implements _i1.SerializableModel {
       program: jsonSerialization['program'] == null
           ? null
           : _i4.Program.fromJson((jsonSerialization['program'] as String)),
-      isActive: _i1.BoolJsonExtension.fromJson(jsonSerialization['isActive']),
+      isActive: jsonSerialization['isActive'] as bool,
       currentLoad: (jsonSerialization['currentLoad'] as num?)?.toDouble(),
       createdAt: _i1.DateTimeJsonExtension.fromJson(
         jsonSerialization['createdAt'],

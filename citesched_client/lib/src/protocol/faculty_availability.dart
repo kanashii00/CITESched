@@ -54,9 +54,7 @@ abstract class FacultyAvailability implements _i1.SerializableModel {
       ),
       startTime: jsonSerialization['startTime'] as String,
       endTime: jsonSerialization['endTime'] as String,
-      isPreferred: _i1.BoolJsonExtension.fromJson(
-        jsonSerialization['isPreferred'],
-      ),
+      isPreferred: jsonSerialization['isPreferred'] as bool,
       createdAt: _i1.DateTimeJsonExtension.fromJson(
         jsonSerialization['createdAt'],
       ),

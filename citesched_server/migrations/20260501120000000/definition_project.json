@@ -1,0 +1,1433 @@
+{
+    "__className__":  "serverpod.DatabaseDefinition",
+    "moduleName":  "citesched",
+    "tables":  [
+                   {
+                       "__className__":  "serverpod.TableDefinition",
+                       "name":  "chat_history",
+                       "dartName":  "ChatHistory",
+                       "module":  "citesched",
+                       "schema":  "public",
+                       "columns":  [
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "id",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "columnDefault":  "nextval(\u0027chat_history_id_seq\u0027::regclass)",
+                                           "dartType":  "int?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "userId",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "role",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "sessionId",
+                                           "columnType":  0,
+                                           "isNullable":  true,
+                                           "dartType":  "String?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "sessionTitle",
+                                           "columnType":  0,
+                                           "isNullable":  true,
+                                           "dartType":  "String?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "sender",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "text",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "intent",
+                                           "columnType":  0,
+                                           "isNullable":  true,
+                                           "dartType":  "String?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "metadataJson",
+                                           "columnType":  0,
+                                           "isNullable":  true,
+                                           "dartType":  "String?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "createdAt",
+                                           "columnType":  4,
+                                           "isNullable":  false,
+                                           "dartType":  "DateTime"
+                                       }
+                                   ],
+                       "foreignKeys":  [
+
+                                       ],
+                       "indexes":  [
+                                       {
+                                           "__className__":  "serverpod.IndexDefinition",
+                                           "indexName":  "chat_history_pkey",
+                                           "elements":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "id"
+                                                            }
+                                                        ],
+                                           "type":  "btree",
+                                           "isUnique":  true,
+                                           "isPrimary":  true
+                                       }
+                                   ],
+                       "managed":  true
+                   },
+                   {
+                       "__className__":  "serverpod.TableDefinition",
+                       "name":  "chat_messages",
+                       "dartName":  "AiChatMessage",
+                       "module":  "citesched",
+                       "schema":  "public",
+                       "columns":  [
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "id",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "dartType":  "int?",
+                                           "columnDefault":  "nextval(\u0027chat_messages_id_seq\u0027::regclass)"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "sessionRecordId",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "dartType":  "int"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "sender",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "message",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "timestamp",
+                                           "columnType":  4,
+                                           "isNullable":  false,
+                                           "dartType":  "DateTime"
+                                       }
+                                   ],
+                       "foreignKeys":  [
+                                           {
+                                               "__className__":  "serverpod.ForeignKeyDefinition",
+                                               "constraintName":  "chat_messages_fk_0",
+                                               "columns":  [
+                                                               "sessionRecordId"
+                                                           ],
+                                               "referenceTable":  "chat_sessions",
+                                               "referenceTableSchema":  "public",
+                                               "referenceColumns":  [
+                                                                        "id"
+                                                                    ],
+                                               "onUpdate":  3,
+                                               "onDelete":  3
+                                           }
+                                       ],
+                       "indexes":  [
+                                       {
+                                           "__className__":  "serverpod.IndexDefinition",
+                                           "indexName":  "chat_messages_pkey",
+                                           "elements":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "id"
+                                                            }
+                                                        ],
+                                           "type":  "btree",
+                                           "isUnique":  true,
+                                           "isPrimary":  true
+                                       },
+                                       {
+                                           "__className__":  "serverpod.IndexDefinition",
+                                           "indexName":  "chat_messages_session_timestamp_idx",
+                                           "elements":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "sessionRecordId"
+                                                            },
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "timestamp"
+                                                            }
+                                                        ],
+                                           "type":  "btree",
+                                           "isUnique":  false,
+                                           "isPrimary":  false
+                                       }
+                                   ],
+                       "managed":  true
+                   },
+                   {
+                       "__className__":  "serverpod.TableDefinition",
+                       "name":  "chat_sessions",
+                       "dartName":  "AiChatSession",
+                       "module":  "citesched",
+                       "schema":  "public",
+                       "columns":  [
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "id",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "dartType":  "int?",
+                                           "columnDefault":  "nextval(\u0027chat_sessions_id_seq\u0027::regclass)"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "userId",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "roleType",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "title",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "createdAt",
+                                           "columnType":  4,
+                                           "isNullable":  false,
+                                           "dartType":  "DateTime"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "updatedAt",
+                                           "columnType":  4,
+                                           "isNullable":  false,
+                                           "dartType":  "DateTime"
+                                       }
+                                   ],
+                       "foreignKeys":  [
+
+                                       ],
+                       "indexes":  [
+                                       {
+                                           "__className__":  "serverpod.IndexDefinition",
+                                           "indexName":  "chat_sessions_pkey",
+                                           "elements":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "id"
+                                                            }
+                                                        ],
+                                           "type":  "btree",
+                                           "isUnique":  true,
+                                           "isPrimary":  true
+                                       },
+                                       {
+                                           "__className__":  "serverpod.IndexDefinition",
+                                           "indexName":  "chat_sessions_user_role_updated_idx",
+                                           "elements":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "userId"
+                                                            },
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "roleType"
+                                                            },
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "updatedAt"
+                                                            }
+                                                        ],
+                                           "type":  "btree",
+                                           "isUnique":  false,
+                                           "isPrimary":  false
+                                       }
+                                   ],
+                       "managed":  true
+                   },
+                   {
+                       "__className__":  "serverpod.TableDefinition",
+                       "name":  "faculty",
+                       "dartName":  "Faculty",
+                       "module":  "citesched",
+                       "schema":  "public",
+                       "columns":  [
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "id",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "columnDefault":  "nextval(\u0027faculty_id_seq\u0027::regclass)",
+                                           "dartType":  "int?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "name",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "email",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "maxLoad",
+                                           "columnType":  6,
+                                           "isNullable":  true,
+                                           "dartType":  "int?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "employmentStatus",
+                                           "columnType":  0,
+                                           "isNullable":  true,
+                                           "dartType":  "protocol:EmploymentStatus?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "shiftPreference",
+                                           "columnType":  0,
+                                           "isNullable":  true,
+                                           "dartType":  "protocol:FacultyShiftPreference?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "preferredHours",
+                                           "columnType":  0,
+                                           "isNullable":  true,
+                                           "dartType":  "String?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "facultyId",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "userInfoId",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "dartType":  "int"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "program",
+                                           "columnType":  0,
+                                           "isNullable":  true,
+                                           "dartType":  "protocol:Program?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "isActive",
+                                           "columnType":  1,
+                                           "isNullable":  false,
+                                           "dartType":  "bool"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "currentLoad",
+                                           "columnType":  3,
+                                           "isNullable":  true,
+                                           "dartType":  "double?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "createdAt",
+                                           "columnType":  4,
+                                           "isNullable":  false,
+                                           "dartType":  "DateTime"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "updatedAt",
+                                           "columnType":  4,
+                                           "isNullable":  false,
+                                           "dartType":  "DateTime"
+                                       }
+                                   ],
+                       "foreignKeys":  [
+
+                                       ],
+                       "indexes":  [
+                                       {
+                                           "__className__":  "serverpod.IndexDefinition",
+                                           "indexName":  "faculty_pkey",
+                                           "elements":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "id"
+                                                            }
+                                                        ],
+                                           "type":  "btree",
+                                           "isUnique":  true,
+                                           "isPrimary":  true
+                                       },
+                                       {
+                                           "__className__":  "serverpod.IndexDefinition",
+                                           "indexName":  "faculty_email_unique_idx",
+                                           "elements":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "email"
+                                                            }
+                                                        ],
+                                           "type":  "btree",
+                                           "isUnique":  true,
+                                           "isPrimary":  false
+                                       },
+                                       {
+                                           "__className__":  "serverpod.IndexDefinition",
+                                           "indexName":  "faculty_id_unique_idx",
+                                           "elements":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "facultyId"
+                                                            }
+                                                        ],
+                                           "type":  "btree",
+                                           "isUnique":  true,
+                                           "isPrimary":  false
+                                       }
+                                   ],
+                       "managed":  true
+                   },
+                   {
+                       "__className__":  "serverpod.TableDefinition",
+                       "name":  "faculty_availability",
+                       "dartName":  "FacultyAvailability",
+                       "module":  "citesched",
+                       "schema":  "public",
+                       "columns":  [
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "id",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "columnDefault":  "nextval(\u0027faculty_availability_id_seq\u0027::regclass)",
+                                           "dartType":  "int?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "facultyId",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "dartType":  "int"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "dayOfWeek",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "protocol:DayOfWeek"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "startTime",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "endTime",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "isPreferred",
+                                           "columnType":  1,
+                                           "isNullable":  false,
+                                           "dartType":  "bool"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "createdAt",
+                                           "columnType":  4,
+                                           "isNullable":  false,
+                                           "dartType":  "DateTime"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "updatedAt",
+                                           "columnType":  4,
+                                           "isNullable":  false,
+                                           "dartType":  "DateTime"
+                                       }
+                                   ],
+                       "foreignKeys":  [
+                                           {
+                                               "__className__":  "serverpod.ForeignKeyDefinition",
+                                               "constraintName":  "faculty_availability_fk_0",
+                                               "columns":  [
+                                                               "facultyId"
+                                                           ],
+                                               "referenceTable":  "faculty",
+                                               "referenceTableSchema":  "public",
+                                               "referenceColumns":  [
+                                                                        "id"
+                                                                    ],
+                                               "onUpdate":  3,
+                                               "onDelete":  3
+                                           }
+                                       ],
+                       "indexes":  [
+                                       {
+                                           "__className__":  "serverpod.IndexDefinition",
+                                           "indexName":  "faculty_availability_pkey",
+                                           "elements":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "id"
+                                                            }
+                                                        ],
+                                           "type":  "btree",
+                                           "isUnique":  true,
+                                           "isPrimary":  true
+                                       }
+                                   ],
+                       "managed":  true
+                   },
+                   {
+                       "__className__":  "serverpod.TableDefinition",
+                       "name":  "room",
+                       "dartName":  "Room",
+                       "module":  "citesched",
+                       "schema":  "public",
+                       "columns":  [
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "id",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "columnDefault":  "nextval(\u0027room_id_seq\u0027::regclass)",
+                                           "dartType":  "int?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "name",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "capacity",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "dartType":  "int"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "type",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "protocol:RoomType"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "program",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "protocol:Program"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "isActive",
+                                           "columnType":  1,
+                                           "isNullable":  false,
+                                           "dartType":  "bool"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "createdAt",
+                                           "columnType":  4,
+                                           "isNullable":  false,
+                                           "dartType":  "DateTime"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "updatedAt",
+                                           "columnType":  4,
+                                           "isNullable":  false,
+                                           "dartType":  "DateTime"
+                                       }
+                                   ],
+                       "foreignKeys":  [
+
+                                       ],
+                       "indexes":  [
+                                       {
+                                           "__className__":  "serverpod.IndexDefinition",
+                                           "indexName":  "room_pkey",
+                                           "elements":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "id"
+                                                            }
+                                                        ],
+                                           "type":  "btree",
+                                           "isUnique":  true,
+                                           "isPrimary":  true
+                                       },
+                                       {
+                                           "__className__":  "serverpod.IndexDefinition",
+                                           "indexName":  "room_name_unique_idx",
+                                           "elements":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "name"
+                                                            }
+                                                        ],
+                                           "type":  "btree",
+                                           "isUnique":  true,
+                                           "isPrimary":  false
+                                       }
+                                   ],
+                       "managed":  true
+                   },
+                   {
+                       "__className__":  "serverpod.TableDefinition",
+                       "name":  "schedule",
+                       "dartName":  "Schedule",
+                       "module":  "citesched",
+                       "schema":  "public",
+                       "columns":  [
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "id",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "columnDefault":  "nextval(\u0027schedule_id_seq\u0027::regclass)",
+                                           "dartType":  "int?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "subjectId",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "dartType":  "int"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "facultyId",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "dartType":  "int"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "roomId",
+                                           "columnType":  6,
+                                           "isNullable":  true,
+                                           "dartType":  "int?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "timeslotId",
+                                           "columnType":  6,
+                                           "isNullable":  true,
+                                           "dartType":  "int?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "section",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "sectionId",
+                                           "columnType":  6,
+                                           "isNullable":  true,
+                                           "dartType":  "int?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "loadTypes",
+                                           "columnType":  8,
+                                           "isNullable":  true,
+                                           "dartType":  "List\u003cprotocol:SubjectType\u003e?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "units",
+                                           "columnType":  3,
+                                           "isNullable":  true,
+                                           "dartType":  "double?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "hours",
+                                           "columnType":  3,
+                                           "isNullable":  true,
+                                           "dartType":  "double?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "isActive",
+                                           "columnType":  1,
+                                           "isNullable":  false,
+                                           "columnDefault":  "true",
+                                           "dartType":  "bool"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "createdAt",
+                                           "columnType":  4,
+                                           "isNullable":  false,
+                                           "dartType":  "DateTime"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "updatedAt",
+                                           "columnType":  4,
+                                           "isNullable":  false,
+                                           "dartType":  "DateTime"
+                                       }
+                                   ],
+                       "foreignKeys":  [
+                                           {
+                                               "__className__":  "serverpod.ForeignKeyDefinition",
+                                               "constraintName":  "schedule_fk_0",
+                                               "columns":  [
+                                                               "subjectId"
+                                                           ],
+                                               "referenceTable":  "subject",
+                                               "referenceTableSchema":  "public",
+                                               "referenceColumns":  [
+                                                                        "id"
+                                                                    ],
+                                               "onUpdate":  3,
+                                               "onDelete":  3
+                                           },
+                                           {
+                                               "__className__":  "serverpod.ForeignKeyDefinition",
+                                               "constraintName":  "schedule_fk_1",
+                                               "columns":  [
+                                                               "facultyId"
+                                                           ],
+                                               "referenceTable":  "faculty",
+                                               "referenceTableSchema":  "public",
+                                               "referenceColumns":  [
+                                                                        "id"
+                                                                    ],
+                                               "onUpdate":  3,
+                                               "onDelete":  3
+                                           },
+                                           {
+                                               "__className__":  "serverpod.ForeignKeyDefinition",
+                                               "constraintName":  "schedule_fk_2",
+                                               "columns":  [
+                                                               "roomId"
+                                                           ],
+                                               "referenceTable":  "room",
+                                               "referenceTableSchema":  "public",
+                                               "referenceColumns":  [
+                                                                        "id"
+                                                                    ],
+                                               "onUpdate":  3,
+                                               "onDelete":  3
+                                           },
+                                           {
+                                               "__className__":  "serverpod.ForeignKeyDefinition",
+                                               "constraintName":  "schedule_fk_3",
+                                               "columns":  [
+                                                               "timeslotId"
+                                                           ],
+                                               "referenceTable":  "timeslot",
+                                               "referenceTableSchema":  "public",
+                                               "referenceColumns":  [
+                                                                        "id"
+                                                                    ],
+                                               "onUpdate":  3,
+                                               "onDelete":  3
+                                           },
+                                           {
+                                               "__className__":  "serverpod.ForeignKeyDefinition",
+                                               "constraintName":  "schedule_fk_4",
+                                               "columns":  [
+                                                               "sectionId"
+                                                           ],
+                                               "referenceTable":  "section",
+                                               "referenceTableSchema":  "public",
+                                               "referenceColumns":  [
+                                                                        "id"
+                                                                    ],
+                                               "onUpdate":  3,
+                                               "onDelete":  3
+                                           }
+                                       ],
+                       "indexes":  [
+                                       {
+                                           "__className__":  "serverpod.IndexDefinition",
+                                           "indexName":  "schedule_pkey",
+                                           "elements":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "id"
+                                                            }
+                                                        ],
+                                           "type":  "btree",
+                                           "isUnique":  true,
+                                           "isPrimary":  true
+                                       }
+                                   ],
+                       "managed":  true
+                   },
+                   {
+                       "__className__":  "serverpod.TableDefinition",
+                       "name":  "section",
+                       "dartName":  "Section",
+                       "module":  "citesched",
+                       "schema":  "public",
+                       "columns":  [
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "id",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "columnDefault":  "nextval(\u0027section_id_seq\u0027::regclass)",
+                                           "dartType":  "int?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "program",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "protocol:Program"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "yearLevel",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "dartType":  "int"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "sectionCode",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "academicYear",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "semester",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "dartType":  "int"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "isActive",
+                                           "columnType":  1,
+                                           "isNullable":  false,
+                                           "columnDefault":  "true",
+                                           "dartType":  "bool"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "createdAt",
+                                           "columnType":  4,
+                                           "isNullable":  false,
+                                           "dartType":  "DateTime"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "updatedAt",
+                                           "columnType":  4,
+                                           "isNullable":  false,
+                                           "dartType":  "DateTime"
+                                       }
+                                   ],
+                       "foreignKeys":  [
+
+                                       ],
+                       "indexes":  [
+                                       {
+                                           "__className__":  "serverpod.IndexDefinition",
+                                           "indexName":  "section_pkey",
+                                           "elements":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "id"
+                                                            }
+                                                        ],
+                                           "type":  "btree",
+                                           "isUnique":  true,
+                                           "isPrimary":  true
+                                       },
+                                       {
+                                           "__className__":  "serverpod.IndexDefinition",
+                                           "indexName":  "section_unique_idx",
+                                           "elements":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "program"
+                                                            },
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "yearLevel"
+                                                            },
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "sectionCode"
+                                                            },
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "academicYear"
+                                                            },
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "semester"
+                                                            }
+                                                        ],
+                                           "type":  "btree",
+                                           "isUnique":  true,
+                                           "isPrimary":  false
+                                       }
+                                   ],
+                       "managed":  true
+                   },
+                   {
+                       "__className__":  "serverpod.TableDefinition",
+                       "name":  "student",
+                       "dartName":  "Student",
+                       "module":  "citesched",
+                       "schema":  "public",
+                       "columns":  [
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "id",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "columnDefault":  "nextval(\u0027student_id_seq\u0027::regclass)",
+                                           "dartType":  "int?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "name",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "email",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "studentNumber",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "course",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "yearLevel",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "dartType":  "int"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "section",
+                                           "columnType":  0,
+                                           "isNullable":  true,
+                                           "dartType":  "String?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "sectionId",
+                                           "columnType":  6,
+                                           "isNullable":  true,
+                                           "dartType":  "int?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "userInfoId",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "dartType":  "int"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "academicStatus",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "columnDefault":  "'active'::text",
+                                           "dartType":  "protocol:StudentAcademicStatus"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "isActive",
+                                           "columnType":  1,
+                                           "isNullable":  false,
+                                           "columnDefault":  "true",
+                                           "dartType":  "bool"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "createdAt",
+                                           "columnType":  4,
+                                           "isNullable":  false,
+                                           "dartType":  "DateTime"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "updatedAt",
+                                           "columnType":  4,
+                                           "isNullable":  false,
+                                           "dartType":  "DateTime"
+                                       }
+                                   ],
+                       "foreignKeys":  [
+                                           {
+                                               "__className__":  "serverpod.ForeignKeyDefinition",
+                                               "constraintName":  "student_fk_0",
+                                               "columns":  [
+                                                               "sectionId"
+                                                           ],
+                                               "referenceTable":  "section",
+                                               "referenceTableSchema":  "public",
+                                               "referenceColumns":  [
+                                                                        "id"
+                                                                    ],
+                                               "onUpdate":  3,
+                                               "onDelete":  3
+                                           }
+                                       ],
+                       "indexes":  [
+                                       {
+                                           "__className__":  "serverpod.IndexDefinition",
+                                           "indexName":  "student_pkey",
+                                           "elements":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "id"
+                                                            }
+                                                        ],
+                                           "type":  "btree",
+                                           "isUnique":  true,
+                                           "isPrimary":  true
+                                       },
+                                       {
+                                           "__className__":  "serverpod.IndexDefinition",
+                                           "indexName":  "student_email_unique_idx",
+                                           "elements":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "email"
+                                                            }
+                                                        ],
+                                           "type":  "btree",
+                                           "isUnique":  true,
+                                           "isPrimary":  false
+                                       },
+                                       {
+                                           "__className__":  "serverpod.IndexDefinition",
+                                           "indexName":  "student_number_unique_idx",
+                                           "elements":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "studentNumber"
+                                                            }
+                                                        ],
+                                           "type":  "btree",
+                                           "isUnique":  true,
+                                           "isPrimary":  false
+                                       }
+                                   ],
+                       "managed":  true
+                   },
+                   {
+                       "__className__":  "serverpod.TableDefinition",
+                       "name":  "subject",
+                       "dartName":  "Subject",
+                       "module":  "citesched",
+                       "schema":  "public",
+                       "columns":  [
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "id",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "columnDefault":  "nextval(\u0027subject_id_seq\u0027::regclass)",
+                                           "dartType":  "int?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "code",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "name",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "units",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "dartType":  "int"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "hours",
+                                           "columnType":  3,
+                                           "isNullable":  true,
+                                           "dartType":  "double?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "yearLevel",
+                                           "columnType":  6,
+                                           "isNullable":  true,
+                                           "dartType":  "int?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "term",
+                                           "columnType":  6,
+                                           "isNullable":  true,
+                                           "dartType":  "int?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "facultyId",
+                                           "columnType":  6,
+                                           "isNullable":  true,
+                                           "dartType":  "int?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "types",
+                                           "columnType":  8,
+                                           "isNullable":  false,
+                                           "dartType":  "List\u003cprotocol:SubjectType\u003e"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "program",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "protocol:Program"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "studentsCount",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "dartType":  "int"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "isActive",
+                                           "columnType":  1,
+                                           "isNullable":  false,
+                                           "columnDefault":  "true",
+                                           "dartType":  "bool"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "createdAt",
+                                           "columnType":  4,
+                                           "isNullable":  false,
+                                           "dartType":  "DateTime"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "updatedAt",
+                                           "columnType":  4,
+                                           "isNullable":  false,
+                                           "dartType":  "DateTime"
+                                       }
+                                   ],
+                       "foreignKeys":  [
+
+                                       ],
+                       "indexes":  [
+                                       {
+                                           "__className__":  "serverpod.IndexDefinition",
+                                           "indexName":  "subject_pkey",
+                                           "elements":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "id"
+                                                            }
+                                                        ],
+                                           "type":  "btree",
+                                           "isUnique":  true,
+                                           "isPrimary":  true
+                                       }
+                                   ],
+                       "managed":  true
+                   },
+                   {
+                       "__className__":  "serverpod.TableDefinition",
+                       "name":  "timeslot",
+                       "dartName":  "Timeslot",
+                       "module":  "citesched",
+                       "schema":  "public",
+                       "columns":  [
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "id",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "columnDefault":  "nextval(\u0027timeslot_id_seq\u0027::regclass)",
+                                           "dartType":  "int?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "day",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "protocol:DayOfWeek"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "startTime",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "endTime",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "label",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "createdAt",
+                                           "columnType":  4,
+                                           "isNullable":  false,
+                                           "dartType":  "DateTime"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "updatedAt",
+                                           "columnType":  4,
+                                           "isNullable":  false,
+                                           "dartType":  "DateTime"
+                                       }
+                                   ],
+                       "foreignKeys":  [
+
+                                       ],
+                       "indexes":  [
+                                       {
+                                           "__className__":  "serverpod.IndexDefinition",
+                                           "indexName":  "timeslot_pkey",
+                                           "elements":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "id"
+                                                            }
+                                                        ],
+                                           "type":  "btree",
+                                           "isUnique":  true,
+                                           "isPrimary":  true
+                                       }
+                                   ],
+                       "managed":  true
+                   },
+                   {
+                       "__className__":  "serverpod.TableDefinition",
+                       "name":  "user_role",
+                       "dartName":  "UserRole",
+                       "module":  "citesched",
+                       "schema":  "public",
+                       "columns":  [
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "id",
+                                           "columnType":  6,
+                                           "isNullable":  false,
+                                           "columnDefault":  "nextval(\u0027user_role_id_seq\u0027::regclass)",
+                                           "dartType":  "int?"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "userId",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       },
+                                       {
+                                           "__className__":  "serverpod.ColumnDefinition",
+                                           "name":  "role",
+                                           "columnType":  0,
+                                           "isNullable":  false,
+                                           "dartType":  "String"
+                                       }
+                                   ],
+                       "foreignKeys":  [
+
+                                       ],
+                       "indexes":  [
+                                       {
+                                           "__className__":  "serverpod.IndexDefinition",
+                                           "indexName":  "user_role_pkey",
+                                           "elements":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "id"
+                                                            }
+                                                        ],
+                                           "type":  "btree",
+                                           "isUnique":  true,
+                                           "isPrimary":  true
+                                       },
+                                       {
+                                           "__className__":  "serverpod.IndexDefinition",
+                                           "indexName":  "user_role_user_id_unique_idx",
+                                           "elements":  [
+                                                            {
+                                                                "__className__":  "serverpod.IndexElementDefinition",
+                                                                "type":  0,
+                                                                "definition":  "userId"
+                                                            }
+                                                        ],
+                                           "type":  "btree",
+                                           "isUnique":  true,
+                                           "isPrimary":  false
+                                       }
+                                   ],
+                       "managed":  true
+                   }
+               ],
+    "installedModules":  [
+                             {
+                                 "__className__":  "serverpod.DatabaseMigrationVersion",
+                                 "module":  "serverpod",
+                                 "version":  "20260129180959368"
+                             },
+                             {
+                                 "__className__":  "serverpod.DatabaseMigrationVersion",
+                                 "module":  "serverpod_auth_idp",
+                                 "version":  "20260213194423028"
+                             },
+                             {
+                                 "__className__":  "serverpod.DatabaseMigrationVersion",
+                                 "module":  "serverpod_auth",
+                                 "version":  "20260129181059877"
+                             },
+                             {
+                                 "__className__":  "serverpod.DatabaseMigrationVersion",
+                                 "module":  "serverpod_auth_core",
+                                 "version":  "20260129181112269"
+                             }
+                         ],
+    "migrationApiVersion":  1
+}

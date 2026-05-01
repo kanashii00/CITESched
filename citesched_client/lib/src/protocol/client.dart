@@ -44,17 +44,17 @@ import 'package:citesched_client/src/protocol/chat_history.dart' as _i22;
 import 'package:citesched_client/src/protocol/chat_session_summary.dart'
     as _i23;
 import 'package:serverpod_auth_client/serverpod_auth_client.dart' as _i24;
-import 'package:citesched_client/src/protocol/schedule_info.dart' as _i25;
+import 'package:citesched_client/src/protocol/nlp_response.dart' as _i25;
+import 'package:citesched_client/src/protocol/day_of_week.dart' as _i26;
+import 'package:citesched_client/src/protocol/program.dart' as _i27;
+import 'package:citesched_client/src/protocol/ai_chat_session.dart' as _i28;
+import 'package:citesched_client/src/protocol/ai_chat_message.dart' as _i29;
+import 'package:citesched_client/src/protocol/schedule_info.dart' as _i30;
 import 'package:citesched_client/src/protocol/timetable_filter_request.dart'
-    as _i26;
-import 'package:citesched_client/src/protocol/timetable_summary.dart' as _i27;
-import 'package:citesched_client/src/protocol/greetings/greeting.dart' as _i28;
-import 'package:citesched_client/src/protocol/nlp_response.dart' as _i30;
-import 'package:citesched_client/src/protocol/ai_chat_session.dart' as _i31;
-import 'package:citesched_client/src/protocol/ai_chat_message.dart' as _i32;
-import 'package:citesched_client/src/protocol/day_of_week.dart' as _i33;
-import 'package:citesched_client/src/protocol/program.dart' as _i34;
-import 'protocol.dart' as _i29;
+    as _i31;
+import 'package:citesched_client/src/protocol/timetable_summary.dart' as _i32;
+import 'package:citesched_client/src/protocol/greetings/greeting.dart' as _i33;
+import 'protocol.dart' as _i34;
 
 /// By extending [EmailIdpBaseEndpoint], the email identity provider endpoints
 /// are made available on the server and enable the corresponding sign-in widget
@@ -852,11 +852,11 @@ class EndpointNLP extends _i2.EndpointRef {
   @override
   String get name => 'nLP';
 
-  _i3.Future<_i30.NLPResponse> query(
+  _i3.Future<_i25.NLPResponse> query(
     String text, {
     String? sessionId,
     String? sessionTitle,
-  }) => caller.callServerEndpoint<_i30.NLPResponse>(
+  }) => caller.callServerEndpoint<_i25.NLPResponse>(
     'nLP',
     'query',
     {
@@ -891,7 +891,7 @@ class EndpointNLP extends _i2.EndpointRef {
 
   _i3.Future<List<_i11.Schedule>> getRoomAvailability({
     required int roomId,
-    required _i33.DayOfWeek day,
+    required _i26.DayOfWeek day,
   }) => caller.callServerEndpoint<List<_i11.Schedule>>(
     'nLP',
     'getRoomAvailability',
@@ -902,7 +902,7 @@ class EndpointNLP extends _i2.EndpointRef {
   );
 
   _i3.Future<List<_i9.Subject>> getSubjectCatalog({
-    required _i34.Program program,
+    required _i27.Program program,
     int? yearLevel,
   }) => caller.callServerEndpoint<List<_i9.Subject>>(
     'nLP',
@@ -934,11 +934,11 @@ class EndpointNLP extends _i2.EndpointRef {
         {'query': query},
       );
 
-  _i3.Future<_i31.AiChatSession> createChatSession({
+  _i3.Future<_i28.AiChatSession> createChatSession({
     String? userId,
     String? role,
     String? title,
-  }) => caller.callServerEndpoint<_i31.AiChatSession>(
+  }) => caller.callServerEndpoint<_i28.AiChatSession>(
     'nLP',
     'createChatSession',
     {
@@ -951,7 +951,7 @@ class EndpointNLP extends _i2.EndpointRef {
   _i3.Future<List<_i23.ChatSessionSummary>> getChatHistory({
     String? userId,
     String? role,
-    int limit = 30,
+    required int limit,
   }) => caller.callServerEndpoint<List<_i23.ChatSessionSummary>>(
     'nLP',
     'getChatHistory',
@@ -962,11 +962,11 @@ class EndpointNLP extends _i2.EndpointRef {
     },
   );
 
-  _i3.Future<List<_i32.AiChatMessage>> getChatMessages({
+  _i3.Future<List<_i29.AiChatMessage>> getChatMessages({
     required String sessionId,
     String? role,
-    int limit = 200,
-  }) => caller.callServerEndpoint<List<_i32.AiChatMessage>>(
+    required int limit,
+  }) => caller.callServerEndpoint<List<_i29.AiChatMessage>>(
     'nLP',
     'getChatMessages',
     {
@@ -976,12 +976,12 @@ class EndpointNLP extends _i2.EndpointRef {
     },
   );
 
-  _i3.Future<_i32.AiChatMessage> saveChatMessage({
+  _i3.Future<_i29.AiChatMessage> saveChatMessage({
     required String sessionId,
     required String sender,
     required String message,
     String? role,
-  }) => caller.callServerEndpoint<_i32.AiChatMessage>(
+  }) => caller.callServerEndpoint<_i29.AiChatMessage>(
     'nLP',
     'saveChatMessage',
     {
@@ -1179,24 +1179,24 @@ class EndpointTimetable extends _i2.EndpointRef {
   @override
   String get name => 'timetable';
 
-  _i3.Future<List<_i25.ScheduleInfo>> getSchedules(
-    _i26.TimetableFilterRequest filter,
-  ) => caller.callServerEndpoint<List<_i25.ScheduleInfo>>(
+  _i3.Future<List<_i30.ScheduleInfo>> getSchedules(
+    _i31.TimetableFilterRequest filter,
+  ) => caller.callServerEndpoint<List<_i30.ScheduleInfo>>(
     'timetable',
     'getSchedules',
     {'filter': filter},
   );
 
-  _i3.Future<_i27.TimetableSummary> getSummary(
-    _i26.TimetableFilterRequest filter,
-  ) => caller.callServerEndpoint<_i27.TimetableSummary>(
+  _i3.Future<_i32.TimetableSummary> getSummary(
+    _i31.TimetableFilterRequest filter,
+  ) => caller.callServerEndpoint<_i32.TimetableSummary>(
     'timetable',
     'getSummary',
     {'filter': filter},
   );
 
-  _i3.Future<List<_i25.ScheduleInfo>> getPersonalSchedule() =>
-      caller.callServerEndpoint<List<_i25.ScheduleInfo>>(
+  _i3.Future<List<_i30.ScheduleInfo>> getPersonalSchedule() =>
+      caller.callServerEndpoint<List<_i30.ScheduleInfo>>(
         'timetable',
         'getPersonalSchedule',
         {},
@@ -1213,8 +1213,8 @@ class EndpointGreeting extends _i2.EndpointRef {
   String get name => 'greeting';
 
   /// Returns a personalized greeting message: "Hello {name}".
-  _i3.Future<_i28.Greeting> hello(String name) =>
-      caller.callServerEndpoint<_i28.Greeting>(
+  _i3.Future<_i33.Greeting> hello(String name) =>
+      caller.callServerEndpoint<_i33.Greeting>(
         'greeting',
         'hello',
         {'name': name},
@@ -1255,7 +1255,7 @@ class Client extends _i2.ServerpodClientShared {
     bool? disconnectStreamsOnLostInternetConnection,
   }) : super(
          host,
-         _i29.Protocol(),
+         _i34.Protocol(),
          securityContext: securityContext,
          streamingConnectionTimeout: streamingConnectionTimeout,
          connectionTimeout: connectionTimeout,

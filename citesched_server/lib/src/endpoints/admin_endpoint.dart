@@ -857,6 +857,7 @@ class AdminEndpoint extends Endpoint {
             course: 'BSIT',
             yearLevel: 1,
             userInfoId: userInfo.id!,
+            academicStatus: StudentAcademicStatus.active,
             isActive: true,
             createdAt: userInfo.created,
             updatedAt: DateTime.now(),

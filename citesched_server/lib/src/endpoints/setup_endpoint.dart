@@ -281,6 +281,7 @@ class SetupEndpoint extends Endpoint {
         ..section = normalizedSection
         ..sectionId = sectionId
         ..userInfoId = userInfo.id!
+        ..academicStatus = StudentAcademicStatus.active
         ..isActive = true
         ..updatedAt = DateTime.now();
       await Student.db.updateRow(session, existingStudent);
@@ -298,6 +299,7 @@ class SetupEndpoint extends Endpoint {
         section: normalizedSection,
         sectionId: sectionId,
         userInfoId: userInfo.id!,
+        academicStatus: StudentAcademicStatus.active,
         isActive: true,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),

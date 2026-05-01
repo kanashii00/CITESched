@@ -41,7 +41,7 @@ abstract class GenerateScheduleResponse
     Map<String, dynamic> jsonSerialization,
   ) {
     return GenerateScheduleResponse(
-      success: _i1.BoolJsonExtension.fromJson(jsonSerialization['success']),
+      success: jsonSerialization['success'] as bool,
       schedules: jsonSerialization['schedules'] == null
           ? null
           : _i4.Protocol().deserialize<List<_i2.Schedule>>(

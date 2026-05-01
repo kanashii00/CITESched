@@ -101,9 +101,7 @@ abstract class Schedule implements _i1.SerializableModel {
             ),
       units: (jsonSerialization['units'] as num?)?.toDouble(),
       hours: (jsonSerialization['hours'] as num?)?.toDouble(),
-      isActive: jsonSerialization['isActive'] == null
-          ? null
-          : _i1.BoolJsonExtension.fromJson(jsonSerialization['isActive']),
+      isActive: jsonSerialization['isActive'] as bool?,
       createdAt: _i1.DateTimeJsonExtension.fromJson(
         jsonSerialization['createdAt'],
       ),

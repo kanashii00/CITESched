@@ -41,7 +41,7 @@ abstract class RoomUtilizationReport
       utilizationPercentage: (jsonSerialization['utilizationPercentage'] as num)
           .toDouble(),
       totalBookings: jsonSerialization['totalBookings'] as int,
-      isActive: _i1.BoolJsonExtension.fromJson(jsonSerialization['isActive']),
+      isActive: jsonSerialization['isActive'] as bool,
       program: jsonSerialization['program'] as String?,
     );
   }

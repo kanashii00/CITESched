@@ -10,6 +10,7 @@ fields:
   sectionId: int?
   sectionRef: Section?, relation(field=sectionId)
   userInfoId: int
+  academicStatus: StudentAcademicStatus, default=active
   isActive: bool, default=true
   createdAt: DateTime
   updatedAt: DateTime

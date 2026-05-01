@@ -40,36 +40,38 @@ import 'schedule_conflict.dart' as _i27;
 import 'schedule_info.dart' as _i28;
 import 'section.dart' as _i29;
 import 'student.dart' as _i30;
-import 'subject.dart' as _i31;
-import 'subject_type.dart' as _i32;
-import 'timeslot.dart' as _i33;
-import 'timetable_filter_request.dart' as _i34;
-import 'timetable_summary.dart' as _i35;
-import 'user_role.dart' as _i36;
-import 'package:citesched_client/src/protocol/user_role.dart' as _i37;
-import 'package:citesched_client/src/protocol/faculty.dart' as _i38;
-import 'package:citesched_client/src/protocol/student.dart' as _i39;
-import 'package:citesched_client/src/protocol/room.dart' as _i40;
-import 'package:citesched_client/src/protocol/subject.dart' as _i41;
-import 'package:citesched_client/src/protocol/timeslot.dart' as _i42;
-import 'package:citesched_client/src/protocol/schedule.dart' as _i43;
-import 'package:citesched_client/src/protocol/schedule_conflict.dart' as _i44;
+import 'student_academic_status.dart' as _i31;
+import 'subject.dart' as _i32;
+import 'subject_type.dart' as _i33;
+import 'timeslot.dart' as _i34;
+import 'timetable_filter_request.dart' as _i35;
+import 'timetable_summary.dart' as _i36;
+import 'user_role.dart' as _i37;
+import 'package:citesched_client/src/protocol/user_role.dart' as _i38;
+import 'package:citesched_client/src/protocol/faculty.dart' as _i39;
+import 'package:citesched_client/src/protocol/student.dart' as _i40;
+import 'package:citesched_client/src/protocol/room.dart' as _i41;
+import 'package:citesched_client/src/protocol/subject.dart' as _i42;
+import 'package:citesched_client/src/protocol/timeslot.dart' as _i43;
+import 'package:citesched_client/src/protocol/schedule.dart' as _i44;
+import 'package:citesched_client/src/protocol/schedule_conflict.dart' as _i45;
 import 'package:citesched_client/src/protocol/reports/faculty_load_report.dart'
-    as _i45;
-import 'package:citesched_client/src/protocol/reports/room_utilization_report.dart'
     as _i46;
-import 'package:citesched_client/src/protocol/section.dart' as _i47;
+import 'package:citesched_client/src/protocol/reports/room_utilization_report.dart'
+    as _i47;
+import 'package:citesched_client/src/protocol/section.dart' as _i48;
 import 'package:citesched_client/src/protocol/faculty_availability.dart'
-    as _i48;
-import 'package:citesched_client/src/protocol/chat_history.dart' as _i49;
+    as _i49;
+import 'package:citesched_client/src/protocol/chat_history.dart' as _i50;
 import 'package:citesched_client/src/protocol/chat_session_summary.dart'
-    as _i50;
-import 'package:citesched_client/src/protocol/schedule_info.dart' as _i51;
+    as _i51;
+import 'package:citesched_client/src/protocol/ai_chat_message.dart' as _i52;
+import 'package:citesched_client/src/protocol/schedule_info.dart' as _i53;
 import 'package:serverpod_auth_idp_client/serverpod_auth_idp_client.dart'
-    as _i52;
-import 'package:serverpod_auth_client/serverpod_auth_client.dart' as _i53;
-import 'package:serverpod_auth_core_client/serverpod_auth_core_client.dart'
     as _i54;
+import 'package:serverpod_auth_client/serverpod_auth_client.dart' as _i55;
+import 'package:serverpod_auth_core_client/serverpod_auth_core_client.dart'
+    as _i56;
 export 'ai_chat_message.dart';
 export 'ai_chat_session.dart';
 export 'chat_history.dart';
@@ -99,6 +101,7 @@ export 'schedule_conflict.dart';
 export 'schedule_info.dart';
 export 'section.dart';
 export 'student.dart';
+export 'student_academic_status.dart';
 export 'subject.dart';
 export 'subject_type.dart';
 export 'timeslot.dart';
@@ -228,23 +231,26 @@ class Protocol extends _i1.SerializationManager {
     if (t == _i30.Student) {
       return _i30.Student.fromJson(data) as T;
     }
-    if (t == _i31.Subject) {
-      return _i31.Subject.fromJson(data) as T;
+    if (t == _i31.StudentAcademicStatus) {
+      return _i31.StudentAcademicStatus.fromJson(data) as T;
     }
-    if (t == _i32.SubjectType) {
-      return _i32.SubjectType.fromJson(data) as T;
+    if (t == _i32.Subject) {
+      return _i32.Subject.fromJson(data) as T;
     }
-    if (t == _i33.Timeslot) {
-      return _i33.Timeslot.fromJson(data) as T;
+    if (t == _i33.SubjectType) {
+      return _i33.SubjectType.fromJson(data) as T;
     }
-    if (t == _i34.TimetableFilterRequest) {
-      return _i34.TimetableFilterRequest.fromJson(data) as T;
+    if (t == _i34.Timeslot) {
+      return _i34.Timeslot.fromJson(data) as T;
     }
-    if (t == _i35.TimetableSummary) {
-      return _i35.TimetableSummary.fromJson(data) as T;
+    if (t == _i35.TimetableFilterRequest) {
+      return _i35.TimetableFilterRequest.fromJson(data) as T;
     }
-    if (t == _i36.UserRole) {
-      return _i36.UserRole.fromJson(data) as T;
+    if (t == _i36.TimetableSummary) {
+      return _i36.TimetableSummary.fromJson(data) as T;
+    }
+    if (t == _i37.UserRole) {
+      return _i37.UserRole.fromJson(data) as T;
     }
     if (t == _i1.getType<_i2.AiChatMessage?>()) {
       return (data != null ? _i2.AiChatMessage.fromJson(data) : null) as T;
@@ -342,24 +348,28 @@ class Protocol extends _i1.SerializationManager {
     if (t == _i1.getType<_i30.Student?>()) {
       return (data != null ? _i30.Student.fromJson(data) : null) as T;
     }
-    if (t == _i1.getType<_i31.Subject?>()) {
-      return (data != null ? _i31.Subject.fromJson(data) : null) as T;
-    }
-    if (t == _i1.getType<_i32.SubjectType?>()) {
-      return (data != null ? _i32.SubjectType.fromJson(data) : null) as T;
-    }
-    if (t == _i1.getType<_i33.Timeslot?>()) {
-      return (data != null ? _i33.Timeslot.fromJson(data) : null) as T;
-    }
-    if (t == _i1.getType<_i34.TimetableFilterRequest?>()) {
-      return (data != null ? _i34.TimetableFilterRequest.fromJson(data) : null)
+    if (t == _i1.getType<_i31.StudentAcademicStatus?>()) {
+      return (data != null ? _i31.StudentAcademicStatus.fromJson(data) : null)
           as T;
     }
-    if (t == _i1.getType<_i35.TimetableSummary?>()) {
-      return (data != null ? _i35.TimetableSummary.fromJson(data) : null) as T;
+    if (t == _i1.getType<_i32.Subject?>()) {
+      return (data != null ? _i32.Subject.fromJson(data) : null) as T;
     }
-    if (t == _i1.getType<_i36.UserRole?>()) {
-      return (data != null ? _i36.UserRole.fromJson(data) : null) as T;
+    if (t == _i1.getType<_i33.SubjectType?>()) {
+      return (data != null ? _i33.SubjectType.fromJson(data) : null) as T;
+    }
+    if (t == _i1.getType<_i34.Timeslot?>()) {
+      return (data != null ? _i34.Timeslot.fromJson(data) : null) as T;
+    }
+    if (t == _i1.getType<_i35.TimetableFilterRequest?>()) {
+      return (data != null ? _i35.TimetableFilterRequest.fromJson(data) : null)
+          as T;
+    }
+    if (t == _i1.getType<_i36.TimetableSummary?>()) {
+      return (data != null ? _i36.TimetableSummary.fromJson(data) : null) as T;
+    }
+    if (t == _i1.getType<_i37.UserRole?>()) {
+      return (data != null ? _i37.UserRole.fromJson(data) : null) as T;
     }
     if (t == List<_i12.FacultyLoadData>) {
       return (data as List)
@@ -411,104 +421,110 @@ class Protocol extends _i1.SerializationManager {
           )
           as T;
     }
-    if (t == List<_i32.SubjectType>) {
+    if (t == List<_i33.SubjectType>) {
       return (data as List)
-              .map((e) => deserialize<_i32.SubjectType>(e))
+              .map((e) => deserialize<_i33.SubjectType>(e))
               .toList()
           as T;
     }
-    if (t == _i1.getType<List<_i32.SubjectType>?>()) {
+    if (t == _i1.getType<List<_i33.SubjectType>?>()) {
       return (data != null
               ? (data as List)
-                    .map((e) => deserialize<_i32.SubjectType>(e))
+                    .map((e) => deserialize<_i33.SubjectType>(e))
                     .toList()
               : null)
           as T;
     }
-    if (t == List<_i37.UserRole>) {
-      return (data as List).map((e) => deserialize<_i37.UserRole>(e)).toList()
+    if (t == List<_i38.UserRole>) {
+      return (data as List).map((e) => deserialize<_i38.UserRole>(e)).toList()
           as T;
     }
-    if (t == List<_i38.Faculty>) {
-      return (data as List).map((e) => deserialize<_i38.Faculty>(e)).toList()
+    if (t == List<_i39.Faculty>) {
+      return (data as List).map((e) => deserialize<_i39.Faculty>(e)).toList()
           as T;
     }
-    if (t == List<_i39.Student>) {
-      return (data as List).map((e) => deserialize<_i39.Student>(e)).toList()
+    if (t == List<_i40.Student>) {
+      return (data as List).map((e) => deserialize<_i40.Student>(e)).toList()
           as T;
     }
     if (t == List<String>) {
       return (data as List).map((e) => deserialize<String>(e)).toList() as T;
     }
-    if (t == List<_i40.Room>) {
-      return (data as List).map((e) => deserialize<_i40.Room>(e)).toList() as T;
+    if (t == List<_i41.Room>) {
+      return (data as List).map((e) => deserialize<_i41.Room>(e)).toList() as T;
     }
-    if (t == List<_i41.Subject>) {
-      return (data as List).map((e) => deserialize<_i41.Subject>(e)).toList()
+    if (t == List<_i42.Subject>) {
+      return (data as List).map((e) => deserialize<_i42.Subject>(e)).toList()
           as T;
     }
-    if (t == List<_i42.Timeslot>) {
-      return (data as List).map((e) => deserialize<_i42.Timeslot>(e)).toList()
+    if (t == List<_i43.Timeslot>) {
+      return (data as List).map((e) => deserialize<_i43.Timeslot>(e)).toList()
           as T;
     }
-    if (t == List<_i43.Schedule>) {
-      return (data as List).map((e) => deserialize<_i43.Schedule>(e)).toList()
+    if (t == List<_i44.Schedule>) {
+      return (data as List).map((e) => deserialize<_i44.Schedule>(e)).toList()
           as T;
     }
-    if (t == List<_i44.ScheduleConflict>) {
+    if (t == List<_i45.ScheduleConflict>) {
       return (data as List)
-              .map((e) => deserialize<_i44.ScheduleConflict>(e))
+              .map((e) => deserialize<_i45.ScheduleConflict>(e))
               .toList()
           as T;
     }
-    if (t == List<_i45.FacultyLoadReport>) {
+    if (t == List<_i46.FacultyLoadReport>) {
       return (data as List)
-              .map((e) => deserialize<_i45.FacultyLoadReport>(e))
+              .map((e) => deserialize<_i46.FacultyLoadReport>(e))
               .toList()
           as T;
     }
-    if (t == List<_i46.RoomUtilizationReport>) {
+    if (t == List<_i47.RoomUtilizationReport>) {
       return (data as List)
-              .map((e) => deserialize<_i46.RoomUtilizationReport>(e))
+              .map((e) => deserialize<_i47.RoomUtilizationReport>(e))
               .toList()
           as T;
     }
-    if (t == List<_i47.Section>) {
-      return (data as List).map((e) => deserialize<_i47.Section>(e)).toList()
+    if (t == List<_i48.Section>) {
+      return (data as List).map((e) => deserialize<_i48.Section>(e)).toList()
           as T;
     }
-    if (t == List<_i48.FacultyAvailability>) {
+    if (t == List<_i49.FacultyAvailability>) {
       return (data as List)
-              .map((e) => deserialize<_i48.FacultyAvailability>(e))
+              .map((e) => deserialize<_i49.FacultyAvailability>(e))
               .toList()
           as T;
     }
-    if (t == List<_i49.ChatHistory>) {
+    if (t == List<_i50.ChatHistory>) {
       return (data as List)
-              .map((e) => deserialize<_i49.ChatHistory>(e))
+              .map((e) => deserialize<_i50.ChatHistory>(e))
               .toList()
           as T;
     }
-    if (t == List<_i50.ChatSessionSummary>) {
+    if (t == List<_i51.ChatSessionSummary>) {
       return (data as List)
-              .map((e) => deserialize<_i50.ChatSessionSummary>(e))
+              .map((e) => deserialize<_i51.ChatSessionSummary>(e))
               .toList()
           as T;
     }
-    if (t == List<_i51.ScheduleInfo>) {
+    if (t == List<_i52.AiChatMessage>) {
       return (data as List)
-              .map((e) => deserialize<_i51.ScheduleInfo>(e))
+              .map((e) => deserialize<_i52.AiChatMessage>(e))
               .toList()
           as T;
     }
-    try {
-      return _i52.Protocol().deserialize<T>(data, t);
-    } on _i1.DeserializationTypeNotFoundException catch (_) {}
-    try {
-      return _i53.Protocol().deserialize<T>(data, t);
-    } on _i1.DeserializationTypeNotFoundException catch (_) {}
+    if (t == List<_i53.ScheduleInfo>) {
+      return (data as List)
+              .map((e) => deserialize<_i53.ScheduleInfo>(e))
+              .toList()
+          as T;
+    }
     try {
       return _i54.Protocol().deserialize<T>(data, t);
+    } on _i1.DeserializationTypeNotFoundException catch (_) {}
+    try {
+      return _i55.Protocol().deserialize<T>(data, t);
+    } on _i1.DeserializationTypeNotFoundException catch (_) {}
+    try {
+      return _i56.Protocol().deserialize<T>(data, t);
     } on _i1.DeserializationTypeNotFoundException catch (_) {}
     return super.deserialize<T>(data, t);
   }
@@ -544,12 +560,13 @@ class Protocol extends _i1.SerializationManager {
       _i28.ScheduleInfo => 'ScheduleInfo',
       _i29.Section => 'Section',
       _i30.Student => 'Student',
-      _i31.Subject => 'Subject',
-      _i32.SubjectType => 'SubjectType',
-      _i33.Timeslot => 'Timeslot',
-      _i34.TimetableFilterRequest => 'TimetableFilterRequest',
-      _i35.TimetableSummary => 'TimetableSummary',
-      _i36.UserRole => 'UserRole',
+      _i31.StudentAcademicStatus => 'StudentAcademicStatus',
+      _i32.Subject => 'Subject',
+      _i33.SubjectType => 'SubjectType',
+      _i34.Timeslot => 'Timeslot',
+      _i35.TimetableFilterRequest => 'TimetableFilterRequest',
+      _i36.TimetableSummary => 'TimetableSummary',
+      _i37.UserRole => 'UserRole',
       _ => null,
     };
   }
@@ -622,28 +639,30 @@ class Protocol extends _i1.SerializationManager {
         return 'Section';
       case _i30.Student():
         return 'Student';
-      case _i31.Subject():
+      case _i31.StudentAcademicStatus():
+        return 'StudentAcademicStatus';
+      case _i32.Subject():
         return 'Subject';
-      case _i32.SubjectType():
+      case _i33.SubjectType():
         return 'SubjectType';
-      case _i33.Timeslot():
+      case _i34.Timeslot():
         return 'Timeslot';
-      case _i34.TimetableFilterRequest():
+      case _i35.TimetableFilterRequest():
         return 'TimetableFilterRequest';
-      case _i35.TimetableSummary():
+      case _i36.TimetableSummary():
         return 'TimetableSummary';
-      case _i36.UserRole():
+      case _i37.UserRole():
         return 'UserRole';
     }
-    className = _i52.Protocol().getClassNameForObject(data);
+    className = _i54.Protocol().getClassNameForObject(data);
     if (className != null) {
       return 'serverpod_auth_idp.$className';
     }
-    className = _i53.Protocol().getClassNameForObject(data);
+    className = _i55.Protocol().getClassNameForObject(data);
     if (className != null) {
       return 'serverpod_auth.$className';
     }
-    className = _i54.Protocol().getClassNameForObject(data);
+    className = _i56.Protocol().getClassNameForObject(data);
     if (className != null) {
       return 'serverpod_auth_core.$className';
     }
@@ -743,35 +762,38 @@ class Protocol extends _i1.SerializationManager {
     if (dataClassName == 'Student') {
       return deserialize<_i30.Student>(data['data']);
     }
+    if (dataClassName == 'StudentAcademicStatus') {
+      return deserialize<_i31.StudentAcademicStatus>(data['data']);
+    }
     if (dataClassName == 'Subject') {
-      return deserialize<_i31.Subject>(data['data']);
+      return deserialize<_i32.Subject>(data['data']);
     }
     if (dataClassName == 'SubjectType') {
-      return deserialize<_i32.SubjectType>(data['data']);
+      return deserialize<_i33.SubjectType>(data['data']);
     }
     if (dataClassName == 'Timeslot') {
-      return deserialize<_i33.Timeslot>(data['data']);
+      return deserialize<_i34.Timeslot>(data['data']);
     }
     if (dataClassName == 'TimetableFilterRequest') {
-      return deserialize<_i34.TimetableFilterRequest>(data['data']);
+      return deserialize<_i35.TimetableFilterRequest>(data['data']);
     }
     if (dataClassName == 'TimetableSummary') {
-      return deserialize<_i35.TimetableSummary>(data['data']);
+      return deserialize<_i36.TimetableSummary>(data['data']);
     }
     if (dataClassName == 'UserRole') {
-      return deserialize<_i36.UserRole>(data['data']);
+      return deserialize<_i37.UserRole>(data['data']);
     }
     if (dataClassName.startsWith('serverpod_auth_idp.')) {
       data['className'] = dataClassName.substring(19);
-      return _i52.Protocol().deserializeByClassName(data);
+      return _i54.Protocol().deserializeByClassName(data);
     }
     if (dataClassName.startsWith('serverpod_auth.')) {
       data['className'] = dataClassName.substring(15);
-      return _i53.Protocol().deserializeByClassName(data);
+      return _i55.Protocol().deserializeByClassName(data);
     }
     if (dataClassName.startsWith('serverpod_auth_core.')) {
       data['className'] = dataClassName.substring(20);
-      return _i54.Protocol().deserializeByClassName(data);
+      return _i56.Protocol().deserializeByClassName(data);
     }
     return super.deserializeByClassName(data);
   }
@@ -786,13 +808,13 @@ class Protocol extends _i1.SerializationManager {
       return null;
     }
     try {
-      return _i52.Protocol().mapRecordToJson(record);
-    } catch (_) {}
-    try {
-      return _i53.Protocol().mapRecordToJson(record);
-    } catch (_) {}
-    try {
       return _i54.Protocol().mapRecordToJson(record);
+    } catch (_) {}
+    try {
+      return _i55.Protocol().mapRecordToJson(record);
+    } catch (_) {}
+    try {
+      return _i56.Protocol().mapRecordToJson(record);
     } catch (_) {}
     throw Exception('Unsupported record type ${record.runtimeType}');
   }

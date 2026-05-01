@@ -53,9 +53,7 @@ abstract class TimetableFilterRequest
       loadType: jsonSerialization['loadType'] == null
           ? null
           : _i3.SubjectType.fromJson((jsonSerialization['loadType'] as String)),
-      hasConflicts: jsonSerialization['hasConflicts'] == null
-          ? null
-          : _i1.BoolJsonExtension.fromJson(jsonSerialization['hasConflicts']),
+      hasConflicts: jsonSerialization['hasConflicts'] as bool?,
     );
   }
 
