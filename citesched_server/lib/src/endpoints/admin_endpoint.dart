@@ -16,6 +16,43 @@ class AdminEndpoint extends Endpoint {
   @override
   Set<Scope> get requiredScopes => {};
 
+  Future<void> _ensureStudentSchema(Session session) async {
+    final result = await session.db.unsafeQuery(
+      '''
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'student'
+        AND column_name IN ('sectionId', 'academicStatus')
+      ''',
+    );
+    final existingColumns = result
+        .map((row) => row.toColumnMap()['column_name'] as String?)
+        .whereType<String>()
+        .toSet();
+
+    if (!existingColumns.contains('sectionId')) {
+      session.log(
+        'Student schema repair: adding missing "sectionId" column.',
+      );
+      await session.db.unsafeExecute(
+        'ALTER TABLE "student" ADD COLUMN "sectionId" bigint',
+      );
+    }
+
+    if (!existingColumns.contains('academicStatus')) {
+      session.log(
+        'Student schema repair: adding missing "academicStatus" column.',
+      );
+      await session.db.unsafeExecute(
+        """
+        ALTER TABLE "student"
+        ADD COLUMN "academicStatus" text NOT NULL DEFAULT 'active'
+        """,
+      );
+    }
+  }
+
   Program _programFromStudentCourse(String? course) {
     final normalized = course?.trim().toUpperCase() ?? '';
     if (normalized == 'BSEMC' || normalized == 'EMC') {
@@ -704,6 +741,7 @@ class AdminEndpoint extends Endpoint {
 
   /// Create a new student with validation.
   Future<Student> createStudent(Session session, Student student) async {
+    await _ensureStudentSchema(session);
     try {
       // Validate email format
       if (!_isValidEmail(student.email)) {
@@ -799,6 +837,7 @@ class AdminEndpoint extends Endpoint {
     Session session, {
     bool isActive = true,
   }) async {
+    await _ensureStudentSchema(session);
     final students = await Student.db.find(
       session,
       where: (t) => t.isActive.equals(isActive),
@@ -874,6 +913,7 @@ class AdminEndpoint extends Endpoint {
 
   /// Update a student with validation and section synchronization.
   Future<Student> updateStudent(Session session, Student student) async {
+    await _ensureStudentSchema(session);
     // Ensure student exists
     var existing = await Student.db.findById(session, student.id!);
     if (existing == null) {
@@ -933,6 +973,7 @@ class AdminEndpoint extends Endpoint {
 
   /// Get all unique section codes currently assigned to students.
   Future<List<String>> getDistinctStudentSections(Session session) async {
+    await _ensureStudentSchema(session);
     final students = await Student.db.find(
       session,
       where: (t) => t.section.notEquals(null) & t.isActive.equals(true),
@@ -948,6 +989,7 @@ class AdminEndpoint extends Endpoint {
 
   /// Delete a student by ID.
   Future<bool> deleteStudent(Session session, int id) async {
+    await _ensureStudentSchema(session);
     var student = await Student.db.findById(session, id);
     if (student == null) return false;
 

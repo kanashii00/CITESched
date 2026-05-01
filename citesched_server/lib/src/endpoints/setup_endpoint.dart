@@ -12,6 +12,43 @@ class SetupEndpoint extends Endpoint {
   @override
   bool get requireLogin => false;
 
+  Future<void> _ensureStudentSchema(Session session) async {
+    final result = await session.db.unsafeQuery(
+      '''
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'student'
+        AND column_name IN ('sectionId', 'academicStatus')
+      ''',
+    );
+    final existingColumns = result
+        .map((row) => row.toColumnMap()['column_name'] as String?)
+        .whereType<String>()
+        .toSet();
+
+    if (!existingColumns.contains('sectionId')) {
+      session.log(
+        'Student schema repair: adding missing "sectionId" column.',
+      );
+      await session.db.unsafeExecute(
+        'ALTER TABLE "student" ADD COLUMN "sectionId" bigint',
+      );
+    }
+
+    if (!existingColumns.contains('academicStatus')) {
+      session.log(
+        'Student schema repair: adding missing "academicStatus" column.',
+      );
+      await session.db.unsafeExecute(
+        """
+        ALTER TABLE "student"
+        ADD COLUMN "academicStatus" text NOT NULL DEFAULT 'active'
+        """,
+      );
+    }
+  }
+
   String _normalizeSectionCode(String input) {
     final match = RegExp(
       r'^\s*(\d+)\s*([A-Za-z][A-Za-z0-9]*)\s*$',
@@ -248,6 +285,7 @@ class SetupEndpoint extends Endpoint {
     required String course,
     required String? section,
   }) async {
+    await _ensureStudentSchema(session);
     final existingStudent = await Student.db.findFirstRow(
       session,
       where: (t) => t.email.equals(email),
@@ -485,6 +523,7 @@ class SetupEndpoint extends Endpoint {
     Session session, {
     required String email,
   }) async {
+    await _ensureStudentSchema(session);
     final normalizedEmail = email.trim().toLowerCase();
     if (normalizedEmail.isEmpty) return null;
 
@@ -507,6 +546,7 @@ class SetupEndpoint extends Endpoint {
     Session session, {
     required String email,
   }) async {
+    await _ensureStudentSchema(session);
     final normalizedEmail = email.trim().toLowerCase();
     if (normalizedEmail.isEmpty) return null;
 

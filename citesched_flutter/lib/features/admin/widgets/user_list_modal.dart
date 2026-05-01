@@ -111,22 +111,43 @@ class _UserListModalState extends ConsumerState<UserListModal>
 
   Future<void> _fetchData() async {
     setState(() => _isLoading = true);
+    final errors = <String>[];
+
+    Future<T?> loadSafely<T>(Future<T> future, String label) async {
+      try {
+        return await future;
+      } catch (e) {
+        errors.add('$label: $e');
+        return null;
+      }
+    }
+
     try {
-      final faculty = await client.admin.getAllFaculty(
-        isActive: !_isShowingArchivedFaculty,
+      final faculty = await loadSafely(
+        client.admin.getAllFaculty(isActive: !_isShowingArchivedFaculty),
+        'faculty',
       );
-      final students = await client.admin.getAllStudents(
-        isActive: !_isShowingArchivedStudents,
+      final students = await loadSafely(
+        client.admin.getAllStudents(isActive: !_isShowingArchivedStudents),
+        'students',
       );
-      final roles = await client.admin.getAllUserRoles();
+      final roles = await loadSafely(
+        client.admin.getAllUserRoles(),
+        'roles',
+      );
       if (mounted) {
         setState(() {
-          _faculty = faculty;
-          _students = students;
-          _userRoles = roles;
+          if (faculty != null) _faculty = faculty;
+          if (students != null) _students = students;
+          if (roles != null) _userRoles = roles;
           _normalizeStudentFilters();
           _isLoading = false;
         });
+        if (errors.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Some user data failed to load: ${errors.join(' | ')}')),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
