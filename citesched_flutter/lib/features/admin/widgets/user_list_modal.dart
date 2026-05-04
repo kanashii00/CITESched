@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:citesched_client/citesched_client.dart';
@@ -276,6 +277,76 @@ class _UserListModalState extends ConsumerState<UserListModal>
         !sections.contains(_selectedStudentSection)) {
       _selectedStudentSection = null;
     }
+  }
+
+  List<_StudentAvailabilityEntry> _deserializeStudentAvailabilityEntries(
+    String? rawJson,
+  ) {
+    if (rawJson == null || rawJson.trim().isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(rawJson);
+      if (decoded is! List) return const [];
+
+      final entries = <_StudentAvailabilityEntry>[];
+      for (final item in decoded) {
+        if (item is! Map) continue;
+        final dayValue = item['day']?.toString();
+        final startTime = item['startTime']?.toString();
+        final endTime = item['endTime']?.toString();
+        if (dayValue == null || startTime == null || endTime == null) {
+          continue;
+        }
+
+        DayOfWeek? day;
+        for (final value in DayOfWeek.values) {
+          if (value.name == dayValue) {
+            day = value;
+            break;
+          }
+        }
+        if (day == null) continue;
+
+        final startParts = startTime.split(':');
+        final endParts = endTime.split(':');
+        if (startParts.length != 2 || endParts.length != 2) continue;
+
+        entries.add(
+          _StudentAvailabilityEntry(
+            day: day,
+            start: TimeOfDay(
+              hour: int.parse(startParts[0]),
+              minute: int.parse(startParts[1]),
+            ),
+            end: TimeOfDay(
+              hour: int.parse(endParts[0]),
+              minute: int.parse(endParts[1]),
+            ),
+          ),
+        );
+      }
+      return entries;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  String? _serializeStudentAvailabilityEntries(
+    List<_StudentAvailabilityEntry> entries,
+  ) {
+    if (entries.isEmpty) return null;
+    return jsonEncode(
+      entries
+          .map(
+            (entry) => {
+              'day': entry.day.name,
+              'startTime':
+                  '${entry.start.hour.toString().padLeft(2, '0')}:${entry.start.minute.toString().padLeft(2, '0')}',
+              'endTime':
+                  '${entry.end.hour.toString().padLeft(2, '0')}:${entry.end.minute.toString().padLeft(2, '0')}',
+            },
+          )
+          .toList(),
+    );
   }
 
   void _clearStudentFilters() {
@@ -689,18 +760,25 @@ class _UserListModalState extends ConsumerState<UserListModal>
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
     final isMobile = screenWidth < 600;
-    final dialogHeight = isMobile
-        ? screenHeight * 0.9
-        : math.min(700.0, screenHeight - 80);
+    final horizontalInset = isMobile ? 8.0 : 20.0;
+    final verticalInset = isMobile ? 8.0 : 20.0;
+    final dialogWidth = math.min(
+      isMobile ? screenWidth - (horizontalInset * 2) : 1120.0,
+      screenWidth - (horizontalInset * 2),
+    );
+    final dialogHeight = math.min(
+      isMobile ? screenHeight * 0.96 : 860.0,
+      screenHeight - (verticalInset * 2),
+    );
 
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 12 : 40,
-        vertical: isMobile ? 12 : 40,
+        horizontal: horizontalInset,
+        vertical: verticalInset,
       ),
       child: Container(
-        width: isMobile ? screenWidth * 0.95 : 900,
+        width: dialogWidth,
         height: dialogHeight,
         decoration: BoxDecoration(
           color: cardBg,
@@ -2186,6 +2264,17 @@ class _UserListModalState extends ConsumerState<UserListModal>
       DayOfWeek.fri: 'Fri',
       DayOfWeek.sat: 'Sat',
     };
+    final allSections = await client.admin.getAllSections();
+    final sectionByCode = <String, Section>{
+      for (final item in allSections) item.sectionCode.trim(): item,
+    };
+    for (final item in allSections) {
+      final code = item.sectionCode.trim();
+      _studentAvailabilityDrafts.putIfAbsent(
+        code,
+        () => _deserializeStudentAvailabilityEntries(item.availabilityJson),
+      );
+    }
     final sectionOptions = _studentSectionOptions;
     var currentSection = (() {
       final normalized = (section ?? '').trim();
@@ -2222,6 +2311,28 @@ class _UserListModalState extends ConsumerState<UserListModal>
             void persistCurrentSectionAvailability() {
               _studentAvailabilityDrafts[currentSection] =
                   List<_StudentAvailabilityEntry>.from(availabilities);
+            }
+
+            Future<void> saveSectionAvailabilityChanges() async {
+              persistCurrentSectionAvailability();
+              for (final entry in _studentAvailabilityDrafts.entries) {
+                final sectionRecord = sectionByCode[entry.key];
+                if (sectionRecord == null) {
+                  continue;
+                }
+                final payload = _serializeStudentAvailabilityEntries(entry.value);
+                await client.admin.updateSection(
+                  sectionRecord.copyWith(
+                    availabilityJson: payload,
+                    updatedAt: DateTime.now(),
+                  ),
+                );
+                sectionByCode[entry.key] = sectionRecord.copyWith(
+                  availabilityJson: payload,
+                  updatedAt: DateTime.now(),
+                );
+              }
+              ref.invalidate(sectionListProvider);
             }
 
             Future<void> pickTime({
@@ -2536,6 +2647,14 @@ class _UserListModalState extends ConsumerState<UserListModal>
                               }).toList(),
                             ),
                             const SizedBox(height: 14),
+                            Text(
+                              'Saved section availability is used when scheduling lecture and laboratory classes.',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: textMuted,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
                             LayoutBuilder(
                               builder: (context, constraints) {
                                 if (constraints.maxWidth < 420) {
@@ -2769,20 +2888,34 @@ class _UserListModalState extends ConsumerState<UserListModal>
                                 Expanded(
                                   flex: 2,
                                   child: ElevatedButton(
-                                    onPressed: () {
-                                      persistCurrentSectionAvailability();
-                                      Navigator.pop(context);
-                                      ScaffoldMessenger.of(dialogContext)
-                                          .showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            availabilities.isEmpty
-                                                ? '$currentSection availability cleared.'
-                                                : '$currentSection availability saved.',
+                                    onPressed: () async {
+                                      try {
+                                        await saveSectionAvailabilityChanges();
+                                        if (!mounted) return;
+                                        Navigator.pop(context);
+                                        ScaffoldMessenger.of(dialogContext)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              availabilities.isEmpty
+                                                  ? '$currentSection availability cleared and saved.'
+                                                  : '$currentSection availability saved.',
+                                            ),
+                                            backgroundColor: Colors.green,
                                           ),
-                                          backgroundColor: Colors.green,
-                                        ),
-                                      );
+                                        );
+                                      } catch (e) {
+                                        if (!mounted) return;
+                                        ScaffoldMessenger.of(dialogContext)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Failed to save section availability: $e',
+                                            ),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      }
                                     },
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: primaryColor,

@@ -20,6 +20,7 @@ abstract class Section
     required this.program,
     required this.yearLevel,
     required this.sectionCode,
+    this.availabilityJson,
     required this.academicYear,
     required this.semester,
     bool? isActive,
@@ -32,6 +33,7 @@ abstract class Section
     required _i2.Program program,
     required int yearLevel,
     required String sectionCode,
+    String? availabilityJson,
     required String academicYear,
     required int semester,
     bool? isActive,
@@ -45,6 +47,7 @@ abstract class Section
       program: _i2.Program.fromJson((jsonSerialization['program'] as String)),
       yearLevel: jsonSerialization['yearLevel'] as int,
       sectionCode: jsonSerialization['sectionCode'] as String,
+      availabilityJson: jsonSerialization['availabilityJson'] as String?,
       academicYear: jsonSerialization['academicYear'] as String,
       semester: jsonSerialization['semester'] as int,
       isActive: jsonSerialization['isActive'] as bool?,
@@ -70,6 +73,8 @@ abstract class Section
 
   String sectionCode;
 
+  String? availabilityJson;
+
   String academicYear;
 
   int semester;
@@ -91,6 +96,7 @@ abstract class Section
     _i2.Program? program,
     int? yearLevel,
     String? sectionCode,
+    String? availabilityJson,
     String? academicYear,
     int? semester,
     bool? isActive,
@@ -105,6 +111,7 @@ abstract class Section
       'program': program.toJson(),
       'yearLevel': yearLevel,
       'sectionCode': sectionCode,
+      if (availabilityJson != null) 'availabilityJson': availabilityJson,
       'academicYear': academicYear,
       'semester': semester,
       'isActive': isActive,
@@ -121,6 +128,7 @@ abstract class Section
       'program': program.toJson(),
       'yearLevel': yearLevel,
       'sectionCode': sectionCode,
+      if (availabilityJson != null) 'availabilityJson': availabilityJson,
       'academicYear': academicYear,
       'semester': semester,
       'isActive': isActive,
@@ -167,6 +175,7 @@ class _SectionImpl extends Section {
     required _i2.Program program,
     required int yearLevel,
     required String sectionCode,
+    String? availabilityJson,
     required String academicYear,
     required int semester,
     bool? isActive,
@@ -177,6 +186,7 @@ class _SectionImpl extends Section {
          program: program,
          yearLevel: yearLevel,
          sectionCode: sectionCode,
+         availabilityJson: availabilityJson,
          academicYear: academicYear,
          semester: semester,
          isActive: isActive,
@@ -193,6 +203,7 @@ class _SectionImpl extends Section {
     _i2.Program? program,
     int? yearLevel,
     String? sectionCode,
+    Object? availabilityJson = _Undefined,
     String? academicYear,
     int? semester,
     bool? isActive,
@@ -204,6 +215,9 @@ class _SectionImpl extends Section {
       program: program ?? this.program,
       yearLevel: yearLevel ?? this.yearLevel,
       sectionCode: sectionCode ?? this.sectionCode,
+      availabilityJson: availabilityJson is String?
+          ? availabilityJson
+          : this.availabilityJson,
       academicYear: academicYear ?? this.academicYear,
       semester: semester ?? this.semester,
       isActive: isActive ?? this.isActive,
@@ -231,6 +245,12 @@ class SectionUpdateTable extends _i1.UpdateTable<SectionTable> {
     table.sectionCode,
     value,
   );
+
+  _i1.ColumnValue<String?, String?> availabilityJson(String? value) =>
+      _i1.ColumnValue(
+        table.availabilityJson,
+        value,
+      );
 
   _i1.ColumnValue<String, String> academicYear(String value) => _i1.ColumnValue(
     table.academicYear,
@@ -276,6 +296,10 @@ class SectionTable extends _i1.Table<int?> {
       'sectionCode',
       this,
     );
+    availabilityJson = _i1.ColumnString(
+      'availabilityJson',
+      this,
+    );
     academicYear = _i1.ColumnString(
       'academicYear',
       this,
@@ -307,6 +331,8 @@ class SectionTable extends _i1.Table<int?> {
 
   late final _i1.ColumnString sectionCode;
 
+  late final _i1.ColumnString availabilityJson;
+
   late final _i1.ColumnString academicYear;
 
   late final _i1.ColumnInt semester;
@@ -323,6 +349,7 @@ class SectionTable extends _i1.Table<int?> {
     program,
     yearLevel,
     sectionCode,
+    availabilityJson,
     academicYear,
     semester,
     isActive,

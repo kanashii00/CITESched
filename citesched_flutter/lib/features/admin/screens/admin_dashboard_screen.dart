@@ -272,6 +272,347 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     ref.invalidate(recentStudentSignupsProvider);
   }
 
+  String _studentPromotionKey(Student student) {
+    return student.id?.toString() ?? student.studentNumber;
+  }
+
+  List<Student> _promotionCandidates(
+    List<Student> students,
+    List<Section> sections,
+  ) {
+    final candidates = <Student>[];
+
+    for (final student in students) {
+      if (student.academicStatus != StudentAcademicStatus.active) continue;
+      final maxYear = _maxYearForCourse(sections, student.course);
+      if (student.yearLevel >= maxYear) continue;
+      candidates.add(student);
+    }
+
+    candidates.sort((a, b) {
+      final yearCompare = a.yearLevel.compareTo(b.yearLevel);
+      if (yearCompare != 0) return yearCompare;
+
+      final sectionA = (a.section ?? '').trim().toUpperCase();
+      final sectionB = (b.section ?? '').trim().toUpperCase();
+      final sectionCompare = sectionA.compareTo(sectionB);
+      if (sectionCompare != 0) return sectionCompare;
+
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+
+    return candidates;
+  }
+
+  Future<List<Student>?> _showPromotionSelectionDialog(
+    List<Student> students,
+    List<Student> candidates,
+  ) async {
+    final selectedKeys = candidates.map(_studentPromotionKey).toSet();
+    final eligibleKeys = candidates.map(_studentPromotionKey).toSet();
+    int? selectedYearLevel;
+    String selectedProgram = 'All Programs';
+    String selectedSection = 'All Sections';
+
+    final yearOptions = <int>[1, 2, 3, 4];
+    final programOptions = <String>{
+      for (final student in students)
+        if (student.course.trim().isNotEmpty) student.course.trim().toUpperCase(),
+    }.toList()
+      ..sort();
+    final sectionOptions = <String>{
+      for (final student in students)
+        if ((student.section ?? '').trim().isNotEmpty) student.section!.trim(),
+    }.toList()
+      ..sort();
+
+    return showDialog<List<Student>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final filtered = students.where((student) {
+              final matchesProgram =
+                  selectedProgram == 'All Programs' ||
+                  student.course.trim().toUpperCase() == selectedProgram;
+              final matchesYear =
+                  selectedYearLevel == null ||
+                  student.yearLevel == selectedYearLevel;
+              final matchesSection =
+                  selectedSection == 'All Sections' ||
+                  (student.section ?? '').trim() == selectedSection;
+              return matchesProgram && matchesYear && matchesSection;
+            }).toList();
+
+            final selectedFilteredCount = filtered
+                .where(
+                  (student) =>
+                      eligibleKeys.contains(_studentPromotionKey(student)) &&
+                      selectedKeys.contains(_studentPromotionKey(student)),
+                )
+                .length;
+            final eligibleFilteredCount = filtered
+                .where((student) => eligibleKeys.contains(_studentPromotionKey(student)))
+                .length;
+            final allFilteredSelected =
+                eligibleFilteredCount > 0 &&
+                selectedFilteredCount == eligibleFilteredCount;
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+              title: Text(
+                'Update Year Level and Section',
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+              ),
+              content: SizedBox(
+                width: 760,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Manually select which active students will be promoted. Students already marked as failed, graduated, or already at the highest available year level will appear but cannot be promoted. Subject prerequisite failures are not auto-detected yet, so students who should stay back must be left unselected.',
+                      style: GoogleFonts.poppins(height: 1.45),
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 180,
+                          child: DropdownButtonFormField<String>(
+                            value: selectedProgram,
+                            decoration: InputDecoration(
+                              labelText: 'Program',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            items: [
+                              const DropdownMenuItem<String>(
+                                value: 'All Programs',
+                                child: Text('All Programs'),
+                              ),
+                              ...programOptions.map(
+                                (program) => DropdownMenuItem<String>(
+                                  value: program,
+                                  child: Text(program),
+                                ),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              if (value == null) return;
+                              setDialogState(() {
+                                selectedProgram = value;
+                              });
+                            },
+                          ),
+                        ),
+                        SizedBox(
+                          width: 180,
+                          child: DropdownButtonFormField<int?>(
+                            value: selectedYearLevel,
+                            decoration: InputDecoration(
+                              labelText: 'Year Level',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            items: [
+                              const DropdownMenuItem<int?>(
+                                value: null,
+                                child: Text('All Years'),
+                              ),
+                              ...yearOptions.map(
+                                (year) => DropdownMenuItem<int?>(
+                                  value: year,
+                                  child: Text('Year $year'),
+                                ),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              setDialogState(() {
+                                selectedYearLevel = value;
+                              });
+                            },
+                          ),
+                        ),
+                        SizedBox(
+                          width: 220,
+                          child: DropdownButtonFormField<String>(
+                            value: selectedSection,
+                            decoration: InputDecoration(
+                              labelText: 'Section',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            items: [
+                              const DropdownMenuItem<String>(
+                                value: 'All Sections',
+                                child: Text('All Sections'),
+                              ),
+                              ...sectionOptions.map(
+                                (section) => DropdownMenuItem<String>(
+                                  value: section,
+                                  child: Text(section),
+                                ),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              if (value == null) return;
+                              setDialogState(() {
+                                selectedSection = value;
+                              });
+                            },
+                          ),
+                        ),
+                        FilterChip(
+                          selected: allFilteredSelected,
+                          label: Text(
+                            allFilteredSelected
+                                ? 'Unselect Filtered'
+                                : 'Select Filtered',
+                          ),
+                          onSelected: (_) {
+                            setDialogState(() {
+                              for (final student in filtered) {
+                                final key = _studentPromotionKey(student);
+                                if (!eligibleKeys.contains(key)) continue;
+                                if (allFilteredSelected) {
+                                  selectedKeys.remove(key);
+                                } else {
+                                  selectedKeys.add(key);
+                                }
+                              }
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '${selectedKeys.length} selected of ${candidates.length} eligible student(s) • ${students.length} active student(s) shown in filters',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF720045),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 420,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: filtered.isEmpty
+                            ? Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24),
+                                  child: Text(
+                                    'No eligible students match the selected filters.',
+                                    style: GoogleFonts.poppins(),
+                                  ),
+                                ),
+                              )
+                            : ListView.separated(
+                                shrinkWrap: true,
+                                itemCount: filtered.length,
+                                separatorBuilder: (_, __) =>
+                                    Divider(height: 1, color: Colors.grey.shade200),
+                                itemBuilder: (context, index) {
+                                  final student = filtered[index];
+                                  final key = _studentPromotionKey(student);
+                                  final isEligible = eligibleKeys.contains(key);
+                                  final isSelected = selectedKeys.contains(key);
+                                  final sectionLabel =
+                                      (student.section ?? '').trim().isNotEmpty
+                                      ? student.section!.trim()
+                                      : 'No Section';
+                                  final academicStatusLabel =
+                                      student.academicStatus.name
+                                          .toUpperCase()
+                                          .replaceAll('_', ' ');
+                                  final eligibilityNote = isEligible
+                                      ? 'Eligible for promotion'
+                                      : student.academicStatus !=
+                                            StudentAcademicStatus.active
+                                      ? 'Not eligible: $academicStatusLabel'
+                                      : 'Not eligible: no higher year level is available for this student';
+
+                                  return CheckboxListTile(
+                                    value: isSelected,
+                                    controlAffinity:
+                                        ListTileControlAffinity.leading,
+                                    activeColor: const Color(0xFF720045),
+                                    enabled: isEligible,
+                                    title: Text(
+                                      student.name,
+                                      style: GoogleFonts.poppins(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      '${student.studentNumber} • ${student.course} • Year ${student.yearLevel} • $sectionLabel\n$eligibilityNote',
+                                      style: GoogleFonts.poppins(fontSize: 12),
+                                    ),
+                                    onChanged: (value) {
+                                      if (!isEligible) return;
+                                      setDialogState(() {
+                                        if (value ?? false) {
+                                          selectedKeys.add(key);
+                                        } else {
+                                          selectedKeys.remove(key);
+                                        }
+                                      });
+                                    },
+                                  );
+                                },
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: Text('Cancel', style: GoogleFonts.poppins()),
+                ),
+                ElevatedButton(
+                  onPressed: selectedKeys.isEmpty
+                      ? null
+                      : () {
+                          final selectedStudents = candidates
+                              .where(
+                                (student) => selectedKeys.contains(
+                                  _studentPromotionKey(student),
+                                ),
+                              )
+                              .toList();
+                          Navigator.pop(dialogContext, selectedStudents);
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF720045),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text('Proceed', style: GoogleFonts.poppins()),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _showGraduatedStudentsDialog() async {
     try {
       final activeStudents = await client.admin.getAllStudents(isActive: true);
@@ -446,14 +787,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       final students = await client.admin.getAllStudents(isActive: true);
       final sections = await client.admin.getAllSections();
       final projectedCounts = _buildProjectedSectionCounts(students);
-      final candidates = <Student>[];
-
-      for (final student in students) {
-        if (student.academicStatus != StudentAcademicStatus.active) continue;
-        final maxYear = _maxYearForCourse(sections, student.course);
-        if (student.yearLevel >= maxYear) continue;
-        candidates.add(student);
-      }
+      final candidates = _promotionCandidates(students, sections);
 
       if (!mounted) return;
 
@@ -466,43 +800,19 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         return;
       }
 
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          title: Text(
-            'Update Year Level and Section',
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-          ),
-          content: Text(
-            'This will update all eligible active students across year levels and sections. Each student will be moved to the next year level, and section assignments will also be advanced automatically such as 1A to 2A, 2A to 3A, or 3A to 4A, with overflow assigned to another available section when needed. Fourth-year students are not promoted automatically and should be handled manually as graduated or failed. This will affect ${candidates.length} student account(s). Do you want to continue?',
-            style: GoogleFonts.poppins(height: 1.5),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: Text('Cancel', style: GoogleFonts.poppins()),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF720045),
-                foregroundColor: Colors.white,
-              ),
-              child: Text('Proceed', style: GoogleFonts.poppins()),
-            ),
-          ],
-        ),
+      final selectedStudents = await _showPromotionSelectionDialog(
+        students,
+        candidates,
       );
 
-      if (confirmed != true || !mounted) return;
+      if (selectedStudents == null || selectedStudents.isEmpty || !mounted) {
+        return;
+      }
 
       final backup = <Student>[];
       var promotedCount = 0;
 
-      for (final student in candidates) {
+      for (final student in selectedStudents) {
         final maxYear = _maxYearForCourse(sections, student.course);
         if (student.yearLevel >= maxYear) continue;
         final nextYearLevel = student.yearLevel + 1;

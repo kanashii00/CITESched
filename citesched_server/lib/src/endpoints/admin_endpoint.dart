@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:serverpod/serverpod.dart';
 import 'package:serverpod_auth_server/serverpod_auth_server.dart';
 
@@ -53,6 +55,30 @@ class AdminEndpoint extends Endpoint {
     }
   }
 
+  Future<void> _ensureSectionSchema(Session session) async {
+    final result = await session.db.unsafeQuery(
+      '''
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'section'
+        AND column_name = 'availabilityJson'
+      ''',
+    );
+    final hasAvailabilityJson = result.any(
+      (row) => row.toColumnMap()['column_name'] == 'availabilityJson',
+    );
+
+    if (!hasAvailabilityJson) {
+      session.log(
+        'Section schema repair: adding missing "availabilityJson" column.',
+      );
+      await session.db.unsafeExecute(
+        'ALTER TABLE "section" ADD COLUMN "availabilityJson" text',
+      );
+    }
+  }
+
   Program _programFromStudentCourse(String? course) {
     final normalized = course?.trim().toUpperCase() ?? '';
     if (normalized == 'BSEMC' || normalized == 'EMC') {
@@ -75,6 +101,14 @@ class AdminEndpoint extends Endpoint {
 
   String _normalizeSubjectCode(String code) {
     return code.trim().replaceAll(RegExp(r'\s+'), ' ').toUpperCase();
+  }
+
+  String _compactSubjectCode(String code) {
+    return code.trim().replaceAll(RegExp(r'\s+'), '').toUpperCase();
+  }
+
+  bool _isGeneralEducationSubject(Subject subject) {
+    return _compactSubjectCode(subject.code).startsWith('GE');
   }
 
   Future<void> _validateSubjectCodeUniqueness(
@@ -198,6 +232,65 @@ class AdminEndpoint extends Endpoint {
     return false;
   }
 
+  List<_SectionAvailabilityWindow> _parseSectionAvailability(String? rawJson) {
+    if (rawJson == null || rawJson.trim().isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(rawJson);
+      if (decoded is! List) return const [];
+
+      final entries = <_SectionAvailabilityWindow>[];
+      for (final item in decoded) {
+        if (item is! Map) continue;
+        final dayValue = item['day']?.toString();
+        final startTime = item['startTime']?.toString();
+        final endTime = item['endTime']?.toString();
+        if (dayValue == null || startTime == null || endTime == null) {
+          continue;
+        }
+
+        DayOfWeek? day;
+        for (final value in DayOfWeek.values) {
+          if (value.name == dayValue) {
+            day = value;
+            break;
+          }
+        }
+        if (day == null) continue;
+
+        entries.add(
+          _SectionAvailabilityWindow(
+            day: day,
+            startTime: startTime,
+            endTime: endTime,
+          ),
+        );
+      }
+      return entries;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  bool _timeslotMatchesSectionAvailability(
+    Timeslot timeslot,
+    List<_SectionAvailabilityWindow> availability,
+  ) {
+    if (availability.isEmpty) return true;
+    final slotStart = _parseTimeToMinutes(timeslot.startTime);
+    final slotEnd = _parseTimeToMinutes(timeslot.endTime);
+
+    for (final avail in availability) {
+      if (avail.day != timeslot.day) continue;
+      final availStart = _parseTimeToMinutes(avail.startTime);
+      final availEnd = _parseTimeToMinutes(avail.endTime);
+      if (slotStart >= availStart && slotEnd <= availEnd) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   int _requiredScheduleMinutes(Subject subject, Schedule schedule) {
     if (schedule.hours != null && schedule.hours! > 0) {
       return (schedule.hours! * 60).round();
@@ -210,14 +303,14 @@ class AdminEndpoint extends Endpoint {
     }
     if (loadTypes.contains(SubjectType.lecture) &&
         !loadTypes.contains(SubjectType.laboratory)) {
-      return 120;
+      return _isGeneralEducationSubject(subject) ? 90 : 120;
     }
     if (subject.types.contains(SubjectType.laboratory) &&
         !subject.types.contains(SubjectType.lecture) &&
         !subject.types.contains(SubjectType.blended)) {
       return 180;
     }
-    return 120;
+    return _isGeneralEducationSubject(subject) ? 90 : 120;
   }
 
   Future<void> _resolveAutoAssignedSchedule(
@@ -245,13 +338,26 @@ class AdminEndpoint extends Endpoint {
       throw Exception('No timeslots available for auto-assignment.');
     }
 
+    Section? sectionRecord;
+    if (schedule.sectionId != null) {
+      sectionRecord = await Section.db.findById(session, schedule.sectionId!);
+    }
+    sectionRecord ??= await Section.db.findFirstRow(
+      session,
+      where: (t) => t.sectionCode.equals(schedule.section),
+    );
+    final sectionAvailability = _parseSectionAvailability(
+      sectionRecord?.availabilityJson,
+    );
+
     final requiredMinutes = _requiredScheduleMinutes(subject, schedule);
     final candidateTimeslots = allTimeslots.where((timeslot) {
       final slotMinutes =
           _parseTimeToMinutes(timeslot.endTime) -
           _parseTimeToMinutes(timeslot.startTime);
       return slotMinutes == requiredMinutes &&
-          _timeslotMatchesAvailability(timeslot, availability);
+          _timeslotMatchesAvailability(timeslot, availability) &&
+          _timeslotMatchesSectionAvailability(timeslot, sectionAvailability);
     }).toList()
       ..sort((a, b) {
         final dayCompare = _dayOrder(a.day).compareTo(_dayOrder(b.day));
@@ -1549,6 +1655,7 @@ class AdminEndpoint extends Endpoint {
     Session session,
     GenerateScheduleRequest request,
   ) async {
+    await _ensureSectionSchema(session);
     final schedulableFacultyIds = await _getSchedulableFacultyIds(session);
     final filteredFacultyIds = request.facultyIds
         .where((id) => schedulableFacultyIds.contains(id))
@@ -1876,6 +1983,7 @@ class AdminEndpoint extends Endpoint {
 
   /// Create a new section with validation.
   Future<Section> createSection(Session session, Section section) async {
+    await _ensureSectionSchema(session);
     // Validate fields
     if (section.sectionCode.trim().isEmpty) {
       throw Exception('Section code cannot be empty');
@@ -1910,6 +2018,7 @@ class AdminEndpoint extends Endpoint {
 
   /// Get all sections.
   Future<List<Section>> getAllSections(Session session) async {
+    await _ensureSectionSchema(session);
     final students = await Student.db.find(
       session,
       where: (t) => t.isActive.equals(true),
@@ -1927,6 +2036,7 @@ class AdminEndpoint extends Endpoint {
 
   /// Update a section.
   Future<Section> updateSection(Session session, Section section) async {
+    await _ensureSectionSchema(session);
     var existing = await Section.db.findById(session, section.id!);
     if (existing == null) {
       throw Exception('Section not found with ID: ${section.id}');
@@ -2134,6 +2244,7 @@ class AdminEndpoint extends Endpoint {
   Future<GenerateScheduleResponse> regenerateSchedule(
     Session session,
   ) async {
+    await _ensureSectionSchema(session);
     // 1. Pre-check
     var precheck = await precheckSchedule(session);
     if (!precheck.success) {
@@ -2246,4 +2357,16 @@ class AdminEndpoint extends Endpoint {
     var parts = time.split(':');
     return int.parse(parts[0]) * 60 + int.parse(parts[1]);
   }
+}
+
+class _SectionAvailabilityWindow {
+  final DayOfWeek day;
+  final String startTime;
+  final String endTime;
+
+  const _SectionAvailabilityWindow({
+    required this.day,
+    required this.startTime,
+    required this.endTime,
+  });
 }

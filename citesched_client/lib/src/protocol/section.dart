@@ -19,6 +19,7 @@ abstract class Section implements _i1.SerializableModel {
     required this.program,
     required this.yearLevel,
     required this.sectionCode,
+    this.availabilityJson,
     required this.academicYear,
     required this.semester,
     bool? isActive,
@@ -31,6 +32,7 @@ abstract class Section implements _i1.SerializableModel {
     required _i2.Program program,
     required int yearLevel,
     required String sectionCode,
+    String? availabilityJson,
     required String academicYear,
     required int semester,
     bool? isActive,
@@ -44,6 +46,7 @@ abstract class Section implements _i1.SerializableModel {
       program: _i2.Program.fromJson((jsonSerialization['program'] as String)),
       yearLevel: jsonSerialization['yearLevel'] as int,
       sectionCode: jsonSerialization['sectionCode'] as String,
+      availabilityJson: jsonSerialization['availabilityJson'] as String?,
       academicYear: jsonSerialization['academicYear'] as String,
       semester: jsonSerialization['semester'] as int,
       isActive: jsonSerialization['isActive'] as bool?,
@@ -67,6 +70,8 @@ abstract class Section implements _i1.SerializableModel {
 
   String sectionCode;
 
+  String? availabilityJson;
+
   String academicYear;
 
   int semester;
@@ -85,6 +90,7 @@ abstract class Section implements _i1.SerializableModel {
     _i2.Program? program,
     int? yearLevel,
     String? sectionCode,
+    String? availabilityJson,
     String? academicYear,
     int? semester,
     bool? isActive,
@@ -99,6 +105,7 @@ abstract class Section implements _i1.SerializableModel {
       'program': program.toJson(),
       'yearLevel': yearLevel,
       'sectionCode': sectionCode,
+      if (availabilityJson != null) 'availabilityJson': availabilityJson,
       'academicYear': academicYear,
       'semester': semester,
       'isActive': isActive,
@@ -121,6 +128,7 @@ class _SectionImpl extends Section {
     required _i2.Program program,
     required int yearLevel,
     required String sectionCode,
+    String? availabilityJson,
     required String academicYear,
     required int semester,
     bool? isActive,
@@ -131,6 +139,7 @@ class _SectionImpl extends Section {
          program: program,
          yearLevel: yearLevel,
          sectionCode: sectionCode,
+         availabilityJson: availabilityJson,
          academicYear: academicYear,
          semester: semester,
          isActive: isActive,
@@ -147,6 +156,7 @@ class _SectionImpl extends Section {
     _i2.Program? program,
     int? yearLevel,
     String? sectionCode,
+    Object? availabilityJson = _Undefined,
     String? academicYear,
     int? semester,
     bool? isActive,
@@ -158,6 +168,9 @@ class _SectionImpl extends Section {
       program: program ?? this.program,
       yearLevel: yearLevel ?? this.yearLevel,
       sectionCode: sectionCode ?? this.sectionCode,
+      availabilityJson: availabilityJson is String?
+          ? availabilityJson
+          : this.availabilityJson,
       academicYear: academicYear ?? this.academicYear,
       semester: semester ?? this.semester,
       isActive: isActive ?? this.isActive,

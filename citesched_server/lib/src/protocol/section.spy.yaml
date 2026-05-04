@@ -4,6 +4,7 @@ fields:
   program: Program
   yearLevel: int
   sectionCode: String
+  availabilityJson: String?
   academicYear: String
   semester: int
   isActive: bool, default=true

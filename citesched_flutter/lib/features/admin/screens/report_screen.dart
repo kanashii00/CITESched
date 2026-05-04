@@ -80,242 +80,273 @@ class _ReportScreenState extends ConsumerState<ReportScreen>
 
     return Scaffold(
       backgroundColor: bgColor,
-      body: Padding(
-        padding: EdgeInsets.all(isMobile ? 16 : 32),
-        child: Column(
-          children: [
-            // Header (Standardized Maroon Gradient Banner)
-            AdminHeaderContainer(
-              primaryColor: maroonColor,
-              padding: EdgeInsets.all(isMobile ? 20 : 32),
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: [
-                BoxShadow(
-                  color: maroonColor.withValues(alpha: 0.3),
-                  blurRadius: 25,
-                  offset: const Offset(0, 12),
-                ),
-              ],
-              child: isMobile
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.2),
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.analytics_rounded,
-                                color: Colors.white,
-                                size: 28,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Analytical Reports',
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                      letterSpacing: -0.5,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Comprehensive system metrics and utilization analysis',
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 12,
-                                      color:
-                                          Colors.white.withValues(alpha: 0.8),
-                                      letterSpacing: 0.2,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+      body: SafeArea(
+        child: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) => [
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                isMobile ? 16 : 32,
+                isMobile ? 16 : 32,
+                isMobile ? 16 : 32,
+                0,
+              ),
+              sliver: SliverToBoxAdapter(
+                child: Column(
+                  children: [
+                    // Header (Standardized Maroon Gradient Banner)
+                    AdminHeaderContainer(
+                      primaryColor: maroonColor,
+                      padding: EdgeInsets.all(isMobile ? 20 : 32),
+                      borderRadius: BorderRadius.circular(28),
+                      boxShadow: [
+                        BoxShadow(
+                          color: maroonColor.withValues(alpha: 0.3),
+                          blurRadius: 25,
+                          offset: const Offset(0, 12),
                         ),
                       ],
-                    )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.2),
-                                  ),
-                                ),
-                                child: const Icon(
-                                  Icons.analytics_rounded,
-                                  color: Colors.white,
-                                  size: 32,
-                                ),
-                              ),
-                              const SizedBox(width: 24),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                      child: isMobile
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
                                   children: [
-                                    Text(
-                                      'Analytical Reports',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 32,
-                                        fontWeight: FontWeight.bold,
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: Colors.white.withValues(alpha: 0.2),
+                                        ),
+                                      ),
+                                      child: const Icon(
+                                        Icons.analytics_rounded,
                                         color: Colors.white,
-                                        letterSpacing: -1,
+                                        size: 28,
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Comprehensive system metrics and utilization analysis',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 16,
-                                        color: Colors.white.withValues(
-                                          alpha: 0.8,
-                                        ),
-                                        letterSpacing: 0.2,
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Analytical Reports',
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                              letterSpacing: -0.5,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Comprehensive system metrics and utilization analysis',
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 12,
+                                              color: Colors.white.withValues(
+                                                alpha: 0.8,
+                                              ),
+                                              letterSpacing: 0.2,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.2),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.calendar_today_rounded,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 12),
-                              Text(
-                                'AY 2025-2026',
-                                style: GoogleFonts.poppins(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
+                              ],
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(16),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.15,
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                          border: Border.all(
+                                            color: Colors.white.withValues(
+                                              alpha: 0.2,
+                                            ),
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.analytics_rounded,
+                                          color: Colors.white,
+                                          size: 32,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 24),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Analytical Reports',
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 32,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                                letterSpacing: -1,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Comprehensive system metrics and utilization analysis',
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 16,
+                                                color: Colors.white.withValues(
+                                                  alpha: 0.8,
+                                                ),
+                                                letterSpacing: 0.2,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.2),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.calendar_today_rounded,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        'AY 2025-2026',
+                                        style: GoogleFonts.poppins(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                     ),
-            ),
-            const SizedBox(height: 32),
-
-            // Tab Selector
-            Container(
-              decoration: BoxDecoration(
-                color: cardBg,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: TabBar(
-                controller: _tabController,
-                isScrollable: isMobile,
-                labelColor: maroonColor,
-                unselectedLabelColor: textMuted,
-                indicator: BoxDecoration(
-                  color: maroonColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: maroonColor.withValues(alpha: 0.2),
-                  ),
-                ),
-                indicatorColor: maroonColor,
-                indicatorSize: TabBarIndicatorSize.tab,
-                labelStyle: GoogleFonts.poppins(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-                unselectedLabelStyle: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 13,
-                ),
-                labelPadding: EdgeInsets.symmetric(
-                  horizontal: isMobile ? 12 : 16,
-                ),
-                tabs: const [
-                  Tab(text: 'Faculty Load'),
-                  Tab(text: 'Room Usage'),
-                  Tab(text: 'Conflicts'),
-                  Tab(text: 'Schedule Stats'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            _buildScheduleExportPanel(
-              context,
-              schedulesAsync,
-              subjectsAsync: subjectsAsync,
-              facultyAsync: facultyAsync,
-              roomsAsync: roomsAsync,
-              timeslotsAsync: timeslotsAsync,
-              sectionsAsync: sectionsAsync,
-              cardBg: cardBg,
-              textMuted: textMuted,
-            ),
-            const SizedBox(height: 24),
-
-            // Content
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.all(isMobile ? 16 : 32),
-                child: TabBarView(
-                  controller: _tabController,
-                  children: const [
-                    _FacultyLoadTab(),
-                    _RoomUtilizationTab(),
-                    _ConflictSummaryTab(),
-                    _ScheduleOverviewTab(),
+                    const SizedBox(height: 24),
+                    _buildScheduleExportPanel(
+                      context,
+                      schedulesAsync,
+                      subjectsAsync: subjectsAsync,
+                      facultyAsync: facultyAsync,
+                      roomsAsync: roomsAsync,
+                      timeslotsAsync: timeslotsAsync,
+                      sectionsAsync: sectionsAsync,
+                      cardBg: cardBg,
+                      textMuted: textMuted,
+                    ),
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
             ),
+            SliverPadding(
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 32),
+              sliver: SliverPersistentHeader(
+                pinned: true,
+                delegate: _ReportsTabBarHeaderDelegate(
+                  child: Container(
+                    color: bgColor,
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: TabBar(
+                        controller: _tabController,
+                        isScrollable: isMobile,
+                        labelColor: maroonColor,
+                        unselectedLabelColor: textMuted,
+                        indicator: BoxDecoration(
+                          color: maroonColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: maroonColor.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        indicatorColor: maroonColor,
+                        indicatorSize: TabBarIndicatorSize.tab,
+                        labelStyle: GoogleFonts.poppins(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                        unselectedLabelStyle: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 13,
+                        ),
+                        labelPadding: EdgeInsets.symmetric(
+                          horizontal: isMobile ? 12 : 16,
+                        ),
+                        tabs: const [
+                          Tab(text: 'Faculty Load'),
+                          Tab(text: 'Room Usage'),
+                          Tab(text: 'Conflicts'),
+                          Tab(text: 'Schedule Stats'),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ],
+          body: Padding(
+            padding: EdgeInsets.fromLTRB(
+              isMobile ? 16 : 32,
+              16,
+              isMobile ? 16 : 32,
+              isMobile ? 16 : 32,
+            ),
+            child: TabBarView(
+              controller: _tabController,
+              children: const [
+                _FacultyLoadTab(),
+                _RoomUtilizationTab(),
+                _ConflictSummaryTab(),
+                _ScheduleOverviewTab(),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -582,6 +613,32 @@ class _ReportScreenState extends ConsumerState<ReportScreen>
       data: (items) => items,
       orElse: () => <T>[],
     );
+  }
+}
+
+class _ReportsTabBarHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+
+  const _ReportsTabBarHeaderDelegate({required this.child});
+
+  @override
+  double get minExtent => 64;
+
+  @override
+  double get maxExtent => 64;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return child;
+  }
+
+  @override
+  bool shouldRebuild(covariant _ReportsTabBarHeaderDelegate oldDelegate) {
+    return oldDelegate.child != child;
   }
 }
 

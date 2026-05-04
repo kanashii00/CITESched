@@ -1,5 +1,6 @@
 import 'package:citesched_client/citesched_client.dart';
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:citesched_flutter/core/utils/date_utils.dart';
 import 'package:citesched_flutter/core/utils/responsive_helper.dart';
@@ -55,6 +56,7 @@ const String _noPreferredTimeslotsMessage =
 const String _selectSubjectTypeTimeslotMessage =
     'Select subject types first before showing schedule timeslot dropdown below.';
 const String _waitingForAiLabel = 'Waiting for AI...';
+const double _generalEducationLectureHours = 1.5;
 
 bool _requiresLaboratoryRoom(List<SubjectType> types) {
   return types.contains(SubjectType.laboratory) ||
@@ -65,6 +67,14 @@ bool _isBlendedSubject(List<SubjectType> types) {
   return types.contains(SubjectType.blended) ||
       (types.contains(SubjectType.lecture) &&
           types.contains(SubjectType.laboratory));
+}
+
+String _normalizeSubjectCode(String code) {
+  return code.trim().replaceAll(RegExp(r'\s+'), '').toUpperCase();
+}
+
+bool _isGeneralEducationSubject(Subject subject) {
+  return _normalizeSubjectCode(subject.code).startsWith('GE');
 }
 
 double _hoursForSubjectTypes(List<SubjectType> types) {
@@ -78,6 +88,18 @@ double _hoursForSubjectTypes(List<SubjectType> types) {
   return 0.0;
 }
 
+double _requiredHoursForSubject(
+  Subject subject,
+  List<SubjectType> effectiveTypes,
+) {
+  if (_isGeneralEducationSubject(subject) &&
+      effectiveTypes.contains(SubjectType.lecture) &&
+      !effectiveTypes.contains(SubjectType.laboratory)) {
+    return _generalEducationLectureHours;
+  }
+  return _hoursForSubjectTypes(effectiveTypes);
+}
+
 double _unitsForSubjectTypes(List<SubjectType> types) {
   final hasLecture = types.contains(SubjectType.lecture);
   final hasLaboratory = types.contains(SubjectType.laboratory);
@@ -87,6 +109,21 @@ double _unitsForSubjectTypes(List<SubjectType> types) {
   if (hasLaboratory) return 1.0;
   if (hasLecture) return 2.0;
   return 0.0;
+}
+
+double _requiredUnitsForSubject(
+  Subject subject,
+  List<SubjectType> effectiveTypes,
+) {
+  if (effectiveTypes.length == 1) {
+    if (effectiveTypes.contains(SubjectType.lecture)) {
+      return 2.0;
+    }
+    if (effectiveTypes.contains(SubjectType.laboratory)) {
+      return 1.0;
+    }
+  }
+  return _unitsForSubjectTypes(effectiveTypes);
 }
 
 const List<(int start, int end)> _preferredLectureWindows = [
@@ -101,6 +138,15 @@ const List<(int start, int end)> _preferredLabWindows = [
   (9 * 60, 12 * 60),
   (13 * 60, 16 * 60),
   (16 * 60, 19 * 60),
+];
+
+const List<(int start, int end)> _preferredGeLectureWindows = [
+  (8 * 60, 9 * 60 + 30),
+  (9 * 60 + 30, 11 * 60),
+  (13 * 60, 14 * 60 + 30),
+  (14 * 60 + 30, 16 * 60),
+  (16 * 60, 17 * 60 + 30),
+  (17 * 60 + 30, 19 * 60),
 ];
 
 List<SubjectType> _expandedSubjectTypes(List<SubjectType> types) {
@@ -530,6 +576,18 @@ class _TimeslotWindow {
   });
 }
 
+class _SectionAvailabilityWindow {
+  final DayOfWeek day;
+  final String startTime;
+  final String endTime;
+
+  const _SectionAvailabilityWindow({
+    required this.day,
+    required this.startTime,
+    required this.endTime,
+  });
+}
+
 class _TimeslotOption {
   final Timeslot slot;
   final String label;
@@ -554,6 +612,62 @@ class _TimeslotOptionsResult {
   });
 }
 
+List<_SectionAvailabilityWindow> _sectionAvailabilityFromJson(String? rawJson) {
+  if (rawJson == null || rawJson.trim().isEmpty) return const [];
+  try {
+    final decoded = jsonDecode(rawJson);
+    if (decoded is! List) return const [];
+
+    final entries = <_SectionAvailabilityWindow>[];
+    for (final item in decoded) {
+      if (item is! Map) continue;
+      final dayValue = item['day']?.toString();
+      final startTime = item['startTime']?.toString();
+      final endTime = item['endTime']?.toString();
+      if (dayValue == null || startTime == null || endTime == null) continue;
+
+      DayOfWeek? day;
+      for (final value in DayOfWeek.values) {
+        if (value.name == dayValue) {
+          day = value;
+          break;
+        }
+      }
+      if (day == null) continue;
+
+      entries.add(
+        _SectionAvailabilityWindow(
+          day: day,
+          startTime: startTime,
+          endTime: endTime,
+        ),
+      );
+    }
+    return entries;
+  } catch (_) {
+    return const [];
+  }
+}
+
+bool _windowFitsSectionAvailability(
+  _TimeslotWindow window,
+  List<_SectionAvailabilityWindow> availability,
+) {
+  if (availability.isEmpty) return true;
+  final start = _timeToMinutes(window.startTime);
+  final end = _timeToMinutes(window.endTime);
+
+  for (final entry in availability) {
+    if (entry.day != window.day) continue;
+    final entryStart = _timeToMinutes(entry.startTime);
+    final entryEnd = _timeToMinutes(entry.endTime);
+    if (start >= entryStart && end <= entryEnd) {
+      return true;
+    }
+  }
+  return false;
+}
+
 List<_TimeslotWindow> _windowsFromAvailability({
   required List<FacultyAvailability> availability,
   required int requiredMinutes,
@@ -562,6 +676,7 @@ List<_TimeslotWindow> _windowsFromAvailability({
   final windows = <_TimeslotWindow>[];
   final seen = <String>{};
   final preferredWindows = switch (requiredMinutes) {
+    90 => _preferredGeLectureWindows,
     120 => _preferredLectureWindows,
     180 => _preferredLabWindows,
     _ => const <(int start, int end)>[],
@@ -608,6 +723,7 @@ List<_TimeslotWindow> _windowsFromAvailability({
 
 _TimeslotOptionsResult _buildTimeslotOptionsFromAvailability({
   required List<FacultyAvailability> availability,
+  required List<_SectionAvailabilityWindow> sectionAvailability,
   required List<Timeslot> timeslots,
   required double requiredHours,
   required String typeLabel,
@@ -622,7 +738,9 @@ _TimeslotOptionsResult _buildTimeslotOptionsFromAvailability({
   final windows = _windowsFromAvailability(
     availability: availability,
     requiredMinutes: requiredMinutes,
-  );
+  ).where((window) {
+    return _windowFitsSectionAvailability(window, sectionAvailability);
+  }).toList();
 
   final options = <_TimeslotOption>[];
   final missing = <_TimeslotWindow>[];
@@ -4994,10 +5112,10 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
       _selectedLoadType,
     );
     _unitsController.text = _formatLoadValue(
-      _unitsForSubjectTypes(effectiveTypes),
+      _requiredUnitsForSubject(subject, effectiveTypes),
     );
     _hoursController.text = _formatLoadValue(
-      _hoursForSubjectTypes(effectiveTypes),
+      _requiredHoursForSubject(subject, effectiveTypes),
     );
   }
 
@@ -5079,6 +5197,19 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
           _syncingTimeslotKeys.remove(key);
         }
       }
+    });
+  }
+
+  void _syncAutoAssignedTimeslotPreview(List<_TimeslotOption> options) {
+    if (!_isAutoAssign) return;
+    final enabledOptions = options.where((option) => option.isEnabled).toList();
+    final previewId = enabledOptions.isEmpty ? null : enabledOptions.first.slot.id;
+    if (_selectedTimeslotId == previewId) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _selectedTimeslotId = previewId;
+      });
     });
   }
 
@@ -5295,7 +5426,7 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
 
     return Autocomplete<_TimeslotOption>(
       key: ValueKey(
-        'new-timeslot-${_selectedFacultyId ?? 'none'}-${_selectedSubjectId ?? 'none'}-${_selectedSectionId ?? 'none'}-${_selectedRoomId ?? 'none'}-${_selectedLoadType?.name ?? 'default'}-${options.length}',
+        'new-timeslot-${_selectedFacultyId ?? 'none'}-${_selectedSubjectId ?? 'none'}-${_selectedSectionId ?? 'none'}-${_selectedRoomId ?? 'none'}-${_selectedLoadType?.name ?? 'default'}-${_isAutoAssign ? 'auto' : 'manual'}-${_selectedTimeslotId ?? 'none'}-${options.length}',
       ),
       displayStringForOption: (option) => option.label,
       initialValue: selectedLabel == null
@@ -5334,7 +5465,9 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: widget.maroonColor, width: 2),
             ),
-            helperText: _selectedTimeslotId == null
+            helperText: _isAutoAssign
+                ? 'Auto-assign is enabled. This dropdown stays visible for reference, but the system will choose the timeslot.'
+                : _selectedTimeslotId == null
                 ? 'Select from dropdown. Typed text alone will not be accepted.'
                 : null,
           ),
@@ -5348,7 +5481,8 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
               setState(() => _selectedTimeslotId = null);
             }
           },
-          validator: (_) => _selectedTimeslotId == null ? 'Required' : null,
+          validator: (_) =>
+              !_isAutoAssign && _selectedTimeslotId == null ? 'Required' : null,
         );
       },
       optionsViewBuilder: (context, onSelected, options) {
@@ -5508,8 +5642,8 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
         section: section.sectionCode,
         sectionId: _selectedSectionId,
         loadTypes: effectiveTypes,
-        units: _unitsForSubjectTypes(effectiveTypes),
-        hours: _hoursForSubjectTypes(effectiveTypes),
+        units: _requiredUnitsForSubject(selectedSubject, effectiveTypes),
+        hours: _requiredHoursForSubject(selectedSubject, effectiveTypes),
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -5935,10 +6069,11 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                         value: _isAutoAssign,
                         onChanged: (value) {
                           setState(() {
-                            _isAutoAssign = value ?? false;
-                            if (_isAutoAssign) {
+                            final nextValue = value ?? false;
+                            if (_isAutoAssign && !nextValue) {
                               _selectedTimeslotId = null;
                             }
+                            _isAutoAssign = nextValue;
                           });
                         },
                         title: Text(
@@ -6016,8 +6151,7 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                         },
                       ),
                       const SizedBox(height: 16),
-                      if (!_isAutoAssign) ...[
-                        timeslotsAsync.when(
+                      timeslotsAsync.when(
                           loading: () => const CircularProgressIndicator(),
                           error: (error, stack) =>
                               const Text('Error loading timeslots'),
@@ -6095,7 +6229,21 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                                       data: (list) => list,
                                       orElse: () => <Faculty>[],
                                     );
-                                final requiredHours = _hoursForSubjectTypes(
+                                final sectionList = ref
+                                    .read(sectionListProvider)
+                                    .maybeWhen(
+                                      data: (list) => list,
+                                      orElse: () => <Section>[],
+                                    );
+                                Section? selectedSection;
+                                for (final section in sectionList) {
+                                  if (section.id == _selectedSectionId) {
+                                    selectedSection = section;
+                                    break;
+                                  }
+                                }
+                                final requiredHours = _requiredHoursForSubject(
+                                  selectedSubject,
                                   effectiveTypes,
                                 );
                                 final typeLabel =
@@ -6107,6 +6255,10 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                                 final result =
                                     _buildTimeslotOptionsFromAvailability(
                                       availability: availabilityList,
+                                      sectionAvailability:
+                                          _sectionAvailabilityFromJson(
+                                            selectedSection?.availabilityJson,
+                                          ),
                                       timeslots: timeslotList,
                                       requiredHours: requiredHours,
                                       typeLabel: typeLabel,
@@ -6120,6 +6272,7 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
 
                                 final options = result.options;
                                 final missingWindows = result.missing;
+                                _syncAutoAssignedTimeslotPreview(options);
                                 final syncKey = _timeslotWindowsKey(
                                   missingWindows,
                                 );
@@ -6134,6 +6287,15 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                                 return Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
+                                    if (_isAutoAssign) ...[
+                                      _buildHighlightedTimeslotHint(
+                                        message:
+                                            'Auto-assign is turned on. The dropdown is still visible, but the system will assign the final timeslot.',
+                                        accentColor: widget.maroonColor,
+                                        isDark: isDark,
+                                      ),
+                                      const SizedBox(height: 8),
+                                    ],
                                     if (missingWindows.isNotEmpty) ...[
                                       _buildHighlightedTimeslotHint(
                                         message:
@@ -6165,7 +6327,6 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                             );
                           },
                         ),
-                      ],
                     ],
                   ),
                 ),
@@ -6414,10 +6575,10 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
       _selectedLoadType,
     );
     _unitsController.text = _formatLoadValue(
-      _unitsForSubjectTypes(effectiveTypes),
+      _requiredUnitsForSubject(subject, effectiveTypes),
     );
     _hoursController.text = _formatLoadValue(
-      _hoursForSubjectTypes(effectiveTypes),
+      _requiredHoursForSubject(subject, effectiveTypes),
     );
   }
 
@@ -6502,6 +6663,19 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
           _syncingTimeslotKeys.remove(key);
         }
       }
+    });
+  }
+
+  void _syncAutoAssignedTimeslotPreview(List<_TimeslotOption> options) {
+    if (!_isAutoAssign) return;
+    final enabledOptions = options.where((option) => option.isEnabled).toList();
+    final previewId = enabledOptions.isEmpty ? null : enabledOptions.first.slot.id;
+    if (_selectedTimeslotId == previewId) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _selectedTimeslotId = previewId;
+      });
     });
   }
 
@@ -6749,7 +6923,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
 
     return Autocomplete<_TimeslotOption>(
       key: ValueKey(
-        'edit-timeslot-${_selectedFacultyId ?? 'none'}-${_selectedSubjectId ?? 'none'}-${_selectedSectionId ?? 'none'}-${_selectedRoomId ?? 'none'}-${_selectedLoadType?.name ?? 'default'}-${options.length}',
+        'edit-timeslot-${_selectedFacultyId ?? 'none'}-${_selectedSubjectId ?? 'none'}-${_selectedSectionId ?? 'none'}-${_selectedRoomId ?? 'none'}-${_selectedLoadType?.name ?? 'default'}-${_isAutoAssign ? 'auto' : 'manual'}-${_selectedTimeslotId ?? 'none'}-${options.length}',
       ),
       displayStringForOption: (option) => option.label,
       initialValue: selectedLabel == null
@@ -6961,8 +7135,8 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
         section: section.sectionCode,
         sectionId: _selectedSectionId ?? widget.schedule.sectionId,
         loadTypes: effectiveTypes,
-        units: _unitsForSubjectTypes(effectiveTypes),
-        hours: _hoursForSubjectTypes(effectiveTypes),
+        units: _requiredUnitsForSubject(selectedSubject, effectiveTypes),
+        hours: _requiredHoursForSubject(selectedSubject, effectiveTypes),
         createdAt: widget.schedule.createdAt,
         updatedAt: DateTime.now(),
       );
@@ -7385,10 +7559,11 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                         value: _isAutoAssign,
                         onChanged: (value) {
                           setState(() {
-                            _isAutoAssign = value ?? false;
-                            if (_isAutoAssign) {
+                            final nextValue = value ?? false;
+                            if (_isAutoAssign && !nextValue) {
                               _selectedTimeslotId = null;
                             }
+                            _isAutoAssign = nextValue;
                           });
                         },
                         title: Text(
@@ -7466,8 +7641,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                         },
                       ),
                       const SizedBox(height: 16),
-                      if (!_isAutoAssign) ...[
-                        timeslotsAsync.when(
+                      timeslotsAsync.when(
                           loading: () => const CircularProgressIndicator(),
                           error: (error, stack) =>
                               const Text('Error loading timeslots'),
@@ -7538,7 +7712,23 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                                       data: (list) => list,
                                       orElse: () => <Faculty>[],
                                     );
-                                final requiredHours = _hoursForSubjectTypes(
+                                final sectionList = ref
+                                    .read(sectionListProvider)
+                                    .maybeWhen(
+                                      data: (list) => list,
+                                      orElse: () => <Section>[],
+                                    );
+                                Section? selectedSection;
+                                for (final section in sectionList) {
+                                  if (section.id ==
+                                      (_selectedSectionId ??
+                                          widget.schedule.sectionId)) {
+                                    selectedSection = section;
+                                    break;
+                                  }
+                                }
+                                final requiredHours = _requiredHoursForSubject(
+                                  selectedSubject,
                                   effectiveTypes,
                                 );
                                 final typeLabel =
@@ -7550,6 +7740,10 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                                 final result =
                                     _buildTimeslotOptionsFromAvailability(
                                       availability: availabilityList,
+                                      sectionAvailability:
+                                          _sectionAvailabilityFromJson(
+                                            selectedSection?.availabilityJson,
+                                          ),
                                       timeslots: timeslotList,
                                       requiredHours: requiredHours,
                                       typeLabel: typeLabel,
@@ -7563,6 +7757,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
 
                                 final options = result.options;
                                 final missingWindows = result.missing;
+                                _syncAutoAssignedTimeslotPreview(options);
                                 final syncKey = _timeslotWindowsKey(
                                   missingWindows,
                                 );
@@ -7577,6 +7772,15 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                                 return Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
+                                    if (_isAutoAssign) ...[
+                                      _buildHighlightedTimeslotHint(
+                                        message:
+                                            'Auto-assign is turned on. The dropdown is still visible, but the system will assign the final timeslot.',
+                                        accentColor: widget.maroonColor,
+                                        isDark: isDark,
+                                      ),
+                                      const SizedBox(height: 8),
+                                    ],
                                     if (missingWindows.isNotEmpty) ...[
                                       _buildHighlightedTimeslotHint(
                                         message:
@@ -7608,7 +7812,6 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                             );
                           },
                         ),
-                      ],
                     ],
                   ),
                 ),

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:serverpod/serverpod.dart';
 import '../generated/protocol.dart';
 import 'conflict_service.dart';
@@ -8,6 +10,7 @@ import 'conflict_service.dart';
 class SchedulingService {
   final ConflictService _conflictService = ConflictService();
   static const double _lectureHours = 2.0;
+  static const double _geLectureHours = 1.5;
   static const double _labHours = 3.0;
   static const int _labEarliestStartMinutes = 9 * 60;
   static const int _lunchStartMinutes = 12 * 60;
@@ -25,8 +28,25 @@ class SchedulingService {
     (16 * 60, 19 * 60),
   ];
 
+  static const List<(int start, int end)> _preferredGeLectureWindows = [
+    (8 * 60, 9 * 60 + 30),
+    (9 * 60 + 30, 11 * 60),
+    (13 * 60, 14 * 60 + 30),
+    (14 * 60 + 30, 16 * 60),
+    (16 * 60, 17 * 60 + 30),
+    (17 * 60 + 30, 19 * 60),
+  ];
+
   bool _roomSupportsProgram(Room room, Program subjectProgram) {
     return room.program == Program.both || room.program == subjectProgram;
+  }
+
+  String _normalizeSubjectCode(String code) {
+    return code.trim().replaceAll(RegExp(r'\s+'), '').toUpperCase();
+  }
+
+  bool _isGeneralEducationSubject(Subject subject) {
+    return _normalizeSubjectCode(subject.code).startsWith('GE');
   }
 
   /// Generate schedules using a greedy algorithm.
@@ -422,6 +442,7 @@ class SchedulingService {
         session: session,
         allTimeslots: data.validTimeslots,
         availability: data.facultyAvailMap[faculty.id!] ?? const [],
+        sectionAvailability: section.availability,
         requiredHours: component.hours,
         cache: data.timeslotCache,
         requireLabStartAfterNine: component.types.contains(
@@ -649,6 +670,7 @@ class SchedulingService {
       session: session,
       allTimeslots: data.validTimeslots,
       availability: lockedAvailability,
+      sectionAvailability: section.availability,
       requiredHours: maxComponentHours > 0
           ? maxComponentHours
           : _requiredHours(subject),
@@ -713,6 +735,9 @@ class SchedulingService {
   }
 
   List<(int start, int end)> _preferredWindowsForDuration(int requiredMinutes) {
+    if (requiredMinutes == (_geLectureHours * 60).round()) {
+      return _preferredGeLectureWindows;
+    }
     if (requiredMinutes == (_lectureHours * 60).round()) {
       return _preferredLectureWindows;
     }
@@ -765,6 +790,64 @@ class SchedulingService {
 
   String _timeslotKey(DayOfWeek day, String startTime, String endTime) {
     return '${day.name}|${startTime.trim()}|${endTime.trim()}';
+  }
+
+  List<_AvailabilityWindow> _parseSectionAvailability(String? rawJson) {
+    if (rawJson == null || rawJson.trim().isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(rawJson);
+      if (decoded is! List) return const [];
+
+      final entries = <_AvailabilityWindow>[];
+      for (final item in decoded) {
+        if (item is! Map) continue;
+        final dayValue = item['day']?.toString();
+        final startTime = item['startTime']?.toString();
+        final endTime = item['endTime']?.toString();
+        if (dayValue == null || startTime == null || endTime == null) {
+          continue;
+        }
+        DayOfWeek? day;
+        for (final value in DayOfWeek.values) {
+          if (value.name == dayValue) {
+            day = value;
+            break;
+          }
+        }
+        if (day == null) continue;
+        entries.add(
+          _AvailabilityWindow(
+            day: day,
+            startTime: startTime,
+            endTime: endTime,
+          ),
+        );
+      }
+      return entries;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  bool _windowFitsAvailabilityList({
+    required DayOfWeek day,
+    required String startTime,
+    required String endTime,
+    required List<_AvailabilityWindow> availability,
+  }) {
+    if (availability.isEmpty) return true;
+    final slotStart = _parseTimeToMinutes(startTime);
+    final slotEnd = _parseTimeToMinutes(endTime);
+
+    for (final window in availability) {
+      if (window.day != day) continue;
+      final windowStart = _parseTimeToMinutes(window.startTime);
+      final windowEnd = _parseTimeToMinutes(window.endTime);
+      if (slotStart >= windowStart && slotEnd <= windowEnd) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Future<Timeslot> _getOrCreateTimeslot({
@@ -828,17 +911,20 @@ class SchedulingService {
     final hasLecture = types.contains(SubjectType.lecture);
     final hasLab = types.contains(SubjectType.laboratory);
     final hasBlended = types.contains(SubjectType.blended);
+    final lectureHours = _isGeneralEducationSubject(subject)
+        ? _geLectureHours
+        : _lectureHours;
 
     if (hasBlended || (hasLecture && hasLab)) {
-      const totalHours = _lectureHours + _labHours;
+      final totalHours = lectureHours + _labHours;
       final totalUnits = subject.units.toDouble();
-      final lectureUnits = totalUnits * (_lectureHours / totalHours);
+      final lectureUnits = totalUnits * (lectureHours / totalHours);
       final labUnits = (totalUnits - lectureUnits);
       return [
         _LoadComponent(
           tag: 'lecture',
           types: const [SubjectType.lecture],
-          hours: _lectureHours,
+          hours: lectureHours,
           units: lectureUnits,
         ),
         _LoadComponent(
@@ -865,7 +951,7 @@ class SchedulingService {
       _LoadComponent(
         tag: 'lecture',
         types: const [SubjectType.lecture],
-        hours: subject.hours ?? _lectureHours,
+        hours: subject.hours ?? lectureHours,
         units: subject.units.toDouble(),
       ),
     ];
@@ -954,6 +1040,7 @@ class SchedulingService {
     required Session session,
     required List<Timeslot> allTimeslots,
     required List<FacultyAvailability> availability,
+    required List<_AvailabilityWindow> sectionAvailability,
     required double requiredHours,
     required Map<String, Timeslot> cache,
     bool requireLabStartAfterNine = false,
@@ -965,6 +1052,7 @@ class SchedulingService {
       return await _candidateTimeslotsFromExisting(
         session: session,
         allTimeslots: allTimeslots,
+        sectionAvailability: sectionAvailability,
         requiredMinutes: requiredMinutes,
         cache: cache,
         requireLabStartAfterNine: requireLabStartAfterNine,
@@ -974,6 +1062,7 @@ class SchedulingService {
     return await _candidateTimeslotsFromAvailability(
       session: session,
       availability: availability,
+      sectionAvailability: sectionAvailability,
       requiredMinutes: requiredMinutes,
       cache: cache,
       requireLabStartAfterNine: requireLabStartAfterNine,
@@ -983,12 +1072,14 @@ class SchedulingService {
   Future<List<Timeslot>> _candidateTimeslotsFromExisting({
     required Session session,
     required List<Timeslot> allTimeslots,
+    required List<_AvailabilityWindow> sectionAvailability,
     required int requiredMinutes,
     required Map<String, Timeslot> cache,
     required bool requireLabStartAfterNine,
   }) async => _candidateTimeslotsFromExistingImpl(
     session: session,
     allTimeslots: allTimeslots,
+    sectionAvailability: sectionAvailability,
     requiredMinutes: requiredMinutes,
     cache: cache,
     requireLabStartAfterNine: requireLabStartAfterNine,
@@ -997,6 +1088,7 @@ class SchedulingService {
   Future<List<Timeslot>> _candidateTimeslotsFromExistingImpl({
     required Session session,
     required List<Timeslot> allTimeslots,
+    required List<_AvailabilityWindow> sectionAvailability,
     required int requiredMinutes,
     required Map<String, Timeslot> cache,
     required bool requireLabStartAfterNine,
@@ -1017,6 +1109,14 @@ class SchedulingService {
       )) {
         final startTime = _formatMinutes(window.$1);
         final endTime = _formatMinutes(window.$2);
+        if (!_windowFitsAvailabilityList(
+          day: slot.day,
+          startTime: startTime,
+          endTime: endTime,
+          availability: sectionAvailability,
+        )) {
+          continue;
+        }
         final key = _timeslotKey(slot.day, startTime, endTime);
         if (!seen.add(key)) continue;
         final created = await _getOrCreateTimeslot(
@@ -1036,12 +1136,14 @@ class SchedulingService {
   Future<List<Timeslot>> _candidateTimeslotsFromAvailability({
     required Session session,
     required List<FacultyAvailability> availability,
+    required List<_AvailabilityWindow> sectionAvailability,
     required int requiredMinutes,
     required Map<String, Timeslot> cache,
     required bool requireLabStartAfterNine,
   }) async => _candidateTimeslotsFromAvailabilityImpl(
     session: session,
     availability: availability,
+    sectionAvailability: sectionAvailability,
     requiredMinutes: requiredMinutes,
     cache: cache,
     requireLabStartAfterNine: requireLabStartAfterNine,
@@ -1050,6 +1152,7 @@ class SchedulingService {
   Future<List<Timeslot>> _candidateTimeslotsFromAvailabilityImpl({
     required Session session,
     required List<FacultyAvailability> availability,
+    required List<_AvailabilityWindow> sectionAvailability,
     required int requiredMinutes,
     required Map<String, Timeslot> cache,
     required bool requireLabStartAfterNine,
@@ -1070,6 +1173,14 @@ class SchedulingService {
       )) {
         final startTime = _formatMinutes(window.$1);
         final endTime = _formatMinutes(window.$2);
+        if (!_windowFitsAvailabilityList(
+          day: avail.dayOfWeek,
+          startTime: startTime,
+          endTime: endTime,
+          availability: sectionAvailability,
+        )) {
+          continue;
+        }
         final key = _timeslotKey(avail.dayOfWeek, startTime, endTime);
         if (!seen.add(key)) {
           continue;
@@ -1196,6 +1307,7 @@ class SchedulingService {
         sectionCode: section.sectionCode.trim(),
         program: section.program,
         yearLevel: section.yearLevel,
+        availability: _parseSectionAvailability(section.availabilityJson),
       );
     }
 
@@ -1219,6 +1331,7 @@ class SchedulingService {
           sectionCode: code,
           program: program,
           yearLevel: yearLevel,
+          availability: const [],
         ),
       );
     }
@@ -1255,12 +1368,26 @@ class _SectionCandidate {
   final String sectionCode;
   final Program program;
   final int yearLevel;
+  final List<_AvailabilityWindow> availability;
 
   const _SectionCandidate({
     required this.id,
     required this.sectionCode,
     required this.program,
     required this.yearLevel,
+    required this.availability,
+  });
+}
+
+class _AvailabilityWindow {
+  final DayOfWeek day;
+  final String startTime;
+  final String endTime;
+
+  const _AvailabilityWindow({
+    required this.day,
+    required this.startTime,
+    required this.endTime,
   });
 }
 
