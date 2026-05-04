@@ -74,7 +74,19 @@ double _hoursForSubjectTypes(List<SubjectType> types) {
 
   if (hasBlended || (hasLecture && hasLaboratory)) return 5.0;
   if (hasLaboratory) return 3.0;
-  return 2.0;
+  if (hasLecture) return 2.0;
+  return 0.0;
+}
+
+double _unitsForSubjectTypes(List<SubjectType> types) {
+  final hasLecture = types.contains(SubjectType.lecture);
+  final hasLaboratory = types.contains(SubjectType.laboratory);
+  final hasBlended = types.contains(SubjectType.blended);
+
+  if (hasBlended || (hasLecture && hasLaboratory)) return 3.0;
+  if (hasLaboratory) return 1.0;
+  if (hasLecture) return 2.0;
+  return 0.0;
 }
 
 const List<(int start, int end)> _preferredLectureWindows = [
@@ -1920,7 +1932,7 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
               _detailRow('Load Type', _getLoadTypeText(schedule.loadTypes)),
               _detailRow(
                 'Units',
-                subject?.units.toString() ?? schedule.units?.toString() ?? '-',
+                schedule.units?.toString() ?? subject?.units.toString() ?? '-',
               ),
               _detailRow('Hours', schedule.hours?.toString() ?? '-'),
               const SizedBox(height: 8),
@@ -3466,15 +3478,15 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
                                                 ),
                                                 DataCell(
                                                   Text(
-                                                    subjectMap[schedule
-                                                                .subjectId]
-                                                            ?.units
-                                                            .toString() ??
-                                                        (schedule.units != null
-                                                            ? schedule.units!
-                                                                  .round()
-                                                                  .toString()
-                                                            : 'N/A'),
+                                                    schedule.units != null
+                                                        ? schedule.units!
+                                                              .round()
+                                                              .toString()
+                                                        : (subjectMap[schedule
+                                                                    .subjectId]
+                                                                ?.units
+                                                                .toString() ??
+                                                            'N/A'),
                                                     style: GoogleFonts.poppins(
                                                       fontSize: 13,
                                                       fontWeight:
@@ -4704,8 +4716,8 @@ class _FacultyLoadingScreenState extends ConsumerState<FacultyLoadingScreen> {
                           const SizedBox(height: 12),
                           _detailRow(
                             'Units',
-                            subject?.units.toString() ??
-                                schedule.units?.toString() ??
+                            schedule.units?.toString() ??
+                                subject?.units.toString() ??
                                 '-',
                           ),
                           _detailRow('Hours', schedule.hours?.toString() ?? '-'),
@@ -4981,7 +4993,9 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
       subject.types,
       _selectedLoadType,
     );
-    _unitsController.text = _formatLoadValue(subject.units.toDouble());
+    _unitsController.text = _formatLoadValue(
+      _unitsForSubjectTypes(effectiveTypes),
+    );
     _hoursController.text = _formatLoadValue(
       _hoursForSubjectTypes(effectiveTypes),
     );
@@ -5494,7 +5508,7 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
         section: section.sectionCode,
         sectionId: _selectedSectionId,
         loadTypes: effectiveTypes,
-        units: selectedSubject.units.toDouble(),
+        units: _unitsForSubjectTypes(effectiveTypes),
         hours: _hoursForSubjectTypes(effectiveTypes),
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
@@ -6399,7 +6413,9 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
       subject.types,
       _selectedLoadType,
     );
-    _unitsController.text = _formatLoadValue(subject.units.toDouble());
+    _unitsController.text = _formatLoadValue(
+      _unitsForSubjectTypes(effectiveTypes),
+    );
     _hoursController.text = _formatLoadValue(
       _hoursForSubjectTypes(effectiveTypes),
     );
@@ -6696,7 +6712,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
         ? null
         : widget.schedule.timeslotId;
     _isAutoAssign =
-        widget.schedule.roomId == -1 || widget.schedule.timeslotId == -1;
+        widget.schedule.timeslotId == null || widget.schedule.timeslotId == -1;
 
     final subjects = ref
         .read(subjectsProvider)
@@ -6945,7 +6961,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
         section: section.sectionCode,
         sectionId: _selectedSectionId ?? widget.schedule.sectionId,
         loadTypes: effectiveTypes,
-        units: selectedSubject.units.toDouble(),
+        units: _unitsForSubjectTypes(effectiveTypes),
         hours: _hoursForSubjectTypes(effectiveTypes),
         createdAt: widget.schedule.createdAt,
         updatedAt: DateTime.now(),
