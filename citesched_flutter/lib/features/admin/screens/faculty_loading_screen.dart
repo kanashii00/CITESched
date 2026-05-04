@@ -602,6 +602,7 @@ _TimeslotOptionsResult _buildTimeslotOptionsFromAvailability({
   required List<Schedule> schedules,
   required int? currentScheduleId,
   required int? facultyId,
+  required int? roomId,
   required List<Faculty> facultyList,
   required List<SubjectType> effectiveTypes,
 }) {
@@ -645,6 +646,7 @@ _TimeslotOptionsResult _buildTimeslotOptionsFromAvailability({
       facultyList: facultyList,
       currentScheduleId: currentScheduleId,
       selectedFacultyId: facultyId,
+      selectedRoomId: roomId,
       timeslotId: match.id,
       effectiveTypes: effectiveTypes,
     );
@@ -904,6 +906,7 @@ String? _timeslotOccupancyMessage({
   required List<Faculty> facultyList,
   required int? currentScheduleId,
   required int? selectedFacultyId,
+  required int? selectedRoomId,
   required int? timeslotId,
   required List<SubjectType> effectiveTypes,
 }) {
@@ -912,7 +915,8 @@ String? _timeslotOccupancyMessage({
   }
 
   final isLaboratory = effectiveTypes.contains(SubjectType.laboratory);
-  final occupants = <Schedule>[];
+  final sameInstructorOccupants = <Schedule>[];
+  final sameRoomOccupants = <Schedule>[];
 
   for (final schedule in schedules) {
     if (_isCurrentSchedule(schedule, currentScheduleId)) {
@@ -924,26 +928,26 @@ String? _timeslotOccupancyMessage({
     if (!schedule.isActive) {
       continue;
     }
-    if (!isLaboratory && schedule.facultyId != selectedFacultyId) {
-      continue;
+    if (selectedFacultyId != null && schedule.facultyId == selectedFacultyId) {
+      sameInstructorOccupants.add(schedule);
     }
-    occupants.add(schedule);
+    if (isLaboratory &&
+        selectedRoomId != null &&
+        schedule.roomId == selectedRoomId) {
+      sameRoomOccupants.add(schedule);
+    }
   }
 
-  if (occupants.isEmpty) {
-    return null;
-  }
-
-  final sameInstructorTaken = occupants.any(
-    (schedule) => schedule.facultyId == selectedFacultyId,
-  );
-
-  if (sameInstructorTaken && selectedFacultyId != null) {
+  if (sameInstructorOccupants.isNotEmpty && selectedFacultyId != null) {
     final facultyName = _facultyNameById(facultyList, selectedFacultyId);
     return '$facultyName already has a class at this time.';
   }
 
-  final facultyNames = occupants
+  if (!isLaboratory || sameRoomOccupants.isEmpty) {
+    return null;
+  }
+
+  final facultyNames = sameRoomOccupants
       .map((schedule) => _facultyNameById(facultyList, schedule.facultyId))
       .toSet()
       .toList()
@@ -4956,8 +4960,8 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
 
   bool get _canSubmit =>
       !_isLoading &&
-      (_isAutoAssign ||
-          (_selectedRoomId != null && _selectedTimeslotId != null));
+      _selectedRoomId != null &&
+      (_isAutoAssign || _selectedTimeslotId != null);
 
   void _applySubjectDefaults(Subject? subject) {
     if (subject == null) {
@@ -5224,7 +5228,7 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
       );
     }
 
-    if (_isAutoAssign || _selectedRoomId == null) {
+    if (_selectedRoomId == null) {
       return;
     }
 
@@ -5485,7 +5489,7 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
       final schedule = Schedule(
         facultyId: _selectedFacultyId!,
         subjectId: _selectedSubjectId!,
-        roomId: _isAutoAssign ? null : _selectedRoomId,
+        roomId: _selectedRoomId,
         timeslotId: _isAutoAssign ? null : _selectedTimeslotId,
         section: section.sectionCode,
         sectionId: _selectedSectionId,
@@ -5919,88 +5923,86 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                           setState(() {
                             _isAutoAssign = value ?? false;
                             if (_isAutoAssign) {
-                              _selectedRoomId = null;
                               _selectedTimeslotId = null;
                             }
                           });
                         },
                         title: Text(
-                          'Auto-Assign Room & Timeslot',
+                          'Auto-Assign Timeslot',
                           style: GoogleFonts.poppins(
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         subtitle: Text(
-                          'Let the system automatically assign room and time',
+                          'Keep the selected room and let the system assign the time',
                           style: GoogleFonts.poppins(fontSize: 12),
                         ),
                         activeColor: widget.maroonColor,
                       ),
                       const SizedBox(height: 16),
 
-                      // Room & Timeslot (if not auto-assign)
-                      if (!_isAutoAssign) ...[
-                        roomsAsync.when(
-                          loading: () => const CircularProgressIndicator(),
-                          error: (error, stack) =>
-                              const Text('Error loading rooms'),
-                          data: (roomList) {
-                            final subjects = ref
-                                .read(subjectsProvider)
-                                .maybeWhen(
-                                  data: (list) => list,
-                                  orElse: () => <Subject>[],
-                                );
-                            Subject? selectedSubject;
-                            for (final subject in subjects) {
-                              if (subject.id == _selectedSubjectId) {
-                                selectedSubject = subject;
-                                break;
-                              }
-                            }
-                            final effectiveTypes = selectedSubject == null
-                                ? const <SubjectType>[]
-                                : _effectiveAssignmentTypes(
-                                    selectedSubject.types,
-                                    _selectedLoadType,
-                                  );
-                            final filteredRooms = effectiveTypes.isEmpty
-                                ? roomList
-                                      .where(_isSupportedSchedulingRoom)
-                                      .toList()
-                                : roomList
-                                      .where(
-                                        (room) => _isRoomAllowedForTypes(
-                                          room: room,
-                                          loadTypes: effectiveTypes,
-                                        ),
-                                      )
-                                      .toList();
-
-                            if (filteredRooms.isEmpty) {
-                              return Text(
-                                _requiresLaboratoryRoom(effectiveTypes)
-                                    ? 'No laboratory rooms available for this subject.'
-                                    : 'No lecture rooms available for this subject.',
-                                style: GoogleFonts.poppins(fontSize: 12),
+                      roomsAsync.when(
+                        loading: () => const CircularProgressIndicator(),
+                        error: (error, stack) =>
+                            const Text('Error loading rooms'),
+                        data: (roomList) {
+                          final subjects = ref
+                              .read(subjectsProvider)
+                              .maybeWhen(
+                                data: (list) => list,
+                                orElse: () => <Subject>[],
                               );
+                          Subject? selectedSubject;
+                          for (final subject in subjects) {
+                            if (subject.id == _selectedSubjectId) {
+                              selectedSubject = subject;
+                              break;
                             }
+                          }
+                          final effectiveTypes = selectedSubject == null
+                              ? const <SubjectType>[]
+                              : _effectiveAssignmentTypes(
+                                  selectedSubject.types,
+                                  _selectedLoadType,
+                                );
+                          final filteredRooms = effectiveTypes.isEmpty
+                              ? roomList
+                                    .where(_isSupportedSchedulingRoom)
+                                    .toList()
+                              : roomList
+                                    .where(
+                                      (room) => _isRoomAllowedForTypes(
+                                        room: room,
+                                        loadTypes: effectiveTypes,
+                                      ),
+                                    )
+                                    .toList();
 
-                            return _buildDropdown<int>(
-                              label: 'Room',
-                              value: _selectedRoomId,
-                              items: filteredRooms.map((r) => r.id!).toList(),
-                              itemLabel: (id) => filteredRooms
-                                  .firstWhere((r) => r.id == id)
-                                  .name,
-                              onChanged: (value) => setState(() {
-                                _selectedRoomId = value;
-                                _selectedTimeslotId = null;
-                              }),
+                          if (filteredRooms.isEmpty) {
+                            return Text(
+                              _requiresLaboratoryRoom(effectiveTypes)
+                                  ? 'No laboratory rooms available for this subject.'
+                                  : 'No lecture rooms available for this subject.',
+                              style: GoogleFonts.poppins(fontSize: 12),
                             );
-                          },
-                        ),
-                        const SizedBox(height: 16),
+                          }
+
+                          return _buildDropdown<int>(
+                            label: 'Room',
+                            value: _selectedRoomId,
+                            items: filteredRooms.map((r) => r.id!).toList(),
+                            itemLabel: (id) => filteredRooms
+                                .firstWhere((r) => r.id == id)
+                                .name,
+                            onChanged: (value) => setState(() {
+                              _selectedRoomId = value;
+                              _selectedTimeslotId = null;
+                            }),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      if (!_isAutoAssign) ...[
                         timeslotsAsync.when(
                           loading: () => const CircularProgressIndicator(),
                           error: (error, stack) =>
@@ -6097,6 +6099,7 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                                       schedules: schedules,
                                       currentScheduleId: null,
                                       facultyId: _selectedFacultyId,
+                                      roomId: _selectedRoomId,
                                       facultyList: facultyList,
                                       effectiveTypes: effectiveTypes,
                                     );
@@ -6381,8 +6384,8 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
 
   bool get _canSubmit =>
       !_isLoading &&
-      (_isAutoAssign ||
-          (_selectedRoomId != null && _selectedTimeslotId != null));
+      _selectedRoomId != null &&
+      (_isAutoAssign || _selectedTimeslotId != null);
 
   void _applySubjectDefaults(Subject? subject) {
     if (subject == null) return;
@@ -6642,7 +6645,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
       );
     }
 
-    if (_isAutoAssign || _selectedRoomId == null) {
+    if (_selectedRoomId == null) {
       return;
     }
 
@@ -6937,7 +6940,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
         id: widget.schedule.id,
         facultyId: selectedFaculty.id!,
         subjectId: selectedSubject.id!,
-        roomId: _isAutoAssign ? null : _selectedRoomId,
+        roomId: _selectedRoomId,
         timeslotId: _isAutoAssign ? null : _selectedTimeslotId,
         section: section.sectionCode,
         sectionId: _selectedSectionId ?? widget.schedule.sectionId,
@@ -7368,88 +7371,86 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                           setState(() {
                             _isAutoAssign = value ?? false;
                             if (_isAutoAssign) {
-                              _selectedRoomId = null;
                               _selectedTimeslotId = null;
                             }
                           });
                         },
                         title: Text(
-                          'Auto-Assign Room & Timeslot',
+                          'Auto-Assign Timeslot',
                           style: GoogleFonts.poppins(
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         subtitle: Text(
-                          'Let the system automatically assign room and time',
+                          'Keep the selected room and let the system assign the time',
                           style: GoogleFonts.poppins(fontSize: 12),
                         ),
                         activeColor: widget.maroonColor,
                       ),
                       const SizedBox(height: 16),
 
-                      // Room & Timeslot (if not auto-assign)
-                      if (!_isAutoAssign) ...[
-                        roomsAsync.when(
-                          loading: () => const CircularProgressIndicator(),
-                          error: (error, stack) =>
-                              const Text('Error loading rooms'),
-                          data: (roomList) {
-                            final subjects = ref
-                                .read(subjectsProvider)
-                                .maybeWhen(
-                                  data: (list) => list,
-                                  orElse: () => <Subject>[],
-                                );
-                            Subject? selectedSubject;
-                            for (final subject in subjects) {
-                              if (subject.id == _selectedSubjectId) {
-                                selectedSubject = subject;
-                                break;
-                              }
-                            }
-                            final effectiveTypes = selectedSubject == null
-                                ? const <SubjectType>[]
-                                : _effectiveAssignmentTypes(
-                                    selectedSubject.types,
-                                    _selectedLoadType,
-                                  );
-                            final filteredRooms = effectiveTypes.isEmpty
-                                ? roomList
-                                      .where(_isSupportedSchedulingRoom)
-                                      .toList()
-                                : roomList
-                                      .where(
-                                        (room) => _isRoomAllowedForTypes(
-                                          room: room,
-                                          loadTypes: effectiveTypes,
-                                        ),
-                                      )
-                                      .toList();
-
-                            if (filteredRooms.isEmpty) {
-                              return Text(
-                                _requiresLaboratoryRoom(effectiveTypes)
-                                    ? 'No laboratory rooms available for this subject.'
-                                    : 'No lecture rooms available for this subject.',
-                                style: GoogleFonts.poppins(fontSize: 12),
+                      roomsAsync.when(
+                        loading: () => const CircularProgressIndicator(),
+                        error: (error, stack) =>
+                            const Text('Error loading rooms'),
+                        data: (roomList) {
+                          final subjects = ref
+                              .read(subjectsProvider)
+                              .maybeWhen(
+                                data: (list) => list,
+                                orElse: () => <Subject>[],
                               );
+                          Subject? selectedSubject;
+                          for (final subject in subjects) {
+                            if (subject.id == _selectedSubjectId) {
+                              selectedSubject = subject;
+                              break;
                             }
+                          }
+                          final effectiveTypes = selectedSubject == null
+                              ? const <SubjectType>[]
+                              : _effectiveAssignmentTypes(
+                                  selectedSubject.types,
+                                  _selectedLoadType,
+                                );
+                          final filteredRooms = effectiveTypes.isEmpty
+                              ? roomList
+                                    .where(_isSupportedSchedulingRoom)
+                                    .toList()
+                              : roomList
+                                    .where(
+                                      (room) => _isRoomAllowedForTypes(
+                                        room: room,
+                                        loadTypes: effectiveTypes,
+                                      ),
+                                    )
+                                    .toList();
 
-                            return _buildDropdown<int>(
-                              label: 'Room',
-                              value: _selectedRoomId,
-                              items: filteredRooms.map((r) => r.id!).toList(),
-                              itemLabel: (id) => filteredRooms
-                                  .firstWhere((r) => r.id == id)
-                                  .name,
-                              onChanged: (value) => setState(() {
-                                _selectedRoomId = value;
-                                _selectedTimeslotId = null;
-                              }),
+                          if (filteredRooms.isEmpty) {
+                            return Text(
+                              _requiresLaboratoryRoom(effectiveTypes)
+                                  ? 'No laboratory rooms available for this subject.'
+                                  : 'No lecture rooms available for this subject.',
+                              style: GoogleFonts.poppins(fontSize: 12),
                             );
-                          },
-                        ),
-                        const SizedBox(height: 16),
+                          }
+
+                          return _buildDropdown<int>(
+                            label: 'Room',
+                            value: _selectedRoomId,
+                            items: filteredRooms.map((r) => r.id!).toList(),
+                            itemLabel: (id) => filteredRooms
+                                .firstWhere((r) => r.id == id)
+                                .name,
+                            onChanged: (value) => setState(() {
+                              _selectedRoomId = value;
+                              _selectedTimeslotId = null;
+                            }),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      if (!_isAutoAssign) ...[
                         timeslotsAsync.when(
                           loading: () => const CircularProgressIndicator(),
                           error: (error, stack) =>
@@ -7539,6 +7540,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                                       schedules: schedules,
                                       currentScheduleId: widget.schedule.id,
                                       facultyId: _selectedFacultyId,
+                                      roomId: _selectedRoomId,
                                       facultyList: facultyList,
                                       effectiveTypes: effectiveTypes,
                                     );
