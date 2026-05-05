@@ -3,6 +3,7 @@ import 'package:citesched_flutter/main.dart';
 import 'package:citesched_flutter/core/utils/responsive_helper.dart';
 import 'package:citesched_flutter/core/utils/schedule_export_service.dart';
 import 'package:citesched_flutter/core/widgets/full_screen_calendar_scaffold.dart';
+import 'package:citesched_flutter/core/providers/conflict_provider.dart';
 import 'package:citesched_flutter/features/admin/screens/room_details_screen.dart';
 import 'package:citesched_flutter/features/admin/widgets/admin_header_container.dart';
 import 'package:citesched_flutter/features/admin/widgets/weekly_calendar_view.dart';
@@ -1544,6 +1545,7 @@ class _ScheduleOverviewTab extends ConsumerWidget {
     final roomsAsync = ref.watch(roomListProvider);
     final timeslotsAsync = ref.watch(timeslotsProvider);
     final sectionsAsync = ref.watch(sectionListProvider);
+    final conflictsAsync = ref.watch(allConflictsProvider);
 
     final schedules = schedulesAsync.maybeWhen(
       data: (value) => value,
@@ -1569,20 +1571,26 @@ class _ScheduleOverviewTab extends ConsumerWidget {
       data: (value) => value,
       orElse: () => null,
     );
+    final conflicts = conflictsAsync.maybeWhen(
+      data: (value) => value,
+      orElse: () => null,
+    );
 
     if (schedules == null ||
         subjects == null ||
         faculty == null ||
         rooms == null ||
         timeslots == null ||
-        sections == null) {
+        sections == null ||
+        conflicts == null) {
       final error =
           schedulesAsync.error ??
           subjectsAsync.error ??
           facultyAsync.error ??
           roomsAsync.error ??
           timeslotsAsync.error ??
-          sectionsAsync.error;
+          sectionsAsync.error ??
+          conflictsAsync.error;
       if (error != null) {
         return Center(child: Text('Error loading schedule details: $error'));
       }
@@ -1595,6 +1603,12 @@ class _ScheduleOverviewTab extends ConsumerWidget {
     const maroonColor = Color(0xFF720045);
     final rowBgA = isDark ? const Color(0xFF0F172A) : Colors.white;
     final rowBgB = isDark ? const Color(0xFF111827) : const Color(0xFFF9FAFB);
+    final rowConflictA = isDark
+        ? const Color(0xFF2A1215)
+        : const Color(0xFFFFF1F2);
+    final rowConflictB = isDark
+        ? const Color(0xFF341519)
+        : const Color(0xFFFFE4E6);
 
     final subjectMap = {for (final subject in subjects) subject.id!: subject};
     final facultyMap = {for (final entry in faculty) entry.id!: entry};
@@ -1760,7 +1774,14 @@ class _ScheduleOverviewTab extends ConsumerWidget {
                                 room: room,
                                 timeslot: timeslot,
                               ),
-                              conflicts: const [],
+                              conflicts: conflicts
+                                  .where(
+                                    (conflict) =>
+                                        conflict.scheduleId == schedule.id ||
+                                        conflict.conflictingScheduleId ==
+                                            schedule.id,
+                                  )
+                                  .toList(),
                             );
                           })
                           .toList()
@@ -1833,12 +1854,14 @@ class _ScheduleOverviewTab extends ConsumerWidget {
                                     DataColumn(label: Text('FACULTY')),
                                     DataColumn(label: Text('ROOM')),
                                     DataColumn(label: Text('SCHEDULE')),
+                                    DataColumn(label: Text('STATUS')),
                                   ],
-                                  rows: sectionSchedules.asMap().entries.map((
+                                  rows: sectionScheduleInfos.asMap().entries.map((
                                     entry,
                                   ) {
                                     final rowIndex = entry.key;
-                                    final schedule = entry.value;
+                                    final info = entry.value;
+                                    final schedule = info.schedule;
                                     final subject =
                                         subjectMap[schedule.subjectId];
                                     final assignedFaculty =
@@ -1849,10 +1872,17 @@ class _ScheduleOverviewTab extends ConsumerWidget {
                                     final timeslot = schedule.timeslotId != null
                                         ? timeslotMap[schedule.timeslotId!]
                                         : null;
+                                    final hasConflict = info.conflicts.isNotEmpty;
 
                                     return DataRow(
                                       color: WidgetStateProperty.all(
-                                        rowIndex.isEven ? rowBgA : rowBgB,
+                                        hasConflict
+                                            ? (rowIndex.isEven
+                                                  ? rowConflictA
+                                                  : rowConflictB)
+                                            : (rowIndex.isEven
+                                                  ? rowBgA
+                                                  : rowBgB),
                                       ),
                                       cells: [
                                         DataCell(Text(subject?.code ?? 'N/A')),
@@ -1871,14 +1901,89 @@ class _ScheduleOverviewTab extends ConsumerWidget {
                                         DataCell(
                                           SizedBox(
                                             width: 220,
-                                            child: Text(
-                                              _formatScheduleDisplay(
-                                                timeslot,
-                                                schedule.loadTypes ??
-                                                    subject?.types,
-                                              ),
+                                            child: Column(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  _formatScheduleDisplay(
+                                                    timeslot,
+                                                    schedule.loadTypes ??
+                                                        subject?.types,
+                                                  ),
+                                                ),
+                                                if (hasConflict) ...[
+                                                  const SizedBox(height: 4),
+                                                  Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons.warning_amber_rounded,
+                                                        size: 14,
+                                                        color: Colors.red[700],
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      Expanded(
+                                                        child: Text(
+                                                          info.conflicts.first.message,
+                                                          maxLines: 2,
+                                                          overflow: TextOverflow.ellipsis,
+                                                          style: GoogleFonts.poppins(
+                                                            fontSize: 10,
+                                                            fontWeight: FontWeight.w600,
+                                                            color: Colors.red[700],
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ],
                                             ),
                                           ),
+                                        ),
+                                        DataCell(
+                                          hasConflict
+                                              ? Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons.error_rounded,
+                                                      color: Colors.red[700],
+                                                      size: 16,
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Text(
+                                                      'Conflict',
+                                                      style: GoogleFonts.poppins(
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        color: Colors.red[700],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                )
+                                              : Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons.check_circle_rounded,
+                                                      color: Colors.green[700],
+                                                      size: 16,
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Text(
+                                                      'Clear',
+                                                      style: GoogleFonts.poppins(
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        color:
+                                                            Colors.green[700],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
                                         ),
                                       ],
                                     );
