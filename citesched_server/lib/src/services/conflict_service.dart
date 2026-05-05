@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:serverpod/serverpod.dart';
 import '../generated/protocol.dart';
 
@@ -435,6 +437,105 @@ class ConflictService {
     return false; // No matching availability window
   }
 
+  List<_SectionAvailabilityWindow> _parseSectionAvailability(String? rawJson) {
+    if (rawJson == null || rawJson.trim().isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(rawJson);
+      if (decoded is! List) return const [];
+
+      final entries = <_SectionAvailabilityWindow>[];
+      for (final item in decoded) {
+        if (item is! Map) continue;
+        final dayValue = item['day']?.toString();
+        final startTime = item['startTime']?.toString();
+        final endTime = item['endTime']?.toString();
+        if (dayValue == null || startTime == null || endTime == null) {
+          continue;
+        }
+
+        final day = DayOfWeek.values.where((value) => value.name == dayValue).firstOrNull;
+        if (day == null) continue;
+
+        entries.add(
+          _SectionAvailabilityWindow(
+            day: day,
+            startTime: startTime,
+            endTime: endTime,
+          ),
+        );
+      }
+      return entries;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  bool _timeslotMatchesSectionAvailability(
+    Timeslot timeslot,
+    List<_SectionAvailabilityWindow> availability,
+  ) {
+    if (availability.isEmpty) return true;
+
+    final slotStart = _parseTimeToMinutes(timeslot.startTime);
+    final slotEnd = _parseTimeToMinutes(timeslot.endTime);
+
+    for (final window in availability) {
+      if (window.day != timeslot.day) continue;
+      final windowStart = _parseTimeToMinutes(window.startTime);
+      final windowEnd = _parseTimeToMinutes(window.endTime);
+      if (slotStart >= windowStart && slotEnd <= windowEnd) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  Future<void> _appendSectionAvailabilityConflict(
+    Session session,
+    Schedule schedule,
+    List<ScheduleConflict> conflicts,
+  ) async {
+    if (schedule.timeslotId == null) return;
+
+    Section? sectionRecord;
+    if (schedule.sectionId != null) {
+      sectionRecord = await Section.db.findById(session, schedule.sectionId!);
+    }
+    if (sectionRecord == null && schedule.section.trim().isNotEmpty) {
+      sectionRecord = await Section.db.findFirstRow(
+        session,
+        where: (t) => t.sectionCode.equals(schedule.section.trim()),
+      );
+    }
+    if (sectionRecord == null) return;
+
+    final sectionAvailability = _parseSectionAvailability(
+      sectionRecord.availabilityJson,
+    );
+    if (sectionAvailability.isEmpty) return;
+
+    final timeslot = await Timeslot.db.findById(session, schedule.timeslotId!);
+    if (timeslot == null) return;
+
+    if (_timeslotMatchesSectionAvailability(timeslot, sectionAvailability)) {
+      return;
+    }
+
+    conflicts.add(
+      ScheduleConflict(
+        type: 'section_unavailable',
+        message: 'Timeslot is outside section availability',
+        scheduleId: schedule.id,
+        facultyId: schedule.facultyId,
+        roomId: schedule.roomId,
+        subjectId: schedule.subjectId,
+        details:
+            'Section ${sectionRecord.sectionCode} allows ${sectionAvailability.where((window) => window.day == timeslot.day).map((window) => '${window.startTime}-${window.endTime}').join(', ')} on ${timeslot.day.name}, but schedule uses ${timeslot.startTime}-${timeslot.endTime}.',
+      ),
+    );
+  }
+
   Future<void> _appendRoomConflicts(
     Session session,
     Schedule schedule,
@@ -834,6 +935,11 @@ class ConflictService {
       schedule,
       conflicts,
     );
+    await _appendSectionAvailabilityConflict(
+      session,
+      schedule,
+      conflicts,
+    );
     if (subject != null) {
       await _appendTimeslotDurationConflicts(
         session,
@@ -1157,6 +1263,57 @@ class ConflictService {
     }
   }
 
+  Future<void> _addSectionAvailabilityConflicts(
+    Session session,
+    _ConflictContext context,
+    List<ScheduleConflict> conflicts,
+  ) async {
+    final sections = await Section.db.find(session);
+    final sectionById = <int, Section>{
+      for (final section in sections)
+        if (section.id != null) section.id!: section,
+    };
+    final sectionByNormalizedCode = <String, Section>{
+      for (final section in sections)
+        section.sectionCode.trim().toLowerCase(): section,
+    };
+
+    for (final schedule in context.schedules) {
+      if (schedule.timeslotId == null) continue;
+
+      final section = schedule.sectionId != null
+          ? sectionById[schedule.sectionId!]
+          : sectionByNormalizedCode[schedule.section.trim().toLowerCase()];
+      if (section == null) continue;
+
+      final sectionAvailability = _parseSectionAvailability(
+        section.availabilityJson,
+      );
+      if (sectionAvailability.isEmpty) continue;
+
+      final timeslot = context.timeslotMap[schedule.timeslotId!];
+      if (timeslot == null) continue;
+
+      if (_timeslotMatchesSectionAvailability(timeslot, sectionAvailability)) {
+        continue;
+      }
+
+      conflicts.add(
+        ScheduleConflict(
+          type: 'section_unavailable',
+          message:
+              'Section ${section.sectionCode} is scheduled outside its availability',
+          scheduleId: schedule.id,
+          facultyId: schedule.facultyId,
+          roomId: schedule.roomId,
+          subjectId: schedule.subjectId,
+          details:
+              'Timeslot ${timeslot.startTime}-${timeslot.endTime} on ${timeslot.day.name} is outside section availability.',
+        ),
+      );
+    }
+  }
+
   void _addContinuousBlockConflicts(
     _ConflictContext context,
     List<ScheduleConflict> conflicts,
@@ -1237,6 +1394,7 @@ class ConflictService {
     _addFacultyMaxLoadConflicts(context, conflicts);
     _addRoomInactiveConflicts(context, conflicts);
     await _addFacultyAvailabilityConflicts(session, context, conflicts);
+    await _addSectionAvailabilityConflicts(session, context, conflicts);
     _addContinuousBlockConflicts(context, conflicts);
 
     return conflicts;
@@ -1265,6 +1423,18 @@ class _ConflictContext {
     required this.facultyMap,
     required this.timeslotMap,
     required this.scheduleSlots,
+  });
+}
+
+class _SectionAvailabilityWindow {
+  final DayOfWeek day;
+  final String startTime;
+  final String endTime;
+
+  const _SectionAvailabilityWindow({
+    required this.day,
+    required this.startTime,
+    required this.endTime,
   });
 }
 
