@@ -612,6 +612,12 @@ class _TimeslotOptionsResult {
   });
 }
 
+String _sectionAvailabilityRequiredMessage(String sectionCode) {
+  final trimmedCode = sectionCode.trim();
+  final label = trimmedCode.isEmpty ? 'this section' : 'section $trimmedCode';
+  return 'Set the student section availability for $label first before assigning subjects.';
+}
+
 List<_SectionAvailabilityWindow> _sectionAvailabilityFromJson(String? rawJson) {
   if (rawJson == null || rawJson.trim().isEmpty) return const [];
   try {
@@ -666,6 +672,10 @@ bool _windowFitsSectionAvailability(
     }
   }
   return false;
+}
+
+bool _hasConfiguredSectionAvailability(Section? section) {
+  return _sectionAvailabilityFromJson(section?.availabilityJson).isNotEmpty;
 }
 
 List<_TimeslotWindow> _windowsFromAvailability({
@@ -5351,6 +5361,10 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
     required Section section,
     required List<Room> roomList,
   }) {
+    if (!_hasConfiguredSectionAvailability(section)) {
+      throw Exception(_sectionAvailabilityRequiredMessage(section.sectionCode));
+    }
+
     if (faculty.program != null && faculty.program != section.program) {
       final isEmcTeachingIt =
           faculty.program == Program.emc && section.program == Program.it;
@@ -6242,6 +6256,14 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                                     break;
                                   }
                                 }
+                                final hasSectionAvailability =
+                                    _hasConfiguredSectionAvailability(
+                                      selectedSection,
+                                    );
+                                final sectionAvailabilityMessage =
+                                    _sectionAvailabilityRequiredMessage(
+                                      selectedSection?.sectionCode ?? '',
+                                    );
                                 final requiredHours = _requiredHoursForSubject(
                                   selectedSubject,
                                   effectiveTypes,
@@ -6256,7 +6278,7 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                                     _buildTimeslotOptionsFromAvailability(
                                       availability: availabilityList,
                                       sectionAvailability:
-                                          _sectionAvailabilityFromJson(
+                                      _sectionAvailabilityFromJson(
                                             selectedSection?.availabilityJson,
                                           ),
                                       timeslots: timeslotList,
@@ -6305,7 +6327,17 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                                       ),
                                       const SizedBox(height: 8),
                                     ],
-                                    if (options.isEmpty &&
+                                    if (!hasSectionAvailability) ...[
+                                      _buildHighlightedTimeslotHint(
+                                        message: sectionAvailabilityMessage,
+                                        accentColor: widget.maroonColor,
+                                        isDark: isDark,
+                                      ),
+                                      const SizedBox(height: 8),
+                                    ],
+                                    if (!hasSectionAvailability)
+                                      const SizedBox.shrink()
+                                    else if (options.isEmpty &&
                                         !isSyncingMissingTimeslots)
                                       Text(
                                         'No timeslots available for this faculty',
@@ -6813,6 +6845,10 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
     required Section section,
     required List<Room> roomList,
   }) {
+    if (!_hasConfiguredSectionAvailability(section)) {
+      throw Exception(_sectionAvailabilityRequiredMessage(section.sectionCode));
+    }
+
     if (faculty.program != null && faculty.program != section.program) {
       final isEmcTeachingIt =
           faculty.program == Program.emc && section.program == Program.it;
@@ -6923,7 +6959,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
 
     return Autocomplete<_TimeslotOption>(
       key: ValueKey(
-        'edit-timeslot-${_selectedFacultyId ?? 'none'}-${_selectedSubjectId ?? 'none'}-${_selectedSectionId ?? 'none'}-${_selectedRoomId ?? 'none'}-${_selectedLoadType?.name ?? 'default'}-${_isAutoAssign ? 'auto' : 'manual'}-${_selectedTimeslotId ?? 'none'}-${options.length}',
+        'edit-timeslot-${_selectedFacultyId}-${_selectedSubjectId}-${_selectedSectionId ?? 'none'}-${_selectedRoomId ?? 'none'}-${_selectedLoadType?.name ?? 'default'}-${_isAutoAssign ? 'auto' : 'manual'}-${_selectedTimeslotId ?? 'none'}-${options.length}',
       ),
       displayStringForOption: (option) => option.label,
       initialValue: selectedLabel == null
@@ -7744,6 +7780,14 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                                     break;
                                   }
                                 }
+                                final hasSectionAvailability =
+                                    _hasConfiguredSectionAvailability(
+                                      selectedSection,
+                                    );
+                                final sectionAvailabilityMessage =
+                                    _sectionAvailabilityRequiredMessage(
+                                      selectedSection?.sectionCode ?? '',
+                                    );
                                 final requiredHours = _requiredHoursForSubject(
                                   selectedSubject,
                                   effectiveTypes,
@@ -7807,7 +7851,17 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                                       ),
                                       const SizedBox(height: 8),
                                     ],
-                                    if (options.isEmpty &&
+                                    if (!hasSectionAvailability) ...[
+                                      _buildHighlightedTimeslotHint(
+                                        message: sectionAvailabilityMessage,
+                                        accentColor: widget.maroonColor,
+                                        isDark: isDark,
+                                      ),
+                                      const SizedBox(height: 8),
+                                    ],
+                                    if (!hasSectionAvailability)
+                                      const SizedBox.shrink()
+                                    else if (options.isEmpty &&
                                         !isSyncingMissingTimeslots)
                                       Text(
                                         'No timeslots available for this faculty',
