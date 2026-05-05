@@ -39,6 +39,17 @@ final scheduleOverviewReportProvider = FutureProvider<ScheduleOverviewReport>((
   return await client.admin.getScheduleOverviewReport();
 });
 
+String _reportProgramLabel(Program program) {
+  switch (program) {
+    case Program.it:
+      return 'BSIT';
+    case Program.emc:
+      return 'BSEMC';
+    case Program.both:
+      return 'Both IT and EMC';
+  }
+}
+
 class ReportScreen extends ConsumerStatefulWidget {
   const ReportScreen({super.key});
 
@@ -114,10 +125,14 @@ class _ReportScreenState extends ConsumerState<ReportScreen>
                                     Container(
                                       padding: const EdgeInsets.all(12),
                                       decoration: BoxDecoration(
-                                        color: Colors.white.withValues(alpha: 0.15),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.15,
+                                        ),
                                         borderRadius: BorderRadius.circular(16),
                                         border: Border.all(
-                                          color: Colors.white.withValues(alpha: 0.2),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.2,
+                                          ),
                                         ),
                                       ),
                                       child: const Icon(
@@ -176,8 +191,9 @@ class _ReportScreenState extends ConsumerState<ReportScreen>
                                           color: Colors.white.withValues(
                                             alpha: 0.15,
                                           ),
-                                          borderRadius:
-                                              BorderRadius.circular(20),
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
                                           border: Border.all(
                                             color: Colors.white.withValues(
                                               alpha: 0.2,
@@ -231,7 +247,9 @@ class _ReportScreenState extends ConsumerState<ReportScreen>
                                     color: Colors.white.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.2),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.2,
+                                      ),
                                     ),
                                   ),
                                   child: Row(
@@ -409,14 +427,22 @@ class _ReportScreenState extends ConsumerState<ReportScreen>
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: maroonColor.withValues(alpha: 0.25)),
+                    border: Border.all(
+                      color: maroonColor.withValues(alpha: 0.25),
+                    ),
                   ),
                   child: DropdownButton<String>(
                     value: _scheduleExportGrouping,
                     borderRadius: BorderRadius.circular(12),
                     items: const [
-                      DropdownMenuItem(value: 'all', child: Text('All Schedules')),
-                      DropdownMenuItem(value: 'section', child: Text('By Section')),
+                      DropdownMenuItem(
+                        value: 'all',
+                        child: Text('All Schedules'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'section',
+                        child: Text('By Section'),
+                      ),
                       DropdownMenuItem(value: 'year', child: Text('By Year')),
                       DropdownMenuItem(value: 'room', child: Text('By Room')),
                     ],
@@ -457,9 +483,9 @@ class _ReportScreenState extends ConsumerState<ReportScreen>
                         onPressed: hydratedSchedules.isEmpty
                             ? null
                             : () => _exportSchedules(
-                                  hydratedSchedules,
-                                  format: 'csv',
-                                ),
+                                hydratedSchedules,
+                                format: 'csv',
+                              ),
                       ),
                       _buildExportButton(
                         label: 'PDF',
@@ -467,9 +493,9 @@ class _ReportScreenState extends ConsumerState<ReportScreen>
                         onPressed: hydratedSchedules.isEmpty
                             ? null
                             : () => _exportSchedules(
-                                  hydratedSchedules,
-                                  format: 'pdf',
-                                ),
+                                hydratedSchedules,
+                                format: 'pdf',
+                              ),
                       ),
                       _buildExportButton(
                         label: 'DOCX',
@@ -477,9 +503,9 @@ class _ReportScreenState extends ConsumerState<ReportScreen>
                         onPressed: hydratedSchedules.isEmpty
                             ? null
                             : () => _exportSchedules(
-                                  hydratedSchedules,
-                                  format: 'docx',
-                                ),
+                                hydratedSchedules,
+                                format: 'docx',
+                              ),
                       ),
                     ],
                   );
@@ -586,10 +612,14 @@ class _ReportScreenState extends ConsumerState<ReportScreen>
           (schedule) => schedule.copyWith(
             subject:
                 schedule.subject ??
-                (schedule.subjectId > 0 ? subjectById[schedule.subjectId] : null),
+                (schedule.subjectId > 0
+                    ? subjectById[schedule.subjectId]
+                    : null),
             faculty:
                 schedule.faculty ??
-                (schedule.facultyId > 0 ? facultyById[schedule.facultyId] : null),
+                (schedule.facultyId > 0
+                    ? facultyById[schedule.facultyId]
+                    : null),
             room:
                 schedule.room ??
                 (schedule.roomId != null ? roomById[schedule.roomId] : null),
@@ -622,10 +652,10 @@ class _ReportsTabBarHeaderDelegate extends SliverPersistentHeaderDelegate {
   const _ReportsTabBarHeaderDelegate({required this.child});
 
   @override
-  double get minExtent => 64;
+  double get minExtent => 56;
 
   @override
-  double get maxExtent => 64;
+  double get maxExtent => 56;
 
   @override
   Widget build(
@@ -698,7 +728,9 @@ class _FacultyLoadTab extends ConsumerWidget {
           decoration: BoxDecoration(
             color: cardBg,
             borderRadius: BorderRadius.circular(16),
-            border: const Border(left: BorderSide(color: maroonColor, width: 4)),
+            border: const Border(
+              left: BorderSide(color: maroonColor, width: 4),
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.08),
@@ -774,7 +806,9 @@ class _FacultyLoadTab extends ConsumerWidget {
                     return SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: ConstrainedBox(
-                        constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                        constraints: BoxConstraints(
+                          minWidth: constraints.maxWidth,
+                        ),
                         child: SingleChildScrollView(
                           scrollDirection: Axis.vertical,
                           child: DataTable(
@@ -795,8 +829,9 @@ class _FacultyLoadTab extends ConsumerWidget {
                             dataRowMaxHeight: 85,
                             columnSpacing: 28,
                             horizontalMargin: 24,
-                            decoration:
-                                const BoxDecoration(color: Colors.transparent),
+                            decoration: const BoxDecoration(
+                              color: Colors.transparent,
+                            ),
                             columns: const [
                               DataColumn(label: Text('FACULTY')),
                               DataColumn(label: Text('PROGRAM')),
@@ -929,7 +964,9 @@ class _RoomUtilizationTab extends ConsumerWidget {
                         ? () {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Room details are still loading.'),
+                                content: Text(
+                                  'Room details are still loading.',
+                                ),
                               ),
                             );
                           }
@@ -980,11 +1017,14 @@ class _RoomUtilizationTab extends ConsumerWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     'Utilization',
-                                    style: GoogleFonts.poppins(color: textMuted),
+                                    style: GoogleFonts.poppins(
+                                      color: textMuted,
+                                    ),
                                   ),
                                   Text(
                                     '${item.utilizationPercentage.toStringAsFixed(1)}%',
@@ -1146,7 +1186,9 @@ class _ConflictSummaryTab extends ConsumerWidget {
     final hasConflicts = conflicts.isNotEmpty;
     final statusColor = hasConflicts ? Colors.red : Colors.green;
     final summaryColor = hasConflicts ? Colors.red[700] : Colors.green;
-    final statusIcon = hasConflicts ? Icons.warning_rounded : Icons.verified_rounded;
+    final statusIcon = hasConflicts
+        ? Icons.warning_rounded
+        : Icons.verified_rounded;
 
     return Row(
       children: [
@@ -1258,7 +1300,7 @@ class _ConflictSummaryTab extends ConsumerWidget {
       separatorBuilder: (context, index) => const SizedBox(height: 10),
       itemBuilder: (context, index) =>
           _buildConflictListItem(conflicts[index], isDark),
-      );
+    );
   }
 
   Widget _buildSeverityBadges(List<ScheduleConflict> conflicts) {
@@ -1288,7 +1330,9 @@ class _ConflictSummaryTab extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? cfg.color.withValues(alpha: 0.08) : cfg.color.withValues(alpha: 0.04),
+        color: isDark
+            ? cfg.color.withValues(alpha: 0.08)
+            : cfg.color.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: cfg.color.withValues(alpha: 0.25)),
       ),
@@ -1309,7 +1353,10 @@ class _ConflictSummaryTab extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: cfg.color.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
@@ -1418,72 +1465,72 @@ class _ScheduleOverviewTab extends ConsumerWidget {
         return SingleChildScrollView(
           child: Column(
             children: [
-            if (isMobile) ...[
-              _buildStatTileCard(
-                context,
-                'Total Schedules',
-                data.totalSchedules.toString(),
-                Icons.event_note_rounded,
-                Colors.blue,
-              ),
-              const SizedBox(height: 16),
-              _buildStatTileCard(
-                context,
-                'Active Programs',
-                data.schedulesByProgram.length.toString(),
-                Icons.account_tree_rounded,
-                Colors.purple,
-              ),
-            ] else ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatTileCard(
-                      context,
-                      'Total Schedules',
-                      data.totalSchedules.toString(),
-                      Icons.event_note_rounded,
-                      Colors.blue,
+              if (isMobile) ...[
+                _buildStatTileCard(
+                  context,
+                  'Total Schedules',
+                  data.totalSchedules.toString(),
+                  Icons.event_note_rounded,
+                  Colors.blue,
+                ),
+                const SizedBox(height: 16),
+                _buildStatTileCard(
+                  context,
+                  'Active Programs',
+                  data.schedulesByProgram.length.toString(),
+                  Icons.account_tree_rounded,
+                  Colors.purple,
+                ),
+              ] else ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildStatTileCard(
+                        context,
+                        'Total Schedules',
+                        data.totalSchedules.toString(),
+                        Icons.event_note_rounded,
+                        Colors.blue,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 24),
-                  Expanded(
-                    child: _buildStatTileCard(
-                      context,
-                      'Active Programs',
-                      data.schedulesByProgram.length.toString(),
-                      Icons.account_tree_rounded,
-                      Colors.purple,
+                    const SizedBox(width: 24),
+                    Expanded(
+                      child: _buildStatTileCard(
+                        context,
+                        'Active Programs',
+                        data.schedulesByProgram.length.toString(),
+                        Icons.account_tree_rounded,
+                        Colors.purple,
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 24),
+              if (isMobile) ...[
+                _buildProgramBreakdown(context, data.schedulesByProgram),
+                const SizedBox(height: 16),
+                _buildTermBreakdown(context, data.schedulesByTerm),
+              ] else ...[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _buildProgramBreakdown(
+                        context,
+                        data.schedulesByProgram,
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      child: _buildTermBreakdown(context, data.schedulesByTerm),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 24),
+              _buildSectionSubjectsBreakdown(context, ref),
             ],
-            const SizedBox(height: 24),
-            if (isMobile) ...[
-              _buildProgramBreakdown(context, data.schedulesByProgram),
-              const SizedBox(height: 16),
-              _buildTermBreakdown(context, data.schedulesByTerm),
-            ] else ...[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _buildProgramBreakdown(
-                      context,
-                      data.schedulesByProgram,
-                    ),
-                  ),
-                  const SizedBox(width: 24),
-                  Expanded(
-                    child: _buildTermBreakdown(context, data.schedulesByTerm),
-                  ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 24),
-            _buildSectionSubjectsBreakdown(context, ref),
-          ],
           ),
         );
       },
@@ -1496,6 +1543,7 @@ class _ScheduleOverviewTab extends ConsumerWidget {
     final facultyAsync = ref.watch(facultyListProvider);
     final roomsAsync = ref.watch(roomListProvider);
     final timeslotsAsync = ref.watch(timeslotsProvider);
+    final sectionsAsync = ref.watch(sectionListProvider);
 
     final schedules = schedulesAsync.maybeWhen(
       data: (value) => value,
@@ -1517,18 +1565,24 @@ class _ScheduleOverviewTab extends ConsumerWidget {
       data: (value) => value,
       orElse: () => null,
     );
+    final sections = sectionsAsync.maybeWhen(
+      data: (value) => value,
+      orElse: () => null,
+    );
 
     if (schedules == null ||
         subjects == null ||
         faculty == null ||
         rooms == null ||
-        timeslots == null) {
+        timeslots == null ||
+        sections == null) {
       final error =
           schedulesAsync.error ??
           subjectsAsync.error ??
           facultyAsync.error ??
           roomsAsync.error ??
-          timeslotsAsync.error;
+          timeslotsAsync.error ??
+          sectionsAsync.error;
       if (error != null) {
         return Center(child: Text('Error loading schedule details: $error'));
       }
@@ -1546,13 +1600,36 @@ class _ScheduleOverviewTab extends ConsumerWidget {
     final facultyMap = {for (final entry in faculty) entry.id!: entry};
     final roomMap = {for (final room in rooms) room.id!: room};
     final timeslotMap = {for (final slot in timeslots) slot.id!: slot};
+    final sectionById = {for (final section in sections) section.id!: section};
+    final sectionByCode = {
+      for (final section in sections)
+        section.sectionCode.trim().toLowerCase(): section,
+    };
 
-    final Map<String, List<Schedule>> schedulesBySection = {};
+    final Map<String, Map<String, List<Schedule>>> schedulesByProgram = {};
     for (final schedule in schedules) {
-      schedulesBySection.putIfAbsent(schedule.section, () => []).add(schedule);
+      final sectionRecord = schedule.sectionId != null
+          ? sectionById[schedule.sectionId!]
+          : sectionByCode[schedule.section.trim().toLowerCase()];
+      final subject = subjectMap[schedule.subjectId];
+      final program =
+          sectionRecord?.program ?? subject?.program ?? Program.both;
+      final programLabel = _reportProgramLabel(program);
+      final sectionCode = sectionRecord?.sectionCode.trim().isNotEmpty == true
+          ? sectionRecord!.sectionCode.trim()
+          : schedule.section.trim();
+
+      schedulesByProgram
+          .putIfAbsent(programLabel, () => {})
+          .putIfAbsent(sectionCode, () => [])
+          .add(schedule);
     }
 
-    final sectionNames = schedulesBySection.keys.toList()..sort();
+    final programNames = schedulesByProgram.keys.toList()..sort();
+    final totalSections = schedulesByProgram.values.fold<int>(
+      0,
+      (total, sectionMap) => total + sectionMap.length,
+    );
 
     return Container(
       decoration: BoxDecoration(
@@ -1580,7 +1657,11 @@ class _ScheduleOverviewTab extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.table_chart_rounded, color: maroonColor, size: 20),
+                const Icon(
+                  Icons.table_chart_rounded,
+                  color: maroonColor,
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -1602,7 +1683,7 @@ class _ScheduleOverviewTab extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    '${sectionNames.length} Sections',
+                    '$totalSections Sections',
                     style: GoogleFonts.poppins(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -1617,158 +1698,201 @@ class _ScheduleOverviewTab extends ConsumerWidget {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             padding: const EdgeInsets.all(16),
-            itemCount: sectionNames.length,
+            itemCount: programNames.length,
             itemBuilder: (context, index) {
-              final section = sectionNames[index];
-              final sectionSchedules = schedulesBySection[section]!
-                ..sort((a, b) {
-                  final subjectA = subjectMap[a.subjectId]?.code ?? '';
-                  final subjectB = subjectMap[b.subjectId]?.code ?? '';
-                  return subjectA.compareTo(subjectB);
-                });
-              final sectionScheduleInfos = sectionSchedules
-                  .where((schedule) => schedule.timeslot != null || schedule.timeslotId != null)
-                  .map((schedule) {
-                    final subject = subjectMap[schedule.subjectId];
-                    final assignedFaculty = facultyMap[schedule.facultyId];
-                    final room = schedule.roomId != null
-                        ? roomMap[schedule.roomId!]
-                        : null;
-                    final timeslot = schedule.timeslot ?? (
-                      schedule.timeslotId != null
-                          ? timeslotMap[schedule.timeslotId!]
-                          : null
-                    );
-
-                    return ScheduleInfo(
-                      schedule: schedule.copyWith(
-                        subject: subject,
-                        faculty: assignedFaculty,
-                        room: room,
-                        timeslot: timeslot,
-                      ),
-                      conflicts: const [],
-                    );
-                  })
-                  .toList()
-                ..sort((a, b) {
-                  final dayOrder = a.schedule.timeslot!.day.index.compareTo(
-                    b.schedule.timeslot!.day.index,
-                  );
-                  if (dayOrder != 0) return dayOrder;
-                  return a.schedule.timeslot!.startTime.compareTo(
-                    b.schedule.timeslot!.startTime,
-                  );
-                });
+              final program = programNames[index];
+              final sectionsForProgram = schedulesByProgram[program]!;
+              final sectionNames = sectionsForProgram.keys.toList()..sort();
+              final sectionCount = sectionNames.length;
+              final subjectCount = sectionsForProgram.values.fold<int>(
+                0,
+                (total, items) => total + items.length,
+              );
 
               return ExpansionTile(
                 tilePadding: const EdgeInsets.symmetric(horizontal: 12),
                 title: Text(
-                  'Section: $section',
+                  program,
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.bold,
                     color: maroonColor,
                   ),
                 ),
                 subtitle: Text(
-                  '${sectionSchedules.length} Subject${sectionSchedules.length == 1 ? '' : 's'}',
+                  '$sectionCount Section${sectionCount == 1 ? '' : 's'}'
+                  ' | '
+                  '$subjectCount Subject${subjectCount == 1 ? '' : 's'}',
                   style: GoogleFonts.poppins(fontSize: 12, color: textMuted),
                 ),
-                children: [
-                  _SectionScheduleSwitcher(
-                    sectionLabel: section,
-                    maroonColor: maroonColor,
-                    cardBg: Theme.of(context).cardColor,
-                    isDark: isDark,
-                    backgroundColor: isDark
-                        ? const Color(0xFF0F172A)
-                        : const Color(0xFFF8F9FA),
-                    sectionScheduleInfos: sectionScheduleInfos,
-                    tableChild: LayoutBuilder(
-                      builder: (context, constraints) {
-                        return SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              minWidth: constraints.maxWidth,
-                            ),
-                            child: DataTable(
-                              headingRowColor: WidgetStateProperty.all(
-                                maroonColor,
-                              ),
-                              headingTextStyle: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                letterSpacing: 0.5,
-                              ),
-                              dataTextStyle: GoogleFonts.poppins(
-                                color: textPrimary,
-                                fontSize: 12,
-                              ),
-                              dataRowMinHeight: 65,
-                              dataRowMaxHeight: 88,
-                              columnSpacing: 28,
-                              horizontalMargin: 24,
-                              columns: const [
-                                DataColumn(label: Text('CODE')),
-                                DataColumn(label: Text('DESCRIPTION')),
-                                DataColumn(label: Text('FACULTY')),
-                                DataColumn(label: Text('ROOM')),
-                                DataColumn(label: Text('SCHEDULE')),
-                              ],
-                              rows: sectionSchedules.asMap().entries.map((entry) {
-                                final rowIndex = entry.key;
-                                final schedule = entry.value;
-                                final subject = subjectMap[schedule.subjectId];
-                                final assignedFaculty =
-                                    facultyMap[schedule.facultyId];
-                                final room = schedule.roomId != null
-                                    ? roomMap[schedule.roomId!]
-                                    : null;
-                                final timeslot = schedule.timeslotId != null
+                children: sectionNames.map((section) {
+                  final sectionSchedules =
+                      List<Schedule>.from(
+                        sectionsForProgram[section]!,
+                      )..sort((a, b) {
+                        final subjectA = subjectMap[a.subjectId]?.code ?? '';
+                        final subjectB = subjectMap[b.subjectId]?.code ?? '';
+                        return subjectA.compareTo(subjectB);
+                      });
+                  final sectionScheduleInfos =
+                      sectionSchedules
+                          .where(
+                            (schedule) =>
+                                schedule.timeslot != null ||
+                                schedule.timeslotId != null,
+                          )
+                          .map((schedule) {
+                            final subject = subjectMap[schedule.subjectId];
+                            final assignedFaculty =
+                                facultyMap[schedule.facultyId];
+                            final room = schedule.roomId != null
+                                ? roomMap[schedule.roomId!]
+                                : null;
+                            final timeslot =
+                                schedule.timeslot ??
+                                (schedule.timeslotId != null
                                     ? timeslotMap[schedule.timeslotId!]
-                                    : null;
+                                    : null);
 
-                                return DataRow(
-                                  color: WidgetStateProperty.all(
-                                    rowIndex.isEven ? rowBgA : rowBgB,
+                            return ScheduleInfo(
+                              schedule: schedule.copyWith(
+                                subject: subject,
+                                faculty: assignedFaculty,
+                                room: room,
+                                timeslot: timeslot,
+                              ),
+                              conflicts: const [],
+                            );
+                          })
+                          .toList()
+                        ..sort((a, b) {
+                          final dayOrder = a.schedule.timeslot!.day.index
+                              .compareTo(
+                                b.schedule.timeslot!.day.index,
+                              );
+                          if (dayOrder != 0) return dayOrder;
+                          return a.schedule.timeslot!.startTime.compareTo(
+                            b.schedule.timeslot!.startTime,
+                          );
+                        });
+
+                  return ExpansionTile(
+                    tilePadding: const EdgeInsets.symmetric(horizontal: 24),
+                    title: Text(
+                      'Section: $section',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.bold,
+                        color: maroonColor,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '${sectionSchedules.length} Subject${sectionSchedules.length == 1 ? '' : 's'}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: textMuted,
+                      ),
+                    ),
+                    children: [
+                      _SectionScheduleSwitcher(
+                        sectionLabel: '$program - $section',
+                        maroonColor: maroonColor,
+                        cardBg: Theme.of(context).cardColor,
+                        isDark: isDark,
+                        backgroundColor: isDark
+                            ? const Color(0xFF0F172A)
+                            : const Color(0xFFF8F9FA),
+                        sectionScheduleInfos: sectionScheduleInfos,
+                        tableChild: LayoutBuilder(
+                          builder: (context, constraints) {
+                            return SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  minWidth: constraints.maxWidth,
+                                ),
+                                child: DataTable(
+                                  headingRowColor: WidgetStateProperty.all(
+                                    maroonColor,
                                   ),
-                                  cells: [
-                                    DataCell(Text(subject?.code ?? 'N/A')),
-                                    DataCell(
-                                      SizedBox(
-                                        width: 220,
-                                        child: Text(subject?.name ?? 'Unknown'),
+                                  headingTextStyle: GoogleFonts.poppins(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    letterSpacing: 0.5,
+                                  ),
+                                  dataTextStyle: GoogleFonts.poppins(
+                                    color: textPrimary,
+                                    fontSize: 12,
+                                  ),
+                                  dataRowMinHeight: 65,
+                                  dataRowMaxHeight: 88,
+                                  columnSpacing: 28,
+                                  horizontalMargin: 24,
+                                  columns: const [
+                                    DataColumn(label: Text('CODE')),
+                                    DataColumn(label: Text('DESCRIPTION')),
+                                    DataColumn(label: Text('FACULTY')),
+                                    DataColumn(label: Text('ROOM')),
+                                    DataColumn(label: Text('SCHEDULE')),
+                                  ],
+                                  rows: sectionSchedules.asMap().entries.map((
+                                    entry,
+                                  ) {
+                                    final rowIndex = entry.key;
+                                    final schedule = entry.value;
+                                    final subject =
+                                        subjectMap[schedule.subjectId];
+                                    final assignedFaculty =
+                                        facultyMap[schedule.facultyId];
+                                    final room = schedule.roomId != null
+                                        ? roomMap[schedule.roomId!]
+                                        : null;
+                                    final timeslot = schedule.timeslotId != null
+                                        ? timeslotMap[schedule.timeslotId!]
+                                        : null;
+
+                                    return DataRow(
+                                      color: WidgetStateProperty.all(
+                                        rowIndex.isEven ? rowBgA : rowBgB,
                                       ),
-                                    ),
-                                    DataCell(
-                                      Text(assignedFaculty?.name ?? 'TBA'),
-                                    ),
-                                    DataCell(Text(room?.name ?? 'TBA')),
-                                    DataCell(
-                                      SizedBox(
-                                        width: 220,
-                                        child: Text(
-                                          _formatScheduleDisplay(
-                                            timeslot,
-                                            schedule.loadTypes ??
-                                                subject?.types,
+                                      cells: [
+                                        DataCell(Text(subject?.code ?? 'N/A')),
+                                        DataCell(
+                                          SizedBox(
+                                            width: 220,
+                                            child: Text(
+                                              subject?.name ?? 'Unknown',
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              }).toList(),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
+                                        DataCell(
+                                          Text(assignedFaculty?.name ?? 'TBA'),
+                                        ),
+                                        DataCell(Text(room?.name ?? 'TBA')),
+                                        DataCell(
+                                          SizedBox(
+                                            width: 220,
+                                            child: Text(
+                                              _formatScheduleDisplay(
+                                                timeslot,
+                                                schedule.loadTypes ??
+                                                    subject?.types,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  );
+                }).toList(),
               );
             },
           ),
@@ -1853,7 +1977,10 @@ class _ScheduleOverviewTab extends ConsumerWidget {
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+          ),
         ],
       ),
       child: Row(
@@ -2111,8 +2238,8 @@ class _SectionScheduleSwitcherState extends State<_SectionScheduleSwitcher> {
                                 isDark: widget.isDark,
                                 calendarHeight:
                                     ResponsiveHelper.isMobile(context)
-                                        ? 620
-                                        : 820,
+                                    ? 620
+                                    : 820,
                                 child: WeeklyCalendarView(
                                   schedules: widget.sectionScheduleInfos,
                                   maroonColor: widget.maroonColor,

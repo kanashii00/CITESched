@@ -3189,7 +3189,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     ),
                   ),
                 ),
-                const Spacer(),
                 IconButton(
                   icon: Icon(
                     Icons.refresh_rounded,

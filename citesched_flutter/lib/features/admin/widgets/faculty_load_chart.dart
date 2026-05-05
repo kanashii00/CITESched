@@ -27,11 +27,22 @@ class FacultyLoadChart extends StatelessWidget {
     final barColor = isDark ? const Color(0xFFE2E8F0) : Colors.black;
     final barBgColor =
         isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.03);
+    const warningColor = Color(0xFFDC2626);
+    final peakLoad = data.fold<double>(
+      0,
+      (maxValue, item) => item.currentLoad > maxValue ? item.currentLoad : maxValue,
+    );
+    final peakCapacity = data.fold<double>(
+      0,
+      (maxValue, item) => item.maxLoad > maxValue ? item.maxLoad.toDouble() : maxValue,
+    );
+    final chartCeilingBase = peakLoad > peakCapacity ? peakLoad : peakCapacity;
+    final chartMaxY = (chartCeilingBase + 3).clamp(10, 60).toDouble();
 
     return BarChart(
       BarChartData(
         alignment: BarChartAlignment.spaceAround,
-        maxY: 30,
+        maxY: chartMaxY,
         minY: 0,
         barTouchData: BarTouchData(
           enabled: true,
@@ -39,10 +50,13 @@ class FacultyLoadChart extends StatelessWidget {
             getTooltipColor: (group) => Colors.black,
             tooltipRoundedRadius: 8,
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              final item = data[group.x.toInt()];
+              final isOverloaded = item.currentLoad > item.maxLoad;
               return BarTooltipItem(
-                '${rod.toY.toInt()} Units',
+                '${item.currentLoad.toStringAsFixed(1)} / ${item.maxLoad} units'
+                '${isOverloaded ? '\nOver max load' : ''}',
                 GoogleFonts.poppins(
-                  color: Colors.white,
+                  color: isOverloaded ? warningColor : Colors.white,
                   fontWeight: FontWeight.w600,
                   fontSize: isMobile ? 10 : 12,
                 ),
@@ -92,8 +106,29 @@ class FacultyLoadChart extends StatelessWidget {
               },
             ),
           ),
-          topTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
+          topTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 28,
+              getTitlesWidget: (value, meta) {
+                final index = value.toInt();
+                if (index < 0 || index >= data.length) {
+                  return const SizedBox.shrink();
+                }
+                final item = data[index];
+                if (item.currentLoad <= item.maxLoad) {
+                  return const SizedBox.shrink();
+                }
+                return const SideTitleWidget(
+                  axisSide: AxisSide.top,
+                  child: Icon(
+                    Icons.warning_amber_rounded,
+                    color: warningColor,
+                    size: 18,
+                  ),
+                );
+              },
+            ),
           ),
           rightTitles: const AxisTitles(
             sideTitles: SideTitles(showTitles: false),
@@ -118,6 +153,7 @@ class FacultyLoadChart extends StatelessWidget {
           ),
         ),
         barGroups: data.asMap().entries.map((entry) {
+          final isOverloaded = entry.value.currentLoad > entry.value.maxLoad;
           return BarChartGroupData(
             x: entry.key,
             barRods: [
@@ -128,16 +164,22 @@ class FacultyLoadChart extends StatelessWidget {
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(6),
                 ),
+                borderSide: BorderSide(
+                  color: isOverloaded ? warningColor : Colors.transparent,
+                  width: isOverloaded ? 2.2 : 0,
+                ),
                 backDrawRodData: BackgroundBarChartRodData(
                   show: true,
-                  toY: 30,
+                  toY: entry.value.maxLoad.toDouble(),
                   color: barBgColor,
                 ),
               ),
             ],
+            showingTooltipIndicators: isOverloaded ? const [0] : const [],
           );
         }).toList(),
       ),
+      swapAnimationDuration: const Duration(milliseconds: 250),
     );
   }
 }

@@ -59,6 +59,7 @@ class FacultyDetailsScreen extends ConsumerWidget {
       orElse: () => 0,
     );
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isMobile = MediaQuery.of(context).size.width < 700;
 
     const maroonColor = Color(0xFF720045);
     final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8F9FA);
@@ -71,7 +72,7 @@ class FacultyDetailsScreen extends ConsumerWidget {
           // Header (Standardized Maroon Gradient Banner)
           AdminHeaderContainer(
             primaryColor: maroonColor,
-            padding: const EdgeInsets.all(32),
+            padding: EdgeInsets.all(isMobile ? 16 : 32),
             boxShadow: [
               BoxShadow(
                 color: maroonColor.withValues(alpha: 0.3),
@@ -79,70 +80,81 @@ class FacultyDetailsScreen extends ConsumerWidget {
                 offset: const Offset(0, 12),
               ),
             ],
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
                       icon: const Icon(
                         Icons.arrow_back_ios_new_rounded,
                         color: Colors.white,
                       ),
                       onPressed: () => Navigator.pop(context),
                     ),
-                    const SizedBox(width: 16),
+                    SizedBox(width: isMobile ? 12 : 16),
                     CircleAvatar(
-                      radius: 36,
+                      radius: isMobile ? 28 : 36,
                       backgroundColor: Colors.white.withValues(alpha: 0.2),
                       child: Text(
                         _facultyInitial(faculty.name),
                         style: GoogleFonts.poppins(
-                          fontSize: 28,
+                          fontSize: isMobile ? 22 : 28,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 24),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          faculty.name,
-                          style: GoogleFonts.poppins(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: -1,
+                    SizedBox(width: isMobile ? 16 : 24),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            faculty.name,
+                            maxLines: isMobile ? 2 : 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: isMobile ? 20 : 32,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: -1,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Text(
-                              faculty.facultyId,
-                              style: GoogleFonts.poppins(
-                                fontSize: 16,
-                                color: Colors.white.withValues(alpha: 0.8),
-                                fontWeight: FontWeight.w600,
+                          const SizedBox(height: 4),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 8,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text(
+                                faculty.facultyId,
+                                style: GoogleFonts.poppins(
+                                  fontSize: isMobile ? 14 : 16,
+                                  color: Colors.white.withValues(alpha: 0.8),
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            _buildStatusChip(
-                              faculty.employmentStatus,
-                              inverted: true,
-                            ),
-                          ],
-                        ),
-                      ],
+                              _buildStatusChip(
+                                faculty.employmentStatus,
+                                inverted: true,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
+                SizedBox(height: isMobile ? 16 : 20),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
+                  width: double.infinity,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 14 : 20,
+                    vertical: isMobile ? 10 : 12,
                   ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.1),
@@ -151,7 +163,10 @@ class FacultyDetailsScreen extends ConsumerWidget {
                       color: Colors.white.withValues(alpha: 0.2),
                     ),
                   ),
-                  child: Row(
+                  child: Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       const Icon(
                         Icons.email_rounded,
@@ -161,6 +176,7 @@ class FacultyDetailsScreen extends ConsumerWidget {
                       const SizedBox(width: 12),
                       Text(
                         faculty.email,
+                        overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.poppins(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -174,7 +190,7 @@ class FacultyDetailsScreen extends ConsumerWidget {
           ),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(32),
+              padding: EdgeInsets.all(isMobile ? 16 : 32),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -189,10 +205,12 @@ class FacultyDetailsScreen extends ConsumerWidget {
                         color: maroonColor.withValues(alpha: 0.2),
                       ),
                     ),
-                    child: Row(
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         const Icon(Icons.business_rounded, color: maroonColor),
-                        const SizedBox(width: 12),
                         Text(
                           'PROGRAM ASSIGNMENT:',
                           style: GoogleFonts.poppins(
@@ -201,7 +219,6 @@ class FacultyDetailsScreen extends ConsumerWidget {
                             color: Colors.grey,
                           ),
                         ),
-                        const SizedBox(width: 12),
                         Text(
                           (faculty.program?.name ?? '—').toUpperCase(),
                           style: GoogleFonts.poppins(
@@ -215,7 +232,9 @@ class FacultyDetailsScreen extends ConsumerWidget {
                   ),
 
                   // Stats Row
-                  Row(
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 16,
                     children: [
                       _buildSimpleStatCard(
                         'Max Load',
@@ -223,22 +242,23 @@ class FacultyDetailsScreen extends ConsumerWidget {
                         Icons.speed,
                         Colors.blue,
                         cardBg,
+                        isMobile: isMobile,
                       ),
-                      const SizedBox(width: 16),
                       _buildSimpleStatCard(
                         'Current Load',
                         '${currentLoad.toStringAsFixed(1)} Units',
                         Icons.trending_up,
                         Colors.green,
                         cardBg,
+                        isMobile: isMobile,
                       ),
-                      const SizedBox(width: 16),
                       _buildSimpleStatCard(
                         'Shift',
                         (faculty.shiftPreference?.name ?? 'ANY').toUpperCase(),
                         Icons.access_time,
                         Colors.orange,
                         cardBg,
+                        isMobile: isMobile,
                       ),
                     ],
                   ),
@@ -494,10 +514,12 @@ class FacultyDetailsScreen extends ConsumerWidget {
     IconData icon,
     Color color,
     Color cardBg,
+    {required bool isMobile}
   ) {
-    return Expanded(
+    return SizedBox(
+      width: isMobile ? double.infinity : 260,
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(isMobile ? 16 : 20),
         decoration: BoxDecoration(
           color: cardBg,
           borderRadius: BorderRadius.circular(20),
@@ -521,25 +543,31 @@ class FacultyDetailsScreen extends ConsumerWidget {
               child: Icon(icon, color: color, size: 24),
             ),
             const SizedBox(width: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: Colors.grey,
-                    fontWeight: FontWeight.w500,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-                Text(
-                  value,
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                  Text(
+                    value,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: isMobile ? 16 : 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),

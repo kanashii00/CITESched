@@ -7177,16 +7177,23 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
     final studentsAsync = ref.watch(studentsProvider);
 
     return Dialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 16 : 40,
+        vertical: isMobile ? 24 : 32,
+      ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
-        width: 700,
-        constraints: const BoxConstraints(maxHeight: 750),
+        width: isMobile ? double.infinity : 700,
+        constraints: BoxConstraints(
+          maxWidth: isMobile ? 420 : 700,
+          maxHeight: MediaQuery.of(context).size.height * (isMobile ? 0.88 : 0.82),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             // Header
             Container(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.all(isMobile ? 16 : 24),
               decoration: BoxDecoration(
                 color: widget.maroonColor,
                 borderRadius: const BorderRadius.only(
@@ -7196,18 +7203,27 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.edit_rounded, color: Colors.white, size: 28),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Edit Schedule Assignment',
-                    style: GoogleFonts.poppins(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                  Icon(
+                    Icons.edit_rounded,
+                    color: Colors.white,
+                    size: isMobile ? 24 : 28,
+                  ),
+                  SizedBox(width: isMobile ? 8 : 12),
+                  Expanded(
+                    child: Text(
+                      'Edit Schedule Assignment',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: isMobile ? 16 : 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
-                  const Spacer(),
                   IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                     icon: const Icon(Icons.close, color: Colors.white),
                     onPressed: () => Navigator.pop(context),
                   ),
@@ -7218,7 +7234,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
             // Form (same structure as New Assignment)
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
+                padding: EdgeInsets.all(isMobile ? 16 : 24),
                 child: Form(
                   key: _formKey,
                   child: Column(
@@ -7556,6 +7572,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
 
                       // Auto-Assign Checkbox
                       CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
                         value: _isAutoAssign,
                         onChanged: (value) {
                           setState(() {
@@ -7978,6 +7995,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
 
     return DropdownButtonFormField<T>(
       initialValue: safeValue,
+      isExpanded: true,
       decoration: InputDecoration(
         labelText: label,
         labelStyle: GoogleFonts.poppins(),
@@ -7992,7 +8010,12 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
       items: uniqueItems.map((item) {
         return DropdownMenuItem<T>(
           value: item,
-          child: Text(itemLabel(item), style: GoogleFonts.poppins()),
+          child: Text(
+            itemLabel(item),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.poppins(),
+          ),
         );
       }).toList(),
       onChanged: onChanged,

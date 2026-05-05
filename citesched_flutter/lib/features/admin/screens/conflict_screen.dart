@@ -783,38 +783,55 @@ class _ConflictScreenState extends State<ConflictScreen> {
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
 
-    if (conflict.type == 'max_load_exceeded' && conflict.facultyId != null) {
-      final shouldContinue = await _showMaxLoadConfirmationDialog();
-      if (!mounted || shouldContinue != true) return;
-
-      navigator.push(
-        MaterialPageRoute(
-          builder: (_) => AdminLayout(
-            initialIndex: 1,
-            initialFacultyIdToEdit: conflict.facultyId,
-          ),
-        ),
-      );
-      return;
-    }
-
     setState(() => _resolvingConflictKeys.add(conflictKey));
     try {
-      final suggestion = await _buildResolutionSuggestion(conflict);
+      final options = await _buildResolutionOptions(conflict);
       if (!mounted) return;
 
-      if (suggestion == null) {
+      if (options.isEmpty) {
         await _showManualResolutionDialog(conflict);
         return;
       }
 
-      final shouldApply = await _showSuggestionDialog(suggestion);
-      if (!mounted || shouldApply != true) return;
+      final selectedOption = await _showResolutionPlannerDialog(
+        conflict: conflict,
+        options: options,
+      );
+      if (!mounted || selectedOption == null) return;
 
-      await client.admin.updateSchedule(suggestion.updatedSchedule);
-      await _fetchConflicts();
-      if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text(suggestion.successMessage)));
+      switch (selectedOption.kind) {
+        case _ResolutionOptionKind.autoApply:
+          final suggestion = selectedOption.suggestion;
+          if (suggestion == null) return;
+          await client.admin.updateSchedule(suggestion.updatedSchedule);
+          await _fetchConflicts();
+          if (!mounted) return;
+          messenger.showSnackBar(
+            SnackBar(content: Text(suggestion.successMessage)),
+          );
+          break;
+        case _ResolutionOptionKind.openFacultyEdit:
+          final facultyId = conflict.facultyId;
+          if (facultyId == null) return;
+          navigator.push(
+            MaterialPageRoute(
+              builder: (_) => AdminLayout(
+                initialIndex: 1,
+                initialFacultyIdToEdit: facultyId,
+              ),
+            ),
+          );
+          break;
+        case _ResolutionOptionKind.openModule:
+          final moduleIndex = selectedOption.moduleIndex;
+          if (moduleIndex == null) return;
+          navigator.push(
+            MaterialPageRoute(
+              builder: (_) => AdminLayout(initialIndex: moduleIndex),
+            ),
+          );
+          break;
+      }
     } catch (e) {
       if (!mounted) return;
       AppErrorDialog.show(context, e);
@@ -823,6 +840,80 @@ class _ConflictScreenState extends State<ConflictScreen> {
         setState(() => _resolvingConflictKeys.remove(conflictKey));
       }
     }
+  }
+
+  Future<List<_ResolutionOption>> _buildResolutionOptions(
+    ScheduleConflict conflict,
+  ) async {
+    final options = <_ResolutionOption>[];
+    final suggestion = await _buildResolutionSuggestion(conflict);
+
+    if (suggestion != null) {
+      options.add(
+        _ResolutionOption(
+          kind: _ResolutionOptionKind.autoApply,
+          title: suggestion.title,
+          description: suggestion.summary,
+          impactLabel: 'Applies the safest available system-generated fix.',
+          recommendationLabel: 'Recommended',
+          suggestion: suggestion,
+        ),
+      );
+    }
+
+    if (conflict.type == 'max_load_exceeded' && conflict.facultyId != null) {
+      options.add(
+        const _ResolutionOption(
+          kind: _ResolutionOptionKind.openFacultyEdit,
+          title: 'Edit Faculty Max Load',
+          description:
+              'Open Faculty Management and update the faculty max load if the overload is valid and approved.',
+          impactLabel: 'Best when the higher load is legitimate and approved.',
+          recommendationLabel: 'Common fix',
+        ),
+      );
+      options.add(
+        const _ResolutionOption(
+          kind: _ResolutionOptionKind.openModule,
+          title: 'Rebalance Subject Assignments',
+          description:
+              'Open Faculty Loading and move one or more assigned subjects to another eligible faculty member.',
+          impactLabel: 'Best when the max load should remain unchanged.',
+          moduleIndex: 2,
+        ),
+      );
+      return options;
+    }
+
+    final moduleIndex = _manualResolutionIndex(conflict.type);
+    if (moduleIndex != null) {
+      options.add(
+        _ResolutionOption(
+          kind: _ResolutionOptionKind.openModule,
+          title: 'Open Related Module',
+          description:
+              'Review the source module manually and adjust room, faculty, section, or timeslot there.',
+          impactLabel: 'Gives you full control before making changes.',
+          moduleIndex: moduleIndex,
+          recommendationLabel: suggestion == null ? 'Recommended' : null,
+        ),
+      );
+    }
+
+    if (suggestion == null && conflict.scheduleId != null) {
+      options.add(
+        const _ResolutionOption(
+          kind: _ResolutionOptionKind.openModule,
+          title: 'Inspect Timetable Placement',
+          description:
+              'Open the timetable module to compare nearby slots, room usage, and section availability first.',
+          impactLabel: 'Helpful when you want to diagnose the schedule pattern before editing.',
+          moduleIndex: 5,
+        ),
+      );
+    }
+
+    return options;
   }
 
   Future<_ResolutionSuggestion?> _buildResolutionSuggestion(
@@ -1058,91 +1149,220 @@ class _ConflictScreenState extends State<ConflictScreen> {
     return '${timeslot.day.name.toUpperCase()} ${_formatTimeslot(timeslot)} • $roomLabel';
   }
 
-  Future<bool?> _showSuggestionDialog(
-    _ResolutionSuggestion suggestion,
-  ) {
-    return showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(
-          suggestion.title,
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(suggestion.summary, style: GoogleFonts.poppins()),
-            const SizedBox(height: 16),
-            Text(
-              'Current',
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              suggestion.currentSlotLabel,
-              style: GoogleFonts.poppins(fontSize: 13),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Proposed',
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              suggestion.proposedSlotLabel,
-              style: GoogleFonts.poppins(fontSize: 13),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Continue and apply this automatic fix?',
-              style: GoogleFonts.poppins(),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text('Cancel', style: GoogleFonts.poppins()),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text('Continue', style: GoogleFonts.poppins()),
-          ),
-        ],
-      ),
+  Future<_ResolutionOption?> _showResolutionPlannerDialog({
+    required ScheduleConflict conflict,
+    required List<_ResolutionOption> options,
+  }) {
+    final config = _getConfig(conflict.type);
+    final toolkit = _toolkitItemsForConflict(conflict);
+    final initialSelectedIndex = options.indexWhere(
+      (option) => option.recommendationLabel != null,
     );
-  }
 
-  Future<bool?> _showMaxLoadConfirmationDialog() {
-    return showDialog<bool>(
+    return showDialog<_ResolutionOption>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(
-          'Continue to Edit Max Load?',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-        ),
-        content: Text(
-          'This conflict needs a manual update to the faculty max load. Continue to open the specific faculty edit form and update the Max Loads field?',
-          style: GoogleFonts.poppins(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text('Cancel', style: GoogleFonts.poppins()),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text('Continue', style: GoogleFonts.poppins()),
-          ),
-        ],
-      ),
+      builder: (dialogContext) {
+        var selectedIndex = initialSelectedIndex >= 0 ? initialSelectedIndex : 0;
+        final isMobile = ResponsiveHelper.isMobile(dialogContext);
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final selected = options[selectedIndex];
+            return AlertDialog(
+              insetPadding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 16 : 40,
+                vertical: isMobile ? 24 : 32,
+              ),
+              titlePadding: EdgeInsets.zero,
+              contentPadding: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Container(
+                padding: EdgeInsets.all(isMobile ? 18 : 24),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF720045),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(config.icon, color: Colors.white, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Suggest Fix',
+                            style: GoogleFonts.poppins(
+                              fontSize: isMobile ? 18 : 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            conflict.message,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: Colors.white.withValues(alpha: 0.86),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              content: SizedBox(
+                width: isMobile ? double.maxFinite : 680,
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.all(isMobile ? 16 : 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Choose how you want to resolve this conflict',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ...List.generate(options.length, (index) {
+                        final option = options[index];
+                        final isSelected = index == selectedIndex;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () => setDialogState(() {
+                              selectedIndex = index;
+                            }),
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? config.color.withValues(alpha: 0.08)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? config.color
+                                      : Colors.grey.withValues(alpha: 0.25),
+                                  width: isSelected ? 1.4 : 1,
+                                ),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Radio<int>(
+                                    value: index,
+                                    groupValue: selectedIndex,
+                                    activeColor: config.color,
+                                    onChanged: (value) {
+                                      if (value == null) return;
+                                      setDialogState(() {
+                                        selectedIndex = value;
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 6,
+                                          children: [
+                                            Text(
+                                              option.title,
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                            if (option.recommendationLabel != null)
+                                              _buildConflictBadge(
+                                                backgroundColor: config.color.withValues(
+                                                  alpha: 0.12,
+                                                ),
+                                                text: option.recommendationLabel!,
+                                                textColor: config.color,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w700,
+                                                letterSpacing: 0.4,
+                                              ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          option.description,
+                                          style: GoogleFonts.poppins(fontSize: 12),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          option.impactLabel,
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 11,
+                                            color: Colors.grey[700],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 14),
+                      _buildResolutionPreviewCard(selected),
+                      const SizedBox(height: 16),
+                      _buildToolkitSection(config: config, items: toolkit),
+                    ],
+                  ),
+                ),
+              ),
+              actionsPadding: EdgeInsets.fromLTRB(
+                isMobile ? 16 : 24,
+                0,
+                isMobile ? 16 : 24,
+                isMobile ? 16 : 20,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: Text('Cancel', style: GoogleFonts.poppins()),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(selected),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF720045),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text('Continue', style: GoogleFonts.poppins()),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1204,6 +1424,201 @@ class _ConflictScreenState extends State<ConflictScreen> {
         return null;
     }
   }
+
+  Widget _buildResolutionPreviewCard(_ResolutionOption option) {
+    final suggestion = option.suggestion;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF720045).withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: const Color(0xFF720045).withValues(alpha: 0.15),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'How this fix works',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(option.description, style: GoogleFonts.poppins(fontSize: 12)),
+          if (suggestion != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Current',
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              suggestion.currentSlotLabel,
+              style: GoogleFonts.poppins(fontSize: 12),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Proposed',
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              suggestion.proposedSlotLabel,
+              style: GoogleFonts.poppins(fontSize: 12),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToolkitSection({
+    required _ConflictTypeConfig config,
+    required List<_ToolkitItem> items,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: config.color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: config.color.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.handyman_rounded, size: 18, color: config.color),
+              const SizedBox(width: 8),
+              Text(
+                'Fix Toolkit',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: config.color,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...items.map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(item.icon, size: 16, color: config.color),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.title,
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          item.description,
+                          style: GoogleFonts.poppins(fontSize: 11.5),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<_ToolkitItem> _toolkitItemsForConflict(ScheduleConflict conflict) {
+    switch (conflict.type) {
+      case 'max_load_exceeded':
+        return const [
+          _ToolkitItem(
+            icon: Icons.scale_rounded,
+            title: 'Compare assigned units against policy',
+            description:
+                'Check whether the overload is temporary, approved, or caused by duplicate assignments.',
+          ),
+          _ToolkitItem(
+            icon: Icons.swap_horiz_rounded,
+            title: 'Rebalance faculty assignments',
+            description:
+                'Move one or more subjects to another qualified faculty member if the max load should stay fixed.',
+          ),
+          _ToolkitItem(
+            icon: Icons.edit_note_rounded,
+            title: 'Update max load only when justified',
+            description:
+                'Raise the max load only if the department approved the change.',
+          ),
+        ];
+      case 'room_conflict':
+      case 'capacity_exceeded':
+      case 'room_inactive':
+      case 'program_mismatch':
+      case 'room_type_mismatch':
+        return const [
+          _ToolkitItem(
+            icon: Icons.meeting_room_rounded,
+            title: 'Validate room compatibility',
+            description:
+                'Check room type, active status, capacity, and program fit before moving the class.',
+          ),
+          _ToolkitItem(
+            icon: Icons.schedule_rounded,
+            title: 'Preserve the current timeslot when possible',
+            description:
+                'A room change is usually less disruptive than moving the class to another day or time.',
+          ),
+          _ToolkitItem(
+            icon: Icons.groups_rounded,
+            title: 'Verify section demand',
+            description:
+                'Make sure the destination room still supports the enrolled section and subject needs.',
+          ),
+        ];
+      default:
+        return const [
+          _ToolkitItem(
+            icon: Icons.fact_check_rounded,
+            title: 'Review linked schedules first',
+            description:
+                'Confirm which faculty, room, section, and timeslot records are colliding before changing anything.',
+          ),
+          _ToolkitItem(
+            icon: Icons.event_available_rounded,
+            title: 'Choose the least disruptive open slot',
+            description:
+                'Prefer nearby timeslots that preserve duration and avoid breaking other assignments.',
+          ),
+          _ToolkitItem(
+            icon: Icons.rule_rounded,
+            title: 'Revalidate after every change',
+            description:
+                'Run conflict checking again after edits to confirm the fix did not create a new issue.',
+          ),
+        ];
+    }
+  }
 }
 
 /// Internal config for conflict type display.
@@ -1238,6 +1653,40 @@ class _ResolutionSuggestion {
     required this.proposedSlotLabel,
     required this.updatedSchedule,
     required this.successMessage,
+  });
+}
+
+enum _ResolutionOptionKind { autoApply, openFacultyEdit, openModule }
+
+class _ResolutionOption {
+  final _ResolutionOptionKind kind;
+  final String title;
+  final String description;
+  final String impactLabel;
+  final String? recommendationLabel;
+  final _ResolutionSuggestion? suggestion;
+  final int? moduleIndex;
+
+  const _ResolutionOption({
+    required this.kind,
+    required this.title,
+    required this.description,
+    required this.impactLabel,
+    this.recommendationLabel,
+    this.suggestion,
+    this.moduleIndex,
+  });
+}
+
+class _ToolkitItem {
+  final IconData icon;
+  final String title;
+  final String description;
+
+  const _ToolkitItem({
+    required this.icon,
+    required this.title,
+    required this.description,
   });
 }
 
