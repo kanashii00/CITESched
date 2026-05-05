@@ -318,6 +318,7 @@ class AdminEndpoint extends Endpoint {
     Schedule schedule, {
     int? excludeScheduleId,
   }) async {
+    await _ensureSectionSchema(session);
     final subject = await Subject.db.findById(session, schedule.subjectId);
     if (subject == null) {
       throw Exception('Subject not found for auto-assignment.');
@@ -377,10 +378,29 @@ class AdminEndpoint extends Endpoint {
       session,
       where: (t) => t.isActive.equals(true),
     );
-    final candidateRooms = allRooms.where(
-      (room) => _roomSupportsSubject(room, subject, schedule),
-    ).toList()
-      ..sort((a, b) => a.capacity.compareTo(b.capacity));
+    final preferredRoomId = schedule.roomId;
+    List<Room> candidateRooms;
+    if (preferredRoomId != null) {
+      final preferredRoom = allRooms
+          .where((room) => room.id == preferredRoomId)
+          .firstOrNull;
+      if (preferredRoom == null) {
+        throw Exception(
+          'Selected room is no longer available for auto-assignment.',
+        );
+      }
+      if (!_roomSupportsSubject(preferredRoom, subject, schedule)) {
+        throw Exception(
+          'Selected room is not eligible for this subject assignment.',
+        );
+      }
+      candidateRooms = [preferredRoom];
+    } else {
+      candidateRooms = allRooms.where(
+        (room) => _roomSupportsSubject(room, subject, schedule),
+      ).toList()
+        ..sort((a, b) => a.capacity.compareTo(b.capacity));
+    }
 
     if (candidateRooms.isEmpty) {
       throw Exception('No eligible room found for auto-assignment.');
@@ -1428,7 +1448,6 @@ class AdminEndpoint extends Endpoint {
     if (schedule.timeslotId == -1) schedule.timeslotId = null;
     await _syncScheduleSectionReference(session, schedule);
     if (schedule.roomId == null || schedule.timeslotId == null) {
-      schedule.roomId = null;
       schedule.timeslotId = null;
       await _resolveAutoAssignedSchedule(session, schedule);
     }
@@ -1594,7 +1613,6 @@ class AdminEndpoint extends Endpoint {
     await _syncScheduleSectionReference(session, schedule);
     if (!isArchiving &&
         (schedule.roomId == null || schedule.timeslotId == null)) {
-      schedule.roomId = null;
       schedule.timeslotId = null;
       await _resolveAutoAssignedSchedule(
         session,
@@ -1775,6 +1793,7 @@ class AdminEndpoint extends Endpoint {
     Session session,
     Schedule schedule,
   ) async {
+    await _ensureSectionSchema(session);
     schedule.section = schedule.section.trim();
     if (schedule.sectionId != null) {
       final byId = await Section.db.findById(session, schedule.sectionId!);

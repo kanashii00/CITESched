@@ -53,7 +53,7 @@ BEGIN
         "section",
         "sectionId",
         "userInfoId",
-        COALESCE("academicstatus", 'active'),
+        'active',
         "isActive",
         "createdAt",
         "updatedAt"
