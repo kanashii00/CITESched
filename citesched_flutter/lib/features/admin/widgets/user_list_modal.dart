@@ -2265,14 +2265,22 @@ class _UserListModalState extends ConsumerState<UserListModal>
       DayOfWeek.sat: 'Sat',
     };
     final allSections = await client.admin.getAllSections();
-    final sectionByCode = <String, Section>{
-      for (final item in allSections) item.sectionCode.trim(): item,
-    };
+    final sectionsByCode = <String, List<Section>>{};
     for (final item in allSections) {
       final code = item.sectionCode.trim();
+      if (code.isEmpty) continue;
+      sectionsByCode.putIfAbsent(code, () => []).add(item);
+    }
+    for (final entry in sectionsByCode.entries) {
+      final existingPayload = entry.value
+          .map((section) => section.availabilityJson)
+          .firstWhere(
+            (payload) => payload != null && payload.trim().isNotEmpty,
+            orElse: () => null,
+          );
       _studentAvailabilityDrafts.putIfAbsent(
-        code,
-        () => _deserializeStudentAvailabilityEntries(item.availabilityJson),
+        entry.key,
+        () => _deserializeStudentAvailabilityEntries(existingPayload),
       );
     }
     final sectionOptions = _studentSectionOptions;
@@ -2316,21 +2324,22 @@ class _UserListModalState extends ConsumerState<UserListModal>
             Future<void> saveSectionAvailabilityChanges() async {
               persistCurrentSectionAvailability();
               for (final entry in _studentAvailabilityDrafts.entries) {
-                final sectionRecord = sectionByCode[entry.key];
-                if (sectionRecord == null) {
+                final matchingSections = sectionsByCode[entry.key];
+                if (matchingSections == null || matchingSections.isEmpty) {
                   continue;
                 }
                 final payload = _serializeStudentAvailabilityEntries(entry.value);
-                await client.admin.updateSection(
-                  sectionRecord.copyWith(
-                    availabilityJson: payload,
-                    updatedAt: DateTime.now(),
-                  ),
-                );
-                sectionByCode[entry.key] = sectionRecord.copyWith(
-                  availabilityJson: payload,
-                  updatedAt: DateTime.now(),
-                );
+                final updatedSections = <Section>[];
+                for (final sectionRecord in matchingSections) {
+                  final updatedSection = await client.admin.updateSection(
+                    sectionRecord.copyWith(
+                      availabilityJson: payload,
+                      updatedAt: DateTime.now(),
+                    ),
+                  );
+                  updatedSections.add(updatedSection);
+                }
+                sectionsByCode[entry.key] = updatedSections;
               }
               ref.invalidate(sectionListProvider);
             }
