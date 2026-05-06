@@ -574,10 +574,9 @@ class SchedulingService {
           section.program,
           section.yearLevel,
         );
-        final yearLevelUsage =
-            tracking.yearLevelAssignments[faculty.id!] ??= {};
-        yearLevelUsage[yearLevelKey] =
-            (yearLevelUsage[yearLevelKey] ?? 0) + 1;
+        final yearLevelUsage = tracking.yearLevelAssignments[faculty.id!] ??=
+            {};
+        yearLevelUsage[yearLevelKey] = (yearLevelUsage[yearLevelKey] ?? 0) + 1;
         assignedSubjectSectionKeys.add(
           _componentKey(
             subject.id!,
@@ -635,7 +634,7 @@ class SchedulingService {
       return 'Subject ${subject.code} is locked to $lockedName, but that faculty member is not included in the selected faculty filter.';
     }
     if (lockedFaculty.program != null &&
-        lockedFaculty.program != subject.program) {
+        !_canTeachProgram(lockedFaculty, subject)) {
       return 'Subject ${subject.code} is locked to $lockedName, but program does not match (${lockedFaculty.program} vs ${subject.program}).';
     }
 
@@ -1256,6 +1255,7 @@ class SchedulingService {
 
   bool _canTeachProgram(Faculty faculty, Subject subject) {
     if (faculty.program == null) return true;
+    if (faculty.program == Program.both) return true;
     if (faculty.program == subject.program) return true;
     // EMC faculty can teach BSIT subjects, but IT faculty cannot teach EMC.
     if (faculty.program == Program.emc && subject.program == Program.it) {

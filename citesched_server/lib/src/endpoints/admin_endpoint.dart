@@ -150,15 +150,24 @@ class AdminEndpoint extends Endpoint {
     if (subject.isActive && !faculty.isActive) {
       throw Exception('Selected faculty is invalid or inactive');
     }
-    if (faculty.program != null && faculty.program != subject.program) {
-      final isEmcTeachingIt =
-          faculty.program == Program.emc && subject.program == Program.it;
-      if (!isEmcTeachingIt) {
-        throw Exception(
-          'Selected faculty program does not match the subject program.',
-        );
-      }
+    if (!_facultyCanTeachSubjectProgram(faculty.program, subject.program)) {
+      throw Exception(
+        'Selected faculty program does not match the subject program.',
+      );
     }
+  }
+
+  bool _facultyCanTeachSubjectProgram(
+    Program? facultyProgram,
+    Program subjectProgram,
+  ) {
+    if (facultyProgram == null) return true;
+    if (facultyProgram == Program.both) return true;
+    if (facultyProgram == subjectProgram) return true;
+    if (facultyProgram == Program.emc && subjectProgram == Program.it) {
+      return true;
+    }
+    return false;
   }
 
   int _parseTimeToMinutes(String value) {
@@ -352,21 +361,24 @@ class AdminEndpoint extends Endpoint {
     );
 
     final requiredMinutes = _requiredScheduleMinutes(subject, schedule);
-    final candidateTimeslots = allTimeslots.where((timeslot) {
-      final slotMinutes =
-          _parseTimeToMinutes(timeslot.endTime) -
-          _parseTimeToMinutes(timeslot.startTime);
-      return slotMinutes == requiredMinutes &&
-          _timeslotMatchesAvailability(timeslot, availability) &&
-          _timeslotMatchesSectionAvailability(timeslot, sectionAvailability);
-    }).toList()
-      ..sort((a, b) {
-        final dayCompare = _dayOrder(a.day).compareTo(_dayOrder(b.day));
-        if (dayCompare != 0) return dayCompare;
-        return _parseTimeToMinutes(a.startTime).compareTo(
-          _parseTimeToMinutes(b.startTime),
-        );
-      });
+    final candidateTimeslots =
+        allTimeslots.where((timeslot) {
+          final slotMinutes =
+              _parseTimeToMinutes(timeslot.endTime) -
+              _parseTimeToMinutes(timeslot.startTime);
+          return slotMinutes == requiredMinutes &&
+              _timeslotMatchesAvailability(timeslot, availability) &&
+              _timeslotMatchesSectionAvailability(
+                timeslot,
+                sectionAvailability,
+              );
+        }).toList()..sort((a, b) {
+          final dayCompare = _dayOrder(a.day).compareTo(_dayOrder(b.day));
+          if (dayCompare != 0) return dayCompare;
+          return _parseTimeToMinutes(a.startTime).compareTo(
+            _parseTimeToMinutes(b.startTime),
+          );
+        });
 
     if (candidateTimeslots.isEmpty) {
       throw Exception(
@@ -396,10 +408,13 @@ class AdminEndpoint extends Endpoint {
       }
       candidateRooms = [preferredRoom];
     } else {
-      candidateRooms = allRooms.where(
-        (room) => _roomSupportsSubject(room, subject, schedule),
-      ).toList()
-        ..sort((a, b) => a.capacity.compareTo(b.capacity));
+      candidateRooms =
+          allRooms
+              .where(
+                (room) => _roomSupportsSubject(room, subject, schedule),
+              )
+              .toList()
+            ..sort((a, b) => a.capacity.compareTo(b.capacity));
     }
 
     if (candidateRooms.isEmpty) {
@@ -746,12 +761,14 @@ class AdminEndpoint extends Endpoint {
       for (final userInfo in fallbackUserInfos) {
         if (userInfo.blocked || userInfo.id == null) continue;
 
-        final normalizedEmail =
-            (userInfo.email ?? userInfo.userIdentifier).trim().toLowerCase();
+        final normalizedEmail = (userInfo.email ?? userInfo.userIdentifier)
+            .trim()
+            .toLowerCase();
         final existingFaculty = await Faculty.db.findFirstRow(
           session,
           where: (t) =>
-              t.userInfoId.equals(userInfo.id!) | t.email.equals(normalizedEmail),
+              t.userInfoId.equals(userInfo.id!) |
+              t.email.equals(normalizedEmail),
         );
 
         if (existingFaculty != null) {
@@ -1001,12 +1018,14 @@ class AdminEndpoint extends Endpoint {
       for (final userInfo in fallbackUserInfos) {
         if (userInfo.blocked || userInfo.id == null) continue;
 
-        final normalizedEmail =
-            (userInfo.email ?? userInfo.userIdentifier).trim().toLowerCase();
+        final normalizedEmail = (userInfo.email ?? userInfo.userIdentifier)
+            .trim()
+            .toLowerCase();
         final existingStudent = await Student.db.findFirstRow(
           session,
           where: (t) =>
-              t.userInfoId.equals(userInfo.id!) | t.email.equals(normalizedEmail),
+              t.userInfoId.equals(userInfo.id!) |
+              t.email.equals(normalizedEmail),
         );
 
         if (existingStudent != null) {
@@ -2097,12 +2116,11 @@ class AdminEndpoint extends Endpoint {
     Session session,
     int facultyId,
     List<FacultyAvailability> availabilities,
-  ) async =>
-      setFacultyAvailabilityImpl(
-        session,
-        facultyId,
-        availabilities,
-      );
+  ) async => setFacultyAvailabilityImpl(
+    session,
+    facultyId,
+    availabilities,
+  );
 
   Future<List<FacultyAvailability>> setFacultyAvailabilityImpl(
     Session session,

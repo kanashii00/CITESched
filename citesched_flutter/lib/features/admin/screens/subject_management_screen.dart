@@ -45,6 +45,17 @@ String _semesterLabel(int term) {
   return term == 1 ? kFirstSemesterLabel : kSecondSemesterLabel;
 }
 
+bool _facultyCanHandleSubjectProgram(Faculty faculty, Program subjectProgram) {
+  final facultyProgram = faculty.program;
+  if (facultyProgram == null) return true;
+  if (facultyProgram == Program.both) return true;
+  if (facultyProgram == subjectProgram) return true;
+  if (facultyProgram == Program.emc && subjectProgram == Program.it) {
+    return true;
+  }
+  return false;
+}
+
 List<Faculty> _dedupeFacultyById(List<Faculty> facultyList) {
   final byId = <int, Faculty>{};
   for (final faculty in facultyList) {
@@ -501,642 +512,690 @@ class _SubjectManagementScreenState
           final useCompactList = constraints.maxWidth < 1400;
 
           return SingleChildScrollView(
-          padding: EdgeInsets.all(useStackedHeader ? 16 : 32),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AdminHeaderContainer(
-                  primaryColor: maroonColor,
-                  padding: EdgeInsets.all(useStackedHeader ? 20 : 32),
-                  borderRadius: BorderRadius.circular(28),
-                  boxShadow: [
-                    BoxShadow(
-                      color: maroonColor.withValues(alpha: 0.3),
-                      blurRadius: 25,
-                      offset: const Offset(0, 12),
-                    ),
-                  ],
-                  child: useStackedHeader
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(14),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.2,
-                                      ),
-                                    ),
-                                  ),
-                                  child: const Icon(
-                                    Icons.auto_stories_rounded,
-                                    color: Colors.white,
-                                    size: 28,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Subject Management',
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                          letterSpacing: -0.5,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Manage academic subjects, curricula, and units',
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 12,
-                                          color: Colors.white.withValues(
-                                            alpha: 0.8,
-                                          ),
-                                          letterSpacing: 0.2,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: ElevatedButton.icon(
-                                onPressed: _showAddSubjectModal,
-                                icon: const Icon(Icons.add_rounded, size: 20),
-                                label: Text(
-                                  kAddNewSubjectLabel,
-                                  style: GoogleFonts.poppins(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                    letterSpacing: 0.4,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: maroonColor,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 14,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  elevation: 0,
-                                ),
-                              ),
-                            ),
-                          ],
-                        )
-                      : Row(
-                          children: [
-                            Expanded(
-                              child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.2,
-                                      ),
-                                    ),
-                                  ),
-                                  child: const Icon(
-                                    Icons.auto_stories_rounded,
-                                    color: Colors.white,
-                                    size: 32,
-                                  ),
-                                ),
-                                const SizedBox(width: 24),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Subject Management',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 32,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                          letterSpacing: -1,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Manage academic subjects, curricula, and units',
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 16,
-                                          color: Colors.white.withValues(
-                                            alpha: 0.8,
-                                          ),
-                                          letterSpacing: 0.2,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            ),
-                            const SizedBox(width: 24),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: ElevatedButton.icon(
-                                onPressed: _showAddSubjectModal,
-                                icon: const Icon(Icons.add_rounded, size: 24),
-                                label: Text(
-                                  kAddNewSubjectLabel,
-                                  style: GoogleFonts.poppins(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: maroonColor,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 28,
-                                    vertical: 18,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  elevation: 0,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                ),
-                const SizedBox(height: 32),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    useStackedHeader
+            padding: EdgeInsets.all(useStackedHeader ? 16 : 32),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AdminHeaderContainer(
+                    primaryColor: maroonColor,
+                    padding: EdgeInsets.all(useStackedHeader ? 20 : 32),
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: [
+                      BoxShadow(
+                        color: maroonColor.withValues(alpha: 0.3),
+                        blurRadius: 25,
+                        offset: const Offset(0, 12),
+                      ),
+                    ],
+                    child: useStackedHeader
                         ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildViewToggle(isDark),
-                              const SizedBox(height: 16),
-                              _buildSearchBar(isDark),
-                              const SizedBox(height: 16),
                               Row(
                                 children: [
-                                  Expanded(child: _buildYearFilter(isDark)),
-                                  const SizedBox(width: 8),
-                                  Expanded(child: _buildProgramFilter(isDark)),
+                                  Container(
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.15,
+                                      ),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.2,
+                                        ),
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.auto_stories_rounded,
+                                      color: Colors.white,
+                                      size: 28,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Subject Management',
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                            letterSpacing: -0.5,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Manage academic subjects, curricula, and units',
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 12,
+                                            color: Colors.white.withValues(
+                                              alpha: 0.8,
+                                            ),
+                                            letterSpacing: 0.2,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ],
+                              ),
+                              const SizedBox(height: 16),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: ElevatedButton.icon(
+                                  onPressed: _showAddSubjectModal,
+                                  icon: const Icon(Icons.add_rounded, size: 20),
+                                  label: Text(
+                                    kAddNewSubjectLabel,
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                      letterSpacing: 0.4,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: maroonColor,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 14,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                ),
                               ),
                             ],
                           )
                         : Row(
                             children: [
-                              Expanded(flex: 3, child: _buildSearchBar(isDark)),
-                              const SizedBox(width: 16),
                               Expanded(
-                                flex: 1,
-                                child: _buildYearFilter(isDark),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                flex: 1,
-                                child: _buildProgramFilter(isDark),
-                              ),
-                              const SizedBox(width: 16),
-                              _buildViewToggle(isDark),
-                            ],
-                          ),
-                    const SizedBox(height: 24),
-                    subjectsAsync.when(
-                      loading: () =>
-                          const Center(child: CircularProgressIndicator()),
-                      error: (error, stack) =>
-                          Center(child: Text('Error: $error')),
-                      data: (subjects) {
-                        final filtered = subjects.where((s) {
-                          final matchesSearch =
-                              s.code.toLowerCase().contains(_searchQuery) ||
-                              s.name.toLowerCase().contains(_searchQuery);
-                          final matchesYear =
-                              _selectedYearLevel == null ||
-                              s.yearLevel == _selectedYearLevel;
-                          final matchesProgram =
-                              _selectedProgram == null ||
-                              s.program == _selectedProgram;
-                          return matchesSearch && matchesYear && matchesProgram;
-                        }).toList();
-                        final allSelected =
-                            filtered.isNotEmpty &&
-                            _selectedSubjectIds.length == filtered.length;
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (!mounted) return;
-                          _syncSelectedSubjects(filtered);
-                        });
-
-                        if (useCompactList) {
-                          return _buildMobileSubjectList(filtered, isDark);
-                        }
-
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? const Color(0xFF1E293B)
-                                : Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border(
-                              left: BorderSide(color: maroonColor, width: 4),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.08),
-                                blurRadius: 16,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            children: [
-                              // Table Header
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 16,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: maroonColor.withValues(alpha: 0.05),
-                                  borderRadius: const BorderRadius.only(
-                                    topLeft: Radius.circular(16),
-                                    topRight: Radius.circular(16),
-                                  ),
-                                ),
                                 child: Row(
                                   children: [
-                                    Icon(
-                                      Icons.book_rounded,
-                                      color: maroonColor,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Subjects',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: maroonColor,
-                                      ),
-                                    ),
-                                    if (_selectedSubjectIds.isNotEmpty) ...[
-                                      const SizedBox(width: 16),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: maroonColor.withValues(
-                                            alpha: 0.1,
-                                          ),
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          '${_selectedSubjectIds.length} selected',
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: maroonColor,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                    const Spacer(),
-                                    if (!_isShowingArchived &&
-                                        _selectedSubjectIds.isNotEmpty) ...[
-                                      TextButton.icon(
-                                        onPressed: () =>
-                                            _archiveSelectedSubjects(filtered),
-                                        icon: const Icon(
-                                          Icons.archive_outlined,
-                                        ),
-                                        label: Text(
-                                          'Archive Selected',
-                                          style: GoogleFonts.poppins(
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        style: TextButton.styleFrom(
-                                          foregroundColor: maroonColor,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                    ],
-                                    if (_isShowingArchived &&
-                                        _selectedSubjectIds.isNotEmpty) ...[
-                                      TextButton.icon(
-                                        onPressed: () =>
-                                            _deleteSelectedSubjects(filtered),
-                                        icon: const Icon(
-                                          Icons.delete_forever_outlined,
-                                        ),
-                                        label: Text(
-                                          'Delete Selected',
-                                          style: GoogleFonts.poppins(
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        style: TextButton.styleFrom(
-                                          foregroundColor: Colors.red,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                    ],
                                     Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 6,
-                                      ),
+                                      padding: const EdgeInsets.all(16),
                                       decoration: BoxDecoration(
-                                        color: maroonColor,
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Text(
-                                        '${filtered.length} Total',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.white,
+                                        color: Colors.white.withValues(
+                                          alpha: 0.15,
                                         ),
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.2,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const Icon(
+                                        Icons.auto_stories_rounded,
+                                        color: Colors.white,
+                                        size: 32,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 24),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Subject Management',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 32,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                              letterSpacing: -1,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Manage academic subjects, curricula, and units',
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 16,
+                                              color: Colors.white.withValues(
+                                                alpha: 0.8,
+                                              ),
+                                              letterSpacing: 0.2,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                              LayoutBuilder(
-                                builder: (context, constraints) {
-                                  return SingleChildScrollView(
-                                    scrollDirection: Axis.horizontal,
-                                    child: ConstrainedBox(
-                                      constraints: BoxConstraints(
-                                        minWidth: constraints.maxWidth,
-                                      ),
-                                      child: DataTable(
-                                        showCheckboxColumn: false,
-                                        headingRowColor:
-                                            WidgetStateProperty.all(
-                                              maroonColor,
-                                            ),
-                                        headingTextStyle: GoogleFonts.poppins(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 13,
-                                          letterSpacing: 0.5,
-                                        ),
-                                        dataRowMinHeight: 65,
-                                        dataRowMaxHeight: 85,
-                                        columnSpacing: 32,
-                                        horizontalMargin: 24,
-                                        decoration: const BoxDecoration(
-                                          color: Colors.transparent,
-                                        ),
-                                        columns: [
-                                          DataColumn(
-                                            label: Checkbox(
-                                              value: allSelected,
-                                              onChanged: (value) =>
-                                                  _toggleSelectAllSubjects(
-                                                    filtered,
-                                                    value,
-                                                  ),
-                                              activeColor: Colors.white,
-                                              checkColor: maroonColor,
-                                            ),
-                                          ),
-                                          const DataColumn(label: Text('CODE')),
-                                          const DataColumn(label: Text('TITLE')),
-                                          const DataColumn(label: Text('UNITS')),
-                                          const DataColumn(
-                                            label: Text('PROGRAM'),
-                                          ),
-                                          const DataColumn(
-                                            label: Text('YEAR/TERM'),
-                                          ),
-                                          const DataColumn(label: Text('TYPE')),
-                                          const DataColumn(
-                                            label: Text('STUDENTS'),
-                                          ),
-                                          const DataColumn(
-                                            label: Text('ACTIONS'),
-                                          ),
-                                        ],
-                                        rows: filtered.asMap().entries.map((
-                                          entry,
-                                        ) {
-                                    final subject = entry.value;
-                                    final index = entry.key;
-
-                                    return DataRow(
-                                      color:
-                                          WidgetStateProperty.resolveWith<
-                                            Color?
-                                          >(
-                                            (states) => _resolveRowColor(
-                                              states,
-                                              index,
-                                              isDark,
-                                            ),
-                                          ),
-                                      cells: [
-                                        DataCell(
-                                          Checkbox(
-                                            value:
-                                                subject.id != null &&
-                                                _selectedSubjectIds.contains(
-                                                  subject.id,
-                                                ),
-                                            onChanged: subject.id == null
-                                                ? null
-                                                : (value) =>
-                                                      _toggleSubjectSelection(
-                                                        subject.id!,
-                                                        value,
-                                                      ),
-                                            activeColor: maroonColor,
-                                          ),
-                                        ),
-                                        DataCell(
-                                          Row(
-                                            children: [
-                                              if (conflictsAsync.maybeWhen(
-                                                data: (conflicts) => conflicts
-                                                    .hasConflictForSubject(
-                                                      subject.id!,
-                                                    ),
-                                                orElse: () => false,
-                                              ))
-                                                const Tooltip(
-                                                  message:
-                                                      'Subject has a schedule conflict',
-                                                  child: Padding(
-                                                    padding: EdgeInsets.only(
-                                                      right: 8,
-                                                    ),
-                                                    child: Icon(
-                                                      Icons.warning_rounded,
-                                                      color: Colors.orange,
-                                                      size: 20,
-                                                    ),
-                                                  ),
-                                                ),
-                                              Text(
-                                                subject.code,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        DataCell(Text(subject.name)),
-                                        DataCell(
-                                          Text(
-                                            subject.units.toString(),
-                                          ),
-                                        ),
-                                        DataCell(
-                                          Text(
-                                            subject.program.name.toUpperCase(),
-                                          ),
-                                        ),
-                                        DataCell(
-                                          Text(
-                                            '${subject.yearLevel ?? "-"} / ${subject.term ?? "-"}',
-                                          ),
-                                        ),
-                                        DataCell(
-                                          Text(
-                                            subject.types
-                                                .map(
-                                                  (t) => t.name.toUpperCase(),
-                                                )
-                                                .join(' / '),
-                                          ),
-                                        ),
-                                        DataCell(
-                                          Text(
-                                            subject.studentsCount.toString(),
-                                          ),
-                                        ),
-                                        DataCell(
-                                          Row(
-                                            children: [
-                                              if (!_isShowingArchived) ...[
-                                                _buildActionIcon(
-                                                  icon: Icons.open_in_new,
-                                                  color: maroonColor,
-                                                  tooltip: 'Open details',
-                                                  onTap: () => Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder: (_) =>
-                                                          SubjectDetailsScreen(
-                                                            subject: subject,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 6),
-                                                _buildActionIcon(
-                                                  icon: Icons.edit_outlined,
-                                                  color: maroonColor,
-                                                  tooltip: 'Edit Subject',
-                                                  onTap: () =>
-                                                      _showEditSubjectModal(
-                                                        subject,
-                                                      ),
-                                                ),
-                                                const SizedBox(width: 6),
-                                                _buildActionIcon(
-                                                  icon: Icons.archive_outlined,
-                                                  color: Colors.orange,
-                                                  tooltip: 'Archive Subject',
-                                                  onTap: () =>
-                                                      _archiveSubject(
-                                                        subject,
-                                                      ),
-                                                ),
-                                              ] else ...[
-                                                _buildActionIcon(
-                                                  icon: Icons.restore_rounded,
-                                                  color: Colors.green,
-                                                  tooltip:
-                                                      kRestoreSubjectLabel,
-                                                  onTap: () =>
-                                                      _restoreSubject(
-                                                        subject,
-                                                      ),
-                                                ),
-                                                const SizedBox(width: 6),
-                                                _buildActionIcon(
-                                                  icon: Icons
-                                                      .delete_forever_rounded,
-                                                  color: Colors.red,
-                                                  tooltip:
-                                                      kDeletePermanentlyLabel,
-                                                  onTap: () =>
-                                                      _permanentDeleteSubject(
-                                                        subject,
-                                                      ),
-                                                ),
-                                              ],
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                        }).toList(),
-                                      ),
+                              const SizedBox(width: 24),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: ElevatedButton.icon(
+                                  onPressed: _showAddSubjectModal,
+                                  icon: const Icon(Icons.add_rounded, size: 24),
+                                  label: Text(
+                                    kAddNewSubjectLabel,
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                      letterSpacing: 0.5,
                                     ),
-                                  );
-                                },
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: maroonColor,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 28,
+                                      vertical: 18,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                ),
                               ),
                             ],
                           ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(height: 32),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      useStackedHeader
+                          ? Column(
+                              children: [
+                                _buildViewToggle(isDark),
+                                const SizedBox(height: 16),
+                                _buildSearchBar(isDark),
+                                const SizedBox(height: 16),
+                                Row(
+                                  children: [
+                                    Expanded(child: _buildYearFilter(isDark)),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: _buildProgramFilter(isDark),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            )
+                          : Row(
+                              children: [
+                                Expanded(
+                                  flex: 3,
+                                  child: _buildSearchBar(isDark),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  flex: 1,
+                                  child: _buildYearFilter(isDark),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  flex: 1,
+                                  child: _buildProgramFilter(isDark),
+                                ),
+                                const SizedBox(width: 16),
+                                _buildViewToggle(isDark),
+                              ],
+                            ),
+                      const SizedBox(height: 24),
+                      subjectsAsync.when(
+                        loading: () =>
+                            const Center(child: CircularProgressIndicator()),
+                        error: (error, stack) =>
+                            Center(child: Text('Error: $error')),
+                        data: (subjects) {
+                          final filtered = subjects.where((s) {
+                            final matchesSearch =
+                                s.code.toLowerCase().contains(_searchQuery) ||
+                                s.name.toLowerCase().contains(_searchQuery);
+                            final matchesYear =
+                                _selectedYearLevel == null ||
+                                s.yearLevel == _selectedYearLevel;
+                            final matchesProgram =
+                                _selectedProgram == null ||
+                                s.program == _selectedProgram;
+                            return matchesSearch &&
+                                matchesYear &&
+                                matchesProgram;
+                          }).toList();
+                          final allSelected =
+                              filtered.isNotEmpty &&
+                              _selectedSubjectIds.length == filtered.length;
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (!mounted) return;
+                            _syncSelectedSubjects(filtered);
+                          });
+
+                          if (useCompactList) {
+                            return _buildMobileSubjectList(filtered, isDark);
+                          }
+
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? const Color(0xFF1E293B)
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border(
+                                left: BorderSide(color: maroonColor, width: 4),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.08),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              children: [
+                                // Table Header
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 16,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: maroonColor.withValues(alpha: 0.05),
+                                    borderRadius: const BorderRadius.only(
+                                      topLeft: Radius.circular(16),
+                                      topRight: Radius.circular(16),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.book_rounded,
+                                        color: maroonColor,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Subjects',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: maroonColor,
+                                        ),
+                                      ),
+                                      if (_selectedSubjectIds.isNotEmpty) ...[
+                                        const SizedBox(width: 16),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: maroonColor.withValues(
+                                              alpha: 0.1,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '${_selectedSubjectIds.length} selected',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: maroonColor,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                      const Spacer(),
+                                      if (!_isShowingArchived &&
+                                          _selectedSubjectIds.isNotEmpty) ...[
+                                        TextButton.icon(
+                                          onPressed: () =>
+                                              _archiveSelectedSubjects(
+                                                filtered,
+                                              ),
+                                          icon: const Icon(
+                                            Icons.archive_outlined,
+                                          ),
+                                          label: Text(
+                                            'Archive Selected',
+                                            style: GoogleFonts.poppins(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: maroonColor,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                      ],
+                                      if (_isShowingArchived &&
+                                          _selectedSubjectIds.isNotEmpty) ...[
+                                        TextButton.icon(
+                                          onPressed: () =>
+                                              _deleteSelectedSubjects(filtered),
+                                          icon: const Icon(
+                                            Icons.delete_forever_outlined,
+                                          ),
+                                          label: Text(
+                                            'Delete Selected',
+                                            style: GoogleFonts.poppins(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: Colors.red,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                      ],
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: maroonColor,
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '${filtered.length} Total',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    return SingleChildScrollView(
+                                      scrollDirection: Axis.horizontal,
+                                      child: ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          minWidth: constraints.maxWidth,
+                                        ),
+                                        child: DataTable(
+                                          showCheckboxColumn: false,
+                                          headingRowColor:
+                                              WidgetStateProperty.all(
+                                                maroonColor,
+                                              ),
+                                          headingTextStyle: GoogleFonts.poppins(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                            letterSpacing: 0.5,
+                                          ),
+                                          dataRowMinHeight: 65,
+                                          dataRowMaxHeight: 85,
+                                          columnSpacing: 32,
+                                          horizontalMargin: 24,
+                                          decoration: const BoxDecoration(
+                                            color: Colors.transparent,
+                                          ),
+                                          columns: [
+                                            DataColumn(
+                                              label: Checkbox(
+                                                value: allSelected,
+                                                onChanged: (value) =>
+                                                    _toggleSelectAllSubjects(
+                                                      filtered,
+                                                      value,
+                                                    ),
+                                                activeColor: Colors.white,
+                                                checkColor: maroonColor,
+                                              ),
+                                            ),
+                                            const DataColumn(
+                                              label: Text('CODE'),
+                                            ),
+                                            const DataColumn(
+                                              label: Text('TITLE'),
+                                            ),
+                                            const DataColumn(
+                                              label: Text('UNITS'),
+                                            ),
+                                            const DataColumn(
+                                              label: Text('PROGRAM'),
+                                            ),
+                                            const DataColumn(
+                                              label: Text('YEAR/TERM'),
+                                            ),
+                                            const DataColumn(
+                                              label: Text('TYPE'),
+                                            ),
+                                            const DataColumn(
+                                              label: Text('STUDENTS'),
+                                            ),
+                                            const DataColumn(
+                                              label: Text('ACTIONS'),
+                                            ),
+                                          ],
+                                          rows: filtered.asMap().entries.map((
+                                            entry,
+                                          ) {
+                                            final subject = entry.value;
+                                            final index = entry.key;
+
+                                            return DataRow(
+                                              color:
+                                                  WidgetStateProperty.resolveWith<
+                                                    Color?
+                                                  >(
+                                                    (states) =>
+                                                        _resolveRowColor(
+                                                          states,
+                                                          index,
+                                                          isDark,
+                                                        ),
+                                                  ),
+                                              cells: [
+                                                DataCell(
+                                                  Checkbox(
+                                                    value:
+                                                        subject.id != null &&
+                                                        _selectedSubjectIds
+                                                            .contains(
+                                                              subject.id,
+                                                            ),
+                                                    onChanged:
+                                                        subject.id == null
+                                                        ? null
+                                                        : (value) =>
+                                                              _toggleSubjectSelection(
+                                                                subject.id!,
+                                                                value,
+                                                              ),
+                                                    activeColor: maroonColor,
+                                                  ),
+                                                ),
+                                                DataCell(
+                                                  Row(
+                                                    children: [
+                                                      if (conflictsAsync.maybeWhen(
+                                                        data: (conflicts) =>
+                                                            conflicts
+                                                                .hasConflictForSubject(
+                                                                  subject.id!,
+                                                                ),
+                                                        orElse: () => false,
+                                                      ))
+                                                        const Tooltip(
+                                                          message:
+                                                              'Subject has a schedule conflict',
+                                                          child: Padding(
+                                                            padding:
+                                                                EdgeInsets.only(
+                                                                  right: 8,
+                                                                ),
+                                                            child: Icon(
+                                                              Icons
+                                                                  .warning_rounded,
+                                                              color:
+                                                                  Colors.orange,
+                                                              size: 20,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      Text(
+                                                        subject.code,
+                                                        style: const TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                DataCell(Text(subject.name)),
+                                                DataCell(
+                                                  Text(
+                                                    subject.units.toString(),
+                                                  ),
+                                                ),
+                                                DataCell(
+                                                  Text(
+                                                    subject.program.name
+                                                        .toUpperCase(),
+                                                  ),
+                                                ),
+                                                DataCell(
+                                                  Text(
+                                                    '${subject.yearLevel ?? "-"} / ${subject.term ?? "-"}',
+                                                  ),
+                                                ),
+                                                DataCell(
+                                                  Text(
+                                                    subject.types
+                                                        .map(
+                                                          (t) => t.name
+                                                              .toUpperCase(),
+                                                        )
+                                                        .join(' / '),
+                                                  ),
+                                                ),
+                                                DataCell(
+                                                  Text(
+                                                    subject.studentsCount
+                                                        .toString(),
+                                                  ),
+                                                ),
+                                                DataCell(
+                                                  Row(
+                                                    children: [
+                                                      if (!_isShowingArchived) ...[
+                                                        _buildActionIcon(
+                                                          icon:
+                                                              Icons.open_in_new,
+                                                          color: maroonColor,
+                                                          tooltip:
+                                                              'Open details',
+                                                          onTap: () => Navigator.push(
+                                                            context,
+                                                            MaterialPageRoute(
+                                                              builder: (_) =>
+                                                                  SubjectDetailsScreen(
+                                                                    subject:
+                                                                        subject,
+                                                                  ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 6,
+                                                        ),
+                                                        _buildActionIcon(
+                                                          icon: Icons
+                                                              .edit_outlined,
+                                                          color: maroonColor,
+                                                          tooltip:
+                                                              'Edit Subject',
+                                                          onTap: () =>
+                                                              _showEditSubjectModal(
+                                                                subject,
+                                                              ),
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 6,
+                                                        ),
+                                                        _buildActionIcon(
+                                                          icon: Icons
+                                                              .archive_outlined,
+                                                          color: Colors.orange,
+                                                          tooltip:
+                                                              'Archive Subject',
+                                                          onTap: () =>
+                                                              _archiveSubject(
+                                                                subject,
+                                                              ),
+                                                        ),
+                                                      ] else ...[
+                                                        _buildActionIcon(
+                                                          icon: Icons
+                                                              .restore_rounded,
+                                                          color: Colors.green,
+                                                          tooltip:
+                                                              kRestoreSubjectLabel,
+                                                          onTap: () =>
+                                                              _restoreSubject(
+                                                                subject,
+                                                              ),
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 6,
+                                                        ),
+                                                        _buildActionIcon(
+                                                          icon: Icons
+                                                              .delete_forever_rounded,
+                                                          color: Colors.red,
+                                                          tooltip:
+                                                              kDeletePermanentlyLabel,
+                                                          onTap: () =>
+                                                              _permanentDeleteSubject(
+                                                                subject,
+                                                              ),
+                                                        ),
+                                                      ],
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        );
+          );
         },
       ),
     );
@@ -1869,7 +1928,7 @@ class _AddSubjectModalState extends ConsumerState<_AddSubjectModal> {
                             final match = _facultyList.where(
                               (f) =>
                                   f.id == _selectedFacultyId &&
-                                  (f.program == null || f.program == _program),
+                                  _facultyCanHandleSubjectProgram(f, _program!),
                             );
                             if (match.isEmpty) _selectedFacultyId = null;
                           }
@@ -1894,10 +1953,11 @@ class _AddSubjectModalState extends ConsumerState<_AddSubjectModal> {
                           ..._facultyList
                               .where(
                                 (f) =>
-                                    f.program == null ||
-                                    f.program == _program ||
-                                    (_program == Program.it &&
-                                        f.program == Program.emc),
+                                    _program != null &&
+                                    _facultyCanHandleSubjectProgram(
+                                      f,
+                                      _program!,
+                                    ),
                               )
                               .map(
                                 (f) => DropdownMenuItem<int?>(
@@ -2992,7 +3052,7 @@ class _EditSubjectModalState extends ConsumerState<_EditSubjectModal> {
                             final match = _facultyList.where(
                               (f) =>
                                   f.id == _selectedFacultyId &&
-                                  (f.program == null || f.program == _program),
+                                  _facultyCanHandleSubjectProgram(f, _program!),
                             );
                             if (match.isEmpty) _selectedFacultyId = null;
                           }
@@ -3017,10 +3077,11 @@ class _EditSubjectModalState extends ConsumerState<_EditSubjectModal> {
                           ..._facultyList
                               .where(
                                 (f) =>
-                                    f.program == null ||
-                                    f.program == _program ||
-                                    (_program == Program.it &&
-                                        f.program == Program.emc),
+                                    _program != null &&
+                                    _facultyCanHandleSubjectProgram(
+                                      f,
+                                      _program!,
+                                    ),
                               )
                               .map(
                                 (f) => DropdownMenuItem<int?>(
