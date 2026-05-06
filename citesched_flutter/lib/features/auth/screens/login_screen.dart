@@ -1125,12 +1125,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 DropdownButtonFormField<Program>(
                                   initialValue: selectedProgram,
                                   decoration: fieldDecoration('Select Program'),
-                                  items: const [Program.it, Program.emc]
+                                  items: const [
+                                    Program.it,
+                                    Program.emc,
+                                    Program.both,
+                                  ]
                                       .map(
                                         (program) => DropdownMenuItem<Program>(
                                           value: program,
                                           child: Text(
-                                            program.name.toUpperCase(),
+                                            switch (program) {
+                                              Program.it => 'BSIT',
+                                              Program.emc => 'BSEMC',
+                                              Program.both =>
+                                                'Both BSIT and BSEMC',
+                                            },
                                             style: GoogleFonts.poppins(
                                               fontSize: 15,
                                               color: textPrimary,
