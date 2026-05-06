@@ -93,6 +93,8 @@ class StudentEndpoint extends Endpoint {
     existing.name = updatedProfile.name;
     existing.course = updatedProfile.course;
     existing.yearLevel = updatedProfile.yearLevel;
+    existing.section = updatedProfile.section;
+    existing.studentNumber = updatedProfile.studentNumber;
     existing.updatedAt = DateTime.now();
 
     return await Student.db.updateRow(session, existing);

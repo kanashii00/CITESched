@@ -1009,94 +1009,116 @@ class _WeeklyCalendarViewState extends State<WeeklyCalendarView> {
       if (subj?.name != null && subj!.name.isNotEmpty) subj.name,
     ].join(' - ');
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(
-            timeRange,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w800,
-              fontSize: 15,
-              color: Colors.white,
-            ),
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          classType,
-          textAlign: TextAlign.center,
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w700,
-            fontSize: 12,
-            color: Colors.white70,
-            letterSpacing: 0.8,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Flexible(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableHeight = constraints.maxHeight;
+        final isTiny = availableHeight <= 56;
+        final isCompact = availableHeight <= 88;
+        final showFaculty = !isTiny;
+        final showSubject = availableHeight > 68;
+        final showSection = availableHeight > 96;
+        final showRoom = availableHeight > 112;
+
+        return ClipRect(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: MainAxisSize.max,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                faculty,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                  color: Colors.white,
-                  height: 1.0,
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  timeRange,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w800,
+                    fontSize: isTiny ? 12 : 15,
+                    color: Colors.white,
+                  ),
                 ),
               ),
-              Text(
-                subjectLine.isEmpty ? 'Subject TBA' : subjectLine,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white.withValues(alpha: 0.85),
-                  height: 1.0,
+              if (!isTiny) const SizedBox(height: 2),
+              if (!isTiny)
+                Text(
+                  classType,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: isCompact ? 10 : 12,
+                    color: Colors.white70,
+                    letterSpacing: 0.8,
+                  ),
                 ),
-              ),
-              Text(
-                'Section: ${schedule.section}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  fontSize: 11,
-                  color: Colors.white70,
-                  height: 1.0,
+              if (!isTiny) SizedBox(height: isCompact ? 2 : 4),
+              if (showFaculty || showSubject || showSection || showRoom)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (showFaculty)
+                        Text(
+                          faculty,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w700,
+                            fontSize: isCompact ? 12 : 15,
+                            color: Colors.white,
+                            height: 1.0,
+                          ),
+                        ),
+                      if (showSubject)
+                        Text(
+                          subjectLine.isEmpty ? 'Subject TBA' : subjectLine,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            fontSize: isCompact ? 10 : 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white.withValues(alpha: 0.85),
+                            height: 1.0,
+                          ),
+                        ),
+                      if (showSection)
+                        Text(
+                          'Section: ${schedule.section}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            color: Colors.white70,
+                            height: 1.0,
+                          ),
+                        ),
+                      if (showRoom)
+                        Text(
+                          'Room: $room',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            color: Colors.white70,
+                            height: 1.0,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              Text(
-                'Room: $room',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  fontSize: 11,
-                  color: Colors.white70,
-                  height: 1.0,
+              if (hasConflict && !isTiny)
+                Align(
+                  alignment: Alignment.bottomRight,
+                  child: Icon(
+                    Icons.warning_amber_rounded,
+                    size: 14,
+                    color: Colors.red[300],
+                  ),
                 ),
-              ),
             ],
           ),
-        ),
-        if (hasConflict)
-          Align(
-            alignment: Alignment.bottomRight,
-            child: Icon(
-              Icons.warning_amber_rounded,
-              size: 14,
-              color: Colors.red[300],
-            ),
-          ),
-      ],
+        );
+      },
     );
   }
 

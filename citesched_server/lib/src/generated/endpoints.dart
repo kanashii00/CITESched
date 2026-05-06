@@ -1445,6 +1445,25 @@ class Endpoints extends _i1.EndpointDispatch {
               ) async => (endpoints['faculty'] as _i9.FacultyEndpoint)
                   .getMyProfile(session),
         ),
+        'updateMyProfile': _i1.MethodConnector(
+          name: 'updateMyProfile',
+          params: {
+            'updatedProfile': _i1.ParameterDescription(
+              name: 'updatedProfile',
+              type: _i1.getType<_i16.Faculty>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['faculty'] as _i9.FacultyEndpoint)
+                  .updateMyProfile(
+                    session,
+                    params['updatedProfile'],
+                  ),
+        ),
       },
     );
     connectors['nLP'] = _i1.EndpointConnector(

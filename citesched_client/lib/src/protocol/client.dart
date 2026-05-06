@@ -843,6 +843,14 @@ class EndpointFaculty extends _i2.EndpointRef {
         'getMyProfile',
         {},
       );
+
+  /// Update the current faculty's profile.
+  _i3.Future<_i6.Faculty?> updateMyProfile(_i6.Faculty updatedProfile) =>
+      caller.callServerEndpoint<_i6.Faculty?>(
+        'faculty',
+        'updateMyProfile',
+        {'updatedProfile': updatedProfile},
+      );
 }
 
 /// {@category Endpoint}

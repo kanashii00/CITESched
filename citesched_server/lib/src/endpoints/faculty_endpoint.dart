@@ -84,4 +84,27 @@ class FacultyEndpoint extends Endpoint {
     if (authInfo == null) return null;
     return await _findCurrentFaculty(session, authInfo);
   }
+
+  /// Update the current faculty's profile.
+  Future<Faculty?> updateMyProfile(
+    Session session,
+    Faculty updatedProfile,
+  ) async {
+    final authInfo = session.authenticated;
+    if (authInfo == null) return null;
+
+    final existing = await _findCurrentFaculty(session, authInfo);
+    if (existing == null) return null;
+
+    existing.name = updatedProfile.name;
+    existing.facultyId = updatedProfile.facultyId;
+    existing.maxLoad = updatedProfile.maxLoad;
+    existing.employmentStatus = updatedProfile.employmentStatus;
+    existing.shiftPreference = updatedProfile.shiftPreference;
+    existing.preferredHours = updatedProfile.preferredHours;
+    existing.program = updatedProfile.program;
+    existing.updatedAt = DateTime.now();
+
+    return await Faculty.db.updateRow(session, existing);
+  }
 }

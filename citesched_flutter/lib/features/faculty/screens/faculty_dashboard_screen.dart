@@ -34,6 +34,10 @@ final facultyAvailabilityProvider = FutureProvider<List<FacultyAvailability>>((
   }
 });
 
+final facultyProfileProvider = FutureProvider<Faculty?>((ref) async {
+  return await client.faculty.getMyProfile();
+});
+
 const _weeklyCalendarLabel = 'Weekly Calendar';
 
 class FacultyDashboardScreen extends ConsumerStatefulWidget {
@@ -247,6 +251,7 @@ class _FacultyDashboardScreenState extends ConsumerState<FacultyDashboardScreen>
   Widget _buildFacultyDashboard(BuildContext context) {
     final scheduleAsync = ref.watch(facultyScheduleProvider);
     final availabilityAsync = ref.watch(facultyAvailabilityProvider);
+    final facultyProfileAsync = ref.watch(facultyProfileProvider);
     final historyAsync = ref.watch(chatHistoryProvider(20));
     final user = ref.watch(authProvider);
     final isMobile = ResponsiveHelper.isMobile(context);
@@ -340,6 +345,43 @@ class _FacultyDashboardScreenState extends ConsumerState<FacultyDashboardScreen>
           orElse: () => const SizedBox(),
         ),
         ElevatedButton.icon(
+          onPressed: facultyProfileAsync.value == null
+              ? null
+              : () => showDialog<void>(
+                    context: context,
+                    builder: (_) => _EditOwnFacultyProfileDialog(
+                      faculty: facultyProfileAsync.value!,
+                      maroonColor: maroonColor,
+                      onSaved: () {
+                        ref.invalidate(facultyProfileProvider);
+                        ref.invalidate(facultyScheduleProvider);
+                        ref.invalidate(facultyAvailabilityProvider);
+                      },
+                    ),
+                  ),
+          icon: const Icon(Icons.edit_rounded, size: 18),
+          label: Text(
+            'Edit Profile',
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white.withValues(alpha: 0.16),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 14,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: const BorderSide(color: Colors.white30),
+            ),
+            elevation: 0,
+          ),
+        ),
+        ElevatedButton.icon(
           onPressed: () => showPasswordResetDialog(
             context,
             initialEmail: user?.email,
@@ -417,6 +459,8 @@ class _FacultyDashboardScreenState extends ConsumerState<FacultyDashboardScreen>
             actions[3],
             const SizedBox(width: 12),
             actions[4],
+            const SizedBox(width: 12),
+            actions[5],
           ],
         );
       }
@@ -434,7 +478,9 @@ class _FacultyDashboardScreenState extends ConsumerState<FacultyDashboardScreen>
           const SizedBox(height: 10),
           SizedBox(width: double.infinity, child: actions[3]),
           const SizedBox(height: 10),
-          Align(alignment: Alignment.centerRight, child: actions[4]),
+          SizedBox(width: double.infinity, child: actions[4]),
+          const SizedBox(height: 10),
+          Align(alignment: Alignment.centerRight, child: actions[5]),
         ],
       );
     }
@@ -1470,6 +1516,276 @@ class _FacultyDashboardScreenState extends ConsumerState<FacultyDashboardScreen>
 
   Widget _tableCell({required int flex, required Widget child}) {
     return Expanded(flex: flex, child: child);
+  }
+}
+
+class _EditOwnFacultyProfileDialog extends StatefulWidget {
+  const _EditOwnFacultyProfileDialog({
+    required this.faculty,
+    required this.maroonColor,
+    required this.onSaved,
+  });
+
+  final Faculty faculty;
+  final Color maroonColor;
+  final VoidCallback onSaved;
+
+  @override
+  State<_EditOwnFacultyProfileDialog> createState() =>
+      _EditOwnFacultyProfileDialogState();
+}
+
+class _EditOwnFacultyProfileDialogState
+    extends State<_EditOwnFacultyProfileDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _facultyIdCtrl;
+  late final TextEditingController _maxLoadCtrl;
+  late final TextEditingController _preferredHoursCtrl;
+  EmploymentStatus? _employmentStatus;
+  FacultyShiftPreference? _shiftPreference;
+  Program? _program;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: widget.faculty.name);
+    _facultyIdCtrl = TextEditingController(text: widget.faculty.facultyId);
+    _maxLoadCtrl = TextEditingController(text: widget.faculty.maxLoad.toString());
+    _preferredHoursCtrl = TextEditingController(
+      text: widget.faculty.preferredHours ?? '',
+    );
+    _employmentStatus = widget.faculty.employmentStatus;
+    _shiftPreference =
+        widget.faculty.shiftPreference ?? FacultyShiftPreference.any;
+    _program = widget.faculty.program;
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _facultyIdCtrl.dispose();
+    _maxLoadCtrl.dispose();
+    _preferredHoursCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isSaving = true);
+    try {
+      final updated = widget.faculty.copyWith(
+        name: _nameCtrl.text.trim(),
+        facultyId: _facultyIdCtrl.text.trim(),
+        maxLoad: int.tryParse(_maxLoadCtrl.text.trim()) ?? widget.faculty.maxLoad,
+        employmentStatus: _employmentStatus,
+        shiftPreference: _shiftPreference,
+        preferredHours: _preferredHoursCtrl.text.trim().isEmpty
+            ? null
+            : _preferredHoursCtrl.text.trim(),
+        program: _program,
+        updatedAt: DateTime.now(),
+      );
+      await client.faculty.updateMyProfile(updated);
+      if (!mounted) return;
+      Navigator.pop(context);
+      widget.onSaved();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile updated successfully.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update profile: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  String _employmentStatusLabel(EmploymentStatus status) {
+    switch (status) {
+      case EmploymentStatus.fullTime:
+        return 'Full-Time';
+      case EmploymentStatus.partTime:
+        return 'Part-Time';
+    }
+  }
+
+  String _shiftPreferenceLabel(FacultyShiftPreference preference) {
+    switch (preference) {
+      case FacultyShiftPreference.any:
+        return 'Any Time (Flexible)';
+      case FacultyShiftPreference.morning:
+        return 'Morning';
+      case FacultyShiftPreference.afternoon:
+        return 'Afternoon';
+      case FacultyShiftPreference.evening:
+        return 'Evening';
+      case FacultyShiftPreference.custom:
+        return 'Custom';
+    }
+  }
+
+  String _programLabel(Program program) {
+    switch (program) {
+      case Program.it:
+        return 'BSIT';
+      case Program.emc:
+        return 'BSEMC';
+      case Program.both:
+        return 'Both BSIT and BSEMC';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Edit Faculty Profile',
+                        style: GoogleFonts.poppins(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  widget.faculty.email,
+                  style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 18),
+                TextFormField(
+                  controller: _nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Full Name'),
+                  validator: (value) =>
+                      value == null || value.trim().isEmpty ? 'Required' : null,
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _facultyIdCtrl,
+                  decoration: const InputDecoration(labelText: 'Faculty ID'),
+                  validator: (value) =>
+                      value == null || value.trim().isEmpty ? 'Required' : null,
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _maxLoadCtrl,
+                  decoration: const InputDecoration(labelText: 'Max Load'),
+                  keyboardType: TextInputType.number,
+                  validator: (value) =>
+                      int.tryParse(value ?? '') == null ? 'Enter a valid number' : null,
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<EmploymentStatus>(
+                  initialValue: _employmentStatus,
+                  decoration: const InputDecoration(labelText: 'Employment Status'),
+                  items: EmploymentStatus.values
+                      .map(
+                        (value) => DropdownMenuItem(
+                          value: value,
+                          child: Text(_employmentStatusLabel(value)),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(() => _employmentStatus = value),
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<FacultyShiftPreference>(
+                  initialValue: _shiftPreference,
+                  decoration: const InputDecoration(labelText: 'Shift Preference'),
+                  items: FacultyShiftPreference.values
+                      .map(
+                        (value) => DropdownMenuItem(
+                          value: value,
+                          child: Text(_shiftPreferenceLabel(value)),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(() => _shiftPreference = value),
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<Program>(
+                  initialValue: _program,
+                  decoration: const InputDecoration(labelText: 'Program Assignment'),
+                  items: const [Program.it, Program.emc, Program.both]
+                      .map(
+                        (value) => DropdownMenuItem(
+                          value: value,
+                          child: Text(_programLabel(value)),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(() => _program = value),
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _preferredHoursCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Preferred Hours',
+                    hintText: 'Optional',
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _isSaving
+                            ? null
+                            : () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _isSaving ? null : _submit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: widget.maroonColor,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: Text(
+                          _isSaving ? 'Saving...' : 'Save Changes',
+                          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -89,7 +89,8 @@ class AdminDashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
-  final FlutterSecureStorage _notificationStorage = const FlutterSecureStorage();
+  final FlutterSecureStorage _notificationStorage =
+      const FlutterSecureStorage();
   List<Student>? _lastStudentPromotionBackup;
   bool? _isBulkPromotingStudents;
   bool? _isRestoringStudentPromotion;
@@ -104,9 +105,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   String _notificationStorageKey(String ownerKey) =>
       'admin_notification_reads_v1:$ownerKey';
 
-  String _studentNotificationKey(Student student) => 'student:${student.id ?? 0}';
+  String _studentNotificationKey(Student student) =>
+      'student:${student.id ?? 0}';
 
-  String _facultyNotificationKey(Faculty faculty) => 'faculty:${faculty.id ?? 0}';
+  String _facultyNotificationKey(Faculty faculty) =>
+      'faculty:${faculty.id ?? 0}';
 
   bool _isStudentNotificationRead(Student student) {
     final id = student.id;
@@ -278,14 +281,12 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
   List<Student> _promotionCandidates(
     List<Student> students,
-    List<Section> sections,
+    List<Section> _sections,
   ) {
     final candidates = <Student>[];
 
     for (final student in students) {
       if (student.academicStatus != StudentAcademicStatus.active) continue;
-      final maxYear = _maxYearForCourse(sections, student.course);
-      if (student.yearLevel >= maxYear) continue;
       candidates.add(student);
     }
 
@@ -317,14 +318,13 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     final yearOptions = <int>[1, 2, 3, 4];
     final programOptions = <String>{
       for (final student in students)
-        if (student.course.trim().isNotEmpty) student.course.trim().toUpperCase(),
-    }.toList()
-      ..sort();
+        if (student.course.trim().isNotEmpty)
+          student.course.trim().toUpperCase(),
+    }.toList()..sort();
     final sectionOptions = <String>{
       for (final student in students)
         if ((student.section ?? '').trim().isNotEmpty) student.section!.trim(),
-    }.toList()
-      ..sort();
+    }.toList()..sort();
 
     return showDialog<List<Student>>(
       context: context,
@@ -353,7 +353,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 )
                 .length;
             final eligibleFilteredCount = filtered
-                .where((student) => eligibleKeys.contains(_studentPromotionKey(student)))
+                .where(
+                  (student) =>
+                      eligibleKeys.contains(_studentPromotionKey(student)),
+                )
                 .length;
             final allFilteredSelected =
                 eligibleFilteredCount > 0 &&
@@ -374,7 +377,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Manually select which active students will be promoted. Students already marked as failed, graduated, or already at the highest available year level will appear but cannot be promoted. Subject prerequisite failures are not auto-detected yet, so students who should stay back must be left unselected.',
+                      'Manually select which active students will be updated. Year 1 to Year 3 students will proceed to the next year level and section. Year 4 students will be moved to the graduated student list. Students already marked as failed or graduated will appear but cannot be processed here. Subject prerequisite failures are not auto-detected yet, so students who should stay back must be left unselected.',
                       style: GoogleFonts.poppins(height: 1.45),
                     ),
                     const SizedBox(height: 16),
@@ -517,7 +520,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                 child: Padding(
                                   padding: const EdgeInsets.all(24),
                                   child: Text(
-                                    'No eligible students match the selected filters.',
+                                    'No students match the selected filters.',
                                     style: GoogleFonts.poppins(),
                                   ),
                                 ),
@@ -525,8 +528,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                             : ListView.separated(
                                 shrinkWrap: true,
                                 itemCount: filtered.length,
-                                separatorBuilder: (_, __) =>
-                                    Divider(height: 1, color: Colors.grey.shade200),
+                                separatorBuilder: (_, __) => Divider(
+                                  height: 1,
+                                  color: Colors.grey.shade200,
+                                ),
                                 itemBuilder: (context, index) {
                                   final student = filtered[index];
                                   final key = _studentPromotionKey(student);
@@ -536,16 +541,29 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                       (student.section ?? '').trim().isNotEmpty
                                       ? student.section!.trim()
                                       : 'No Section';
-                                  final academicStatusLabel =
-                                      student.academicStatus.name
-                                          .toUpperCase()
-                                          .replaceAll('_', ' ');
+                                  final academicStatusLabel = student
+                                      .academicStatus
+                                      .name
+                                      .toUpperCase()
+                                      .replaceAll('_', ' ');
+                                  final canAdvanceYear =
+                                      student.academicStatus ==
+                                          StudentAcademicStatus.active &&
+                                      student.yearLevel < 4;
+                                  final canGraduate =
+                                      student.academicStatus ==
+                                          StudentAcademicStatus.active &&
+                                      student.yearLevel >= 4;
                                   final eligibilityNote = isEligible
-                                      ? 'Eligible for promotion'
+                                      ? canGraduate
+                                            ? 'Eligible for graduation'
+                                            : canAdvanceYear
+                                            ? 'Eligible for promotion'
+                                            : 'Eligible for update'
                                       : student.academicStatus !=
                                             StudentAcademicStatus.active
                                       ? 'Not eligible: $academicStatusLabel'
-                                      : 'Not eligible: no higher year level is available for this student';
+                                      : 'Not eligible';
 
                                   return CheckboxListTile(
                                     value: isSelected,
@@ -613,16 +631,202 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     );
   }
 
+  String _formatStudentDate(DateTime value) {
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return '${value.year}-$month-$day $hour:$minute';
+  }
+
+  String _studentAcademicStatusLabel(StudentAcademicStatus status) {
+    return status.name.toUpperCase().replaceAll('_', ' ');
+  }
+
+  Widget _buildStudentDetailChip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStudentDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF666666),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF222222),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showGraduatedStudentDetailsDialog(Student student) async {
+    if (!mounted) return;
+
+    final sectionLabel =
+        (student.section ?? '').trim().isEmpty
+            ? 'No Section'
+            : student.section!.trim();
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 24,
+                        backgroundColor: const Color(0xFF720045),
+                        child: Text(
+                          student.name.isEmpty ? '?' : student.name[0].toUpperCase(),
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 20,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              student.name,
+                              style: GoogleFonts.poppins(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Graduated Student Details',
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                color: const Color(0xFF666666),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      _buildStudentDetailChip(student.course, const Color(0xFF0F766E)),
+                      _buildStudentDetailChip(
+                        'Year ${student.yearLevel}',
+                        const Color(0xFF2E7D32),
+                      ),
+                      _buildStudentDetailChip(
+                        _studentAcademicStatusLabel(student.academicStatus),
+                        const Color(0xFF720045),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  _buildStudentDetailRow('Student Number', student.studentNumber),
+                  _buildStudentDetailRow('Email', student.email),
+                  _buildStudentDetailRow('Program', student.course),
+                  _buildStudentDetailRow('Year Level', 'Year ${student.yearLevel}'),
+                  _buildStudentDetailRow('Section', sectionLabel),
+                  _buildStudentDetailRow(
+                    'Status',
+                    _studentAcademicStatusLabel(student.academicStatus),
+                  ),
+                  _buildStudentDetailRow(
+                    'Created At',
+                    _formatStudentDate(student.createdAt),
+                  ),
+                  _buildStudentDetailRow(
+                    'Last Updated',
+                    _formatStudentDate(student.updatedAt),
+                  ),
+                  const SizedBox(height: 20),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF720045),
+                        foregroundColor: Colors.white,
+                      ),
+                      child: Text('Close', style: GoogleFonts.poppins()),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _showGraduatedStudentsDialog() async {
     try {
       final activeStudents = await client.admin.getAllStudents(isActive: true);
-      final inactiveStudents = await client.admin.getAllStudents(isActive: false);
-      final graduatedStudents = [...activeStudents, ...inactiveStudents]
-          .where(
-            (student) => student.academicStatus == StudentAcademicStatus.graduated,
-          )
-          .toList()
-        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      final inactiveStudents = await client.admin.getAllStudents(
+        isActive: false,
+      );
+      final graduatedStudents =
+          [...activeStudents, ...inactiveStudents]
+              .where(
+                (student) =>
+                    student.academicStatus == StudentAcademicStatus.graduated,
+              )
+              .toList()
+            ..sort(
+              (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+            );
 
       if (!mounted) return;
 
@@ -690,7 +894,15 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                               const SizedBox(height: 10),
                           itemBuilder: (context, index) {
                             final student = graduatedStudents[index];
-                            return Container(
+                            return Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(14),
+                                onTap:
+                                    () => _showGraduatedStudentDetailsDialog(
+                                      student,
+                                    ),
+                                child: Container(
                               padding: const EdgeInsets.all(14),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFEEF1F6),
@@ -716,7 +928,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           student.name,
@@ -742,8 +955,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                       vertical: 6,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF2E7D32)
-                                          .withValues(alpha: 0.12),
+                                      color: const Color(
+                                        0xFF2E7D32,
+                                      ).withValues(alpha: 0.12),
                                       borderRadius: BorderRadius.circular(999),
                                     ),
                                     child: Text(
@@ -755,7 +969,14 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                       ),
                                     ),
                                   ),
+                                  const SizedBox(width: 8),
+                                  const Icon(
+                                    Icons.chevron_right_rounded,
+                                    color: Color(0xFF720045),
+                                  ),
                                 ],
+                              ),
+                                ),
                               ),
                             );
                           },
@@ -794,7 +1015,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       if (candidates.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('No students are eligible for year level promotion.'),
+            content: Text(
+              'No active students are available for year level updates.',
+            ),
           ),
         );
         return;
@@ -811,11 +1034,14 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
       final backup = <Student>[];
       var promotedCount = 0;
+      var graduatedCount = 0;
 
-      for (final student in selectedStudents) {
-        final maxYear = _maxYearForCourse(sections, student.course);
-        if (student.yearLevel >= maxYear) continue;
-        final nextYearLevel = student.yearLevel + 1;
+      final orderedStudents = [...selectedStudents]
+        ..sort((a, b) => b.yearLevel.compareTo(a.yearLevel));
+
+      for (final student in orderedStudents) {
+        backup.add(student.copyWith());
+
         final currentSection = student.section?.trim();
         if (currentSection != null && currentSection.isNotEmpty) {
           final currentKey = _sectionCountKey(
@@ -828,6 +1054,20 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             projectedCounts[currentKey] = currentCount - 1;
           }
         }
+
+        if (student.yearLevel >= 4) {
+          await client.admin.updateStudent(
+            student.copyWith(
+              academicStatus: StudentAcademicStatus.graduated,
+              isActive: false,
+              updatedAt: DateTime.now(),
+            ),
+          );
+          graduatedCount++;
+          continue;
+        }
+
+        final nextYearLevel = student.yearLevel + 1;
         final updatedSection = _nextSectionCode(
           student,
           nextYearLevel,
@@ -835,7 +1075,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           projectedCounts,
         );
 
-        backup.add(student.copyWith());
         await client.admin.updateStudent(
           student.copyWith(
             yearLevel: nextYearLevel,
@@ -855,11 +1094,19 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            promotedCount == 0
-                ? 'No students were promoted.'
-                : '$promotedCount student(s) promoted successfully.',
+            promotedCount == 0 && graduatedCount == 0
+                ? 'No students were updated.'
+                : [
+                        if (promotedCount > 0)
+                          '$promotedCount student(s) promoted successfully',
+                        if (graduatedCount > 0)
+                          '$graduatedCount student(s) moved to the graduated list',
+                      ].join('. ') +
+                      '.',
           ),
-          backgroundColor: promotedCount == 0 ? Colors.orange : Colors.green,
+          backgroundColor: promotedCount == 0 && graduatedCount == 0
+              ? Colors.orange
+              : Colors.green,
         ),
       );
     } catch (e) {
@@ -1000,7 +1247,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               as List<dynamic>? ??
           const <dynamic>[];
       final dismissedStudentItems =
-          (decoded is Map<String, dynamic> ? decoded['dismissedStudents'] : null)
+          (decoded is Map<String, dynamic>
+                  ? decoded['dismissedStudents']
+                  : null)
               as List<dynamic>? ??
           const <dynamic>[];
       final dismissedFacultyItems =
@@ -1102,19 +1351,33 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }) {
     if (!_notificationStateLoaded) return;
 
-    final studentIds = recentStudents.map((item) => item.id).whereType<int>().toSet();
-    final facultyIds = pendingFaculty.map((item) => item.id).whereType<int>().toSet();
+    final studentIds = recentStudents
+        .map((item) => item.id)
+        .whereType<int>()
+        .toSet();
+    final facultyIds = pendingFaculty
+        .map((item) => item.id)
+        .whereType<int>()
+        .toSet();
 
     _readStudentNotificationIds.removeWhere((id) => !studentIds.contains(id));
     _readFacultyNotificationIds.removeWhere((id) => !facultyIds.contains(id));
-    _dismissedStudentNotificationIds.removeWhere((id) => !studentIds.contains(id));
-    _dismissedFacultyNotificationIds.removeWhere((id) => !facultyIds.contains(id));
+    _dismissedStudentNotificationIds.removeWhere(
+      (id) => !studentIds.contains(id),
+    );
+    _dismissedFacultyNotificationIds.removeWhere(
+      (id) => !facultyIds.contains(id),
+    );
     _selectedNotificationKeys.removeWhere((key) {
       if (key.startsWith('student:')) {
-        return !recentStudents.any((item) => _studentNotificationKey(item) == key);
+        return !recentStudents.any(
+          (item) => _studentNotificationKey(item) == key,
+        );
       }
       if (key.startsWith('faculty:')) {
-        return !pendingFaculty.any((item) => _facultyNotificationKey(item) == key);
+        return !pendingFaculty.any(
+          (item) => _facultyNotificationKey(item) == key,
+        );
       }
       return true;
     });
@@ -1157,7 +1420,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       for (final student in recentStudents) {
         final id = student.id;
         if (id != null &&
-            _selectedNotificationKeys.contains(_studentNotificationKey(student))) {
+            _selectedNotificationKeys.contains(
+              _studentNotificationKey(student),
+            )) {
           _readStudentNotificationIds.add(id);
         }
       }
@@ -1165,7 +1430,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       for (final faculty in pendingFaculty) {
         final id = faculty.id;
         if (id != null &&
-            _selectedNotificationKeys.contains(_facultyNotificationKey(faculty))) {
+            _selectedNotificationKeys.contains(
+              _facultyNotificationKey(faculty),
+            )) {
           _readFacultyNotificationIds.add(id);
         }
       }
@@ -1183,7 +1450,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       for (final student in recentStudents) {
         final id = student.id;
         if (id != null &&
-            _selectedNotificationKeys.contains(_studentNotificationKey(student))) {
+            _selectedNotificationKeys.contains(
+              _studentNotificationKey(student),
+            )) {
           _readStudentNotificationIds.remove(id);
         }
       }
@@ -1191,7 +1460,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       for (final faculty in pendingFaculty) {
         final id = faculty.id;
         if (id != null &&
-            _selectedNotificationKeys.contains(_facultyNotificationKey(faculty))) {
+            _selectedNotificationKeys.contains(
+              _facultyNotificationKey(faculty),
+            )) {
           _readFacultyNotificationIds.remove(id);
         }
       }
@@ -1233,7 +1504,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       for (final student in recentStudents) {
         final id = student.id;
         if (id != null &&
-            _selectedNotificationKeys.contains(_studentNotificationKey(student))) {
+            _selectedNotificationKeys.contains(
+              _studentNotificationKey(student),
+            )) {
           _dismissedStudentNotificationIds.add(id);
           _readStudentNotificationIds.remove(id);
         }
@@ -1242,7 +1515,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       for (final faculty in pendingFaculty) {
         final id = faculty.id;
         if (id != null &&
-            _selectedNotificationKeys.contains(_facultyNotificationKey(faculty))) {
+            _selectedNotificationKeys.contains(
+              _facultyNotificationKey(faculty),
+            )) {
           _dismissedFacultyNotificationIds.add(id);
           _readFacultyNotificationIds.remove(id);
         }
@@ -1392,7 +1667,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     );
     final visiblePendingFaculty = _visibleFacultyNotifications(pending);
     final visibleRecentStudents = _visibleStudentNotifications(recentStudents);
-    final count = _unreadFacultyCount(visiblePendingFaculty) +
+    final count =
+        _unreadFacultyCount(visiblePendingFaculty) +
         _unreadStudentCount(visibleRecentStudents);
 
     return Stack(
@@ -2050,7 +2326,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         student.name,
@@ -2077,9 +2354,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                             label: student.course,
                                             color: const Color(0xFF15803D),
                                           ),
-                                          if ((student.section ?? '').isNotEmpty)
+                                          if ((student.section ?? '')
+                                              .isNotEmpty)
                                             _buildNotificationChip(
-                                              label: 'Section ${student.section}',
+                                              label:
+                                                  'Section ${student.section}',
                                               color: const Color(0xFF720045),
                                             ),
                                           _buildNotificationChip(
@@ -2149,8 +2428,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                       height: 40,
                                       child: ElevatedButton.icon(
                                         onPressed: () async {
-                                          final navigator =
-                                              Navigator.of(dialogContext);
+                                          final navigator = Navigator.of(
+                                            dialogContext,
+                                          );
                                           await _approvePendingFaculty(item);
                                           if (dialogContext.mounted) {
                                             navigator.pop();
@@ -2173,8 +2453,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                       height: 40,
                                       child: ElevatedButton.icon(
                                         onPressed: () async {
-                                          final navigator =
-                                              Navigator.of(dialogContext);
+                                          final navigator = Navigator.of(
+                                            dialogContext,
+                                          );
                                           await _declinePendingFaculty(item);
                                           if (dialogContext.mounted) {
                                             navigator.pop();
@@ -2231,7 +2512,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           return Dialog(
             elevation: 0,
             backgroundColor: Colors.transparent,
-            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 24,
+              vertical: 24,
+            ),
             child: Container(
               constraints: const BoxConstraints(maxWidth: 760),
               decoration: BoxDecoration(
@@ -2257,11 +2541,16 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(24),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.notifications_active_rounded, color: Colors.white),
+                        const Icon(
+                          Icons.notifications_active_rounded,
+                          color: Colors.white,
+                        ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
@@ -2275,7 +2564,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                         ),
                         IconButton(
                           onPressed: () => Navigator.of(dialogContext).pop(),
-                          icon: const Icon(Icons.close_rounded, color: Colors.white),
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: Colors.white,
+                          ),
                         ),
                       ],
                     ),
@@ -2291,8 +2583,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                           hasSelection
                               ? '${_selectedNotificationKeys.length} selected'
                               : hasUnread
-                                  ? '${unreadStudents + unreadFaculty} unread notifications'
-                                  : 'All notifications are read',
+                              ? '${unreadStudents + unreadFaculty} unread notifications'
+                              : 'All notifications are read',
                           style: GoogleFonts.poppins(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -2313,11 +2605,16 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                       setDialogState(() {});
                                     }
                                   : null,
-                              icon: const Icon(Icons.mark_email_unread_rounded, size: 18),
+                              icon: const Icon(
+                                Icons.mark_email_unread_rounded,
+                                size: 18,
+                              ),
                               label: const Text('Mark as unread'),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: const Color(0xFF15803D),
-                                side: const BorderSide(color: Color(0xFF15803D)),
+                                side: const BorderSide(
+                                  color: Color(0xFF15803D),
+                                ),
                               ),
                             ),
                             OutlinedButton.icon(
@@ -2334,7 +2631,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                               label: const Text('Mark as read'),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: const Color(0xFF720045),
-                                side: const BorderSide(color: Color(0xFF720045)),
+                                side: const BorderSide(
+                                  color: Color(0xFF720045),
+                                ),
                               ),
                             ),
                             OutlinedButton.icon(
@@ -2347,11 +2646,16 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                       setDialogState(() {});
                                     }
                                   : null,
-                              icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                              icon: const Icon(
+                                Icons.delete_outline_rounded,
+                                size: 18,
+                              ),
                               label: const Text('Delete selected'),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: const Color(0xFFB91C1C),
-                                side: const BorderSide(color: Color(0xFFB91C1C)),
+                                side: const BorderSide(
+                                  color: Color(0xFFB91C1C),
+                                ),
                               ),
                             ),
                             ElevatedButton.icon(
@@ -2365,7 +2669,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                       setDialogState(() {});
                                     }
                                   : null,
-                              icon: const Icon(Icons.done_all_rounded, size: 18),
+                              icon: const Icon(
+                                Icons.done_all_rounded,
+                                size: 18,
+                              ),
                               label: const Text('Mark all as read'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF720045),
@@ -2584,8 +2891,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     required VoidCallback onTap,
   }) {
     final foreground = isSelected ? Colors.white : const Color(0xFF475569);
-    final background =
-        isSelected ? selectedColor : Colors.white.withValues(alpha: 0.88);
+    final background = isSelected
+        ? selectedColor
+        : Colors.white.withValues(alpha: 0.88);
 
     return Material(
       color: background,
@@ -2614,7 +2922,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               if (unreadCount > 0) ...[
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? Colors.white.withValues(alpha: 0.18)
@@ -2904,15 +3215,15 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                   children: [
                     SizedBox(
                       height: 40,
-                        child: ElevatedButton.icon(
-                          onPressed: () async {
-                            _markFacultyNotificationAsRead(item);
-                            setDialogState(() {});
-                            final navigator = Navigator.of(dialogContext);
-                            await _approvePendingFaculty(item);
-                            if (dialogContext.mounted) {
-                              navigator.pop();
-                            }
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          _markFacultyNotificationAsRead(item);
+                          setDialogState(() {});
+                          final navigator = Navigator.of(dialogContext);
+                          await _approvePendingFaculty(item);
+                          if (dialogContext.mounted) {
+                            navigator.pop();
+                          }
                         },
                         icon: const Icon(Icons.check_rounded),
                         label: const Text('Accept'),
@@ -2925,15 +3236,15 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     ),
                     SizedBox(
                       height: 40,
-                        child: ElevatedButton.icon(
-                          onPressed: () async {
-                            _markFacultyNotificationAsRead(item);
-                            setDialogState(() {});
-                            final navigator = Navigator.of(dialogContext);
-                            await _declinePendingFaculty(item);
-                            if (dialogContext.mounted) {
-                              navigator.pop();
-                            }
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          _markFacultyNotificationAsRead(item);
+                          setDialogState(() {});
+                          final navigator = Navigator.of(dialogContext);
+                          await _declinePendingFaculty(item);
+                          if (dialogContext.mounted) {
+                            navigator.pop();
+                          }
                         },
                         icon: const Icon(Icons.close_rounded),
                         label: const Text('Decline'),
@@ -3587,5 +3898,3 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     return maxCount;
   }
 }
-
-

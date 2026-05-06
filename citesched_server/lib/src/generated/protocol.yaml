@@ -75,6 +75,7 @@ debug:
 faculty:
   - getMySchedule:
   - getMyProfile:
+  - updateMyProfile:
 nLP:
   - query:
   - getFacultyLoad:

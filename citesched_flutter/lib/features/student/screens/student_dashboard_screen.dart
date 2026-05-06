@@ -67,11 +67,55 @@ final myScheduleProvider = FutureProvider<List<ScheduleInfo>>((ref) async {
   return await client.timetable.getPersonalSchedule();
 });
 
-class StudentDashboardScreen extends ConsumerWidget {
+const _studentWeeklyCalendarLabel = 'Weekly Calendar';
+
+class StudentDashboardScreen extends ConsumerStatefulWidget {
   const StudentDashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<StudentDashboardScreen> createState() =>
+      _StudentDashboardScreenState();
+}
+
+class _StudentDashboardScreenState
+    extends ConsumerState<StudentDashboardScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  double _computeAssignedHours(List<ScheduleInfo> schedules) {
+    double totalMinutes = 0;
+    for (final info in schedules) {
+      final ts = info.schedule.timeslot;
+      if (ts == null) continue;
+      final start = _parseTimeToMinutes(ts.startTime);
+      final end = _parseTimeToMinutes(ts.endTime);
+      if (end > start) totalMinutes += (end - start);
+    }
+    return totalMinutes / 60.0;
+  }
+
+  int _parseTimeToMinutes(String hhmm) {
+    final parts = hhmm.split(':');
+    if (parts.length != 2) return 0;
+    final hour = int.tryParse(parts[0]) ?? 0;
+    final minute = int.tryParse(parts[1]) ?? 0;
+    return hour * 60 + minute;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final scheduleAsync = ref.watch(myScheduleProvider);
     final profileAsync = ref.watch(myProfileProvider);
     final signedInNameAsync = ref.watch(currentSignedInNameProvider);
@@ -84,29 +128,235 @@ class StudentDashboardScreen extends ConsumerWidget {
     final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8F9FA);
     final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
 
+    Widget buildHeaderActions(bool compact) {
+      final actions = [
+        scheduleAsync.maybeWhen(
+          data: (schedules) => schedules.isEmpty
+              ? const SizedBox()
+              : ElevatedButton.icon(
+                  onPressed: () async {
+                    await ScheduleExportService.exportStudentSchedulePdf(
+                      student: profileAsync.value,
+                      schedules: schedules,
+                    );
+                  },
+                  icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
+                  label: Text(
+                    'Export PDF',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: maroonColor,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                  ),
+                ),
+          orElse: () => const SizedBox(),
+        ),
+        scheduleAsync.maybeWhen(
+          data: (schedules) => schedules.isEmpty
+              ? const SizedBox()
+              : ElevatedButton.icon(
+                  onPressed: () async {
+                    final result =
+                        await ScheduleExportService.exportStudentScheduleDocx(
+                          student: profileAsync.value,
+                          schedules: schedules,
+                        );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          result != null
+                              ? 'DOCX exported: $result'
+                              : 'DOCX export canceled.',
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.description_rounded, size: 18),
+                  label: Text(
+                    'Export DOCX',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF37474F),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                  ),
+                ),
+          orElse: () => const SizedBox(),
+        ),
+        ElevatedButton.icon(
+          onPressed: profileAsync.value == null
+              ? null
+              : () => showDialog<void>(
+                    context: context,
+                    builder: (_) => _EditOwnStudentProfileDialog(
+                      student: profileAsync.value!,
+                      onSaved: () {
+                        ref.invalidate(myProfileProvider);
+                        ref.invalidate(myScheduleProvider);
+                      },
+                    ),
+                  ),
+          icon: const Icon(Icons.edit_rounded, size: 18),
+          label: Text(
+            'Edit Profile',
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white.withValues(alpha: 0.16),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 14,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: const BorderSide(color: Colors.white30),
+            ),
+            elevation: 0,
+          ),
+        ),
+        ElevatedButton.icon(
+          onPressed: () => showPasswordResetDialog(
+            context,
+            initialEmail: user?.email,
+            lockEmail: user?.email?.isNotEmpty == true,
+            title: 'Reset Password',
+            subtitle:
+                'Use the verification code from your email to update your student password.',
+          ),
+          icon: const Icon(Icons.lock_reset_rounded, size: 18),
+          label: Text(
+            'Reset Password',
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white.withValues(alpha: 0.16),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 14,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: const BorderSide(color: Colors.white30),
+            ),
+            elevation: 0,
+          ),
+        ),
+        ElevatedButton.icon(
+          onPressed: () async {
+            final confirm = await showDialog<bool>(
+              context: context,
+              builder: (context) => const LogoutConfirmationDialog(),
+            );
+            if (confirm == true) {
+              ref.read(authProvider.notifier).signOut();
+            }
+          },
+          icon: const Icon(Icons.logout_rounded, size: 18),
+          label: Text(
+            'Sign Out',
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white.withValues(alpha: 0.2),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 14,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: const BorderSide(color: Colors.white30),
+            ),
+            elevation: 0,
+          ),
+        ),
+        const ThemeModeToggle(compact: true),
+      ];
+
+      if (!compact) {
+        return Row(
+          children: [
+            actions[0],
+            const SizedBox(width: 12),
+            actions[1],
+            const SizedBox(width: 12),
+            actions[2],
+            const SizedBox(width: 12),
+            actions[3],
+            const SizedBox(width: 12),
+            actions[4],
+            const SizedBox(width: 12),
+            actions[5],
+          ],
+        );
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (actions[0] is! SizedBox)
+            SizedBox(width: double.infinity, child: actions[0]),
+          if (actions[0] is! SizedBox) const SizedBox(height: 10),
+          if (actions[1] is! SizedBox)
+            SizedBox(width: double.infinity, child: actions[1]),
+          if (actions[1] is! SizedBox) const SizedBox(height: 10),
+          SizedBox(width: double.infinity, child: actions[2]),
+          const SizedBox(height: 10),
+          SizedBox(width: double.infinity, child: actions[3]),
+          const SizedBox(height: 10),
+          SizedBox(width: double.infinity, child: actions[4]),
+          const SizedBox(height: 10),
+          Align(alignment: Alignment.centerRight, child: actions[5]),
+        ],
+      );
+    }
+
     final scaffold = Scaffold(
       backgroundColor: bgColor,
-      appBar: AppBar(
-        title: Text(
-          'Student Dashboard',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: maroonColor,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: const [
-          _StudentDashboardActions(),
-        ],
-      ),
       body: SingleChildScrollView(
         padding: ResponsiveHelper.pagePadding(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-                    // Premium Welcome Card
+                    // Welcome Banner
                     Container(
                       padding: EdgeInsets.all(
-                        ResponsiveHelper.isMobile(context) ? 16 : 32,
+                        ResponsiveHelper.isMobile(context) ? 16 : 28,
                       ),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
@@ -114,12 +364,12 @@ class StudentDashboardScreen extends ConsumerWidget {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
-                        borderRadius: BorderRadius.circular(28),
+                        borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: maroonColor.withValues(alpha: 0.3),
-                            blurRadius: 25,
-                            offset: const Offset(0, 12),
+                            color: maroonColor.withValues(alpha: 0.35),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
                           ),
                         ],
                       ),
@@ -164,14 +414,10 @@ class StudentDashboardScreen extends ConsumerWidget {
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            'Welcome back, Student!',
+                                            'Welcome, Student',
                                             style: GoogleFonts.poppins(
-                                              color: Colors.white.withValues(
-                                                alpha: 0.9,
-                                              ),
+                                              color: Colors.white.withValues(alpha: 0.8),
                                               fontSize: 13,
-                                              fontWeight: FontWeight.w500,
-                                              letterSpacing: 0.4,
                                             ),
                                           ),
                                           const SizedBox(height: 4),
@@ -194,52 +440,8 @@ class StudentDashboardScreen extends ConsumerWidget {
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 14),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton.icon(
-                                    onPressed: () async {
-                                      final confirm = await showDialog<bool>(
-                                        context: context,
-                                        builder: (context) =>
-                                            const LogoutConfirmationDialog(),
-                                      );
-                                      if (confirm == true) {
-                                        ref
-                                            .read(authProvider.notifier)
-                                            .signOut();
-                                      }
-                                    },
-                                    icon: const Icon(
-                                      Icons.logout_rounded,
-                                      size: 18,
-                                    ),
-                                    label: Text(
-                                      'Sign Out',
-                                      style: GoogleFonts.poppins(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.white.withValues(
-                                        alpha: 0.2,
-                                      ),
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 18,
-                                        vertical: 14,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(14),
-                                        side: const BorderSide(
-                                          color: Colors.white30,
-                                        ),
-                                      ),
-                                      elevation: 0,
-                                    ),
-                                  ),
-                                ),
+                                const SizedBox(height: 16),
+                                buildHeaderActions(true),
                               ],
                             )
                           : Row(
@@ -281,14 +483,10 @@ class StudentDashboardScreen extends ConsumerWidget {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'Welcome back, Student!',
+                                        'Welcome, Student',
                                         style: GoogleFonts.poppins(
-                                          color: Colors.white.withValues(
-                                            alpha: 0.9,
-                                          ),
+                                          color: Colors.white.withValues(alpha: 0.8),
                                           fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                          letterSpacing: 0.5,
                                         ),
                                       ),
                                       const SizedBox(height: 4),
@@ -307,177 +505,128 @@ class StudentDashboardScreen extends ConsumerWidget {
                                     ],
                                   ),
                                 ),
-                                ElevatedButton.icon(
-                                  onPressed: () async {
-                                    final confirm = await showDialog<bool>(
-                                      context: context,
-                                      builder: (context) =>
-                                          const LogoutConfirmationDialog(),
-                                    );
-                                    if (confirm == true) {
-                                      ref.read(authProvider.notifier).signOut();
-                                    }
-                                  },
-                                  icon: const Icon(
-                                    Icons.logout_rounded,
-                                    size: 18,
-                                  ),
-                                  label: Text(
-                                    'Sign Out',
-                                    style: GoogleFonts.poppins(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white.withValues(
-                                      alpha: 0.2,
-                                    ),
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 18,
-                                      vertical: 14,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                      side: const BorderSide(
-                                        color: Colors.white30,
-                                      ),
-                                    ),
-                                    elevation: 0,
-                                  ),
-                                ),
+                                buildHeaderActions(false),
                               ],
                             ),
                     ),
 
-                    const SizedBox(height: 32),
-
-                    Text(
-                      'Student Profile',
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
                     profileAsync.when(
-                      loading: () => Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: cardBg,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const LinearProgressIndicator(minHeight: 6),
-                      ),
-                      error: (err, _) => Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: cardBg,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Text('Could not load profile: $err'),
-                      ),
+                      loading: () => const SizedBox(height: 28),
+                      error: (err, _) => const SizedBox(height: 28),
                       data: (profile) {
+                        if (profile == null) return const SizedBox(height: 28);
+                        return const SizedBox(height: 28);
+                      },
+                    ),
+
+                    scheduleAsync.when(
+                      loading: () => const SizedBox.shrink(),
+                      error: (error, stackTrace) => const SizedBox.shrink(),
+                      data: (schedules) {
+                        final profile = profileAsync.value;
+                        final totalUnits = schedules.fold<double>(
+                          0,
+                          (sum, s) =>
+                              sum +
+                              (s.schedule.units ??
+                                  s.schedule.subject?.units.toDouble() ??
+                                  0),
+                        );
+                        final assignedHours = _computeAssignedHours(schedules);
+                        final unscheduledCount =
+                            schedules.where((s) => s.schedule.timeslot == null).length;
+                        final enrolledSubjects = schedules.length;
+
                         if (profile == null) {
-                          return Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: cardBg,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: const Text(
-                              'Profile not found for this account.',
-                            ),
-                          );
+                          return const SizedBox(height: 20);
                         }
-                        if (isMobile) {
-                          return Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: cardBg,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Column(
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
                               children: [
-                                _infoRow(
-                                  'Student ID',
-                                  profile.studentNumber,
+                                Expanded(
+                                  child: _metricCard(
+                                    label: 'Program',
+                                    value: profile.course,
+                                    icon: Icons.school_rounded,
+                                    color: Colors.blue,
+                                    cardBg: cardBg,
+                                  ),
                                 ),
-                                const SizedBox(height: 8),
-                                _infoRow('Name', profile.name),
-                                const SizedBox(height: 8),
-                                _infoRow('Program', profile.course),
-                                const SizedBox(height: 8),
-                                _infoRow(
-                                  'Section',
-                                  profile.section ?? 'Unassigned',
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _metricCard(
+                                    label: 'Year Level',
+                                    value: 'Year ${profile.yearLevel}',
+                                    icon: Icons.trending_up_rounded,
+                                    color: Colors.green,
+                                    cardBg: cardBg,
+                                  ),
                                 ),
-                                const SizedBox(height: 8),
-                                _infoRow(
-                                  'Year Level',
-                                  '${profile.yearLevel}',
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _metricCard(
+                                    label: 'Section',
+                                    value: profile.section ?? 'Unassigned',
+                                    icon: Icons.groups_rounded,
+                                    color: Colors.orange,
+                                    cardBg: cardBg,
+                                  ),
                                 ),
                               ],
                             ),
-                          );
-                        }
-
-                        return Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: cardBg,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: LayoutBuilder(
-                            builder: (context, tableConstraints) {
-                              final minTableWidth = tableConstraints.maxWidth;
-                              return SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: ConstrainedBox(
-                                  constraints: BoxConstraints(
-                                    minWidth: minTableWidth,
-                                  ),
-                                  child: DataTable(
-                                    headingRowColor: WidgetStateProperty.all(
-                                      maroonColor.withValues(alpha: 0.08),
-                                    ),
-                                    horizontalMargin: 12,
-                                    columnSpacing: 24,
-                                    columns: [
-                                      _tableHeader('STUDENT ID'),
-                                      _tableHeader('NAME'),
-                                      _tableHeader('PROGRAM'),
-                                      _tableHeader('SECTION'),
-                                      _tableHeader('YEAR LEVEL'),
-                                    ],
-                                    rows: [
-                                      DataRow(
-                                        cells: [
-                                          DataCell(Text(profile.studentNumber)),
-                                          DataCell(Text(profile.name)),
-                                          DataCell(Text(profile.course)),
-                                          DataCell(
-                                            Text(
-                                              profile.section ?? 'Unassigned',
-                                            ),
-                                          ),
-                                          DataCell(
-                                            Text('${profile.yearLevel}'),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _metricCard(
+                                    label: 'Subjects',
+                                    value: enrolledSubjects.toString(),
+                                    icon: Icons.menu_book_rounded,
+                                    color: Colors.indigo,
+                                    cardBg: cardBg,
                                   ),
                                 ),
-                              );
-                            },
-                          ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _metricCard(
+                                    label: 'Weekly Hours',
+                                    value: assignedHours.toStringAsFixed(1),
+                                    icon: Icons.access_time_rounded,
+                                    color: Colors.teal,
+                                    cardBg: cardBg,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (totalUnits > 0 || unscheduledCount > 0) ...[
+                              const SizedBox(height: 12),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.teal.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Colors.teal.withValues(alpha: 0.28),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Units: ${totalUnits.toStringAsFixed(1)}'
+                                  '${unscheduledCount > 0 ? ' | Unscheduled Classes: $unscheduledCount' : ''}'
+                                  ' | Student ID: ${profile.studentNumber}',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: Colors.teal[900],
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 20),
+                          ],
                         );
                       },
                     ),
@@ -597,15 +746,51 @@ class StudentDashboardScreen extends ConsumerWidget {
                       },
                     ),
 
-                    Text(
-                      'My Classes Schedule',
-                      style: GoogleFonts.poppins(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+                    const SizedBox(height: 20),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 10,
+                          ),
+                        ],
+                      ),
+                      child: TabBar(
+                        controller: _tabController,
+                        indicator: BoxDecoration(
+                          color: maroonColor.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: maroonColor.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        indicatorSize: TabBarIndicatorSize.tab,
+                        labelColor: maroonColor,
+                        unselectedLabelColor: Colors.grey[600],
+                        labelStyle: GoogleFonts.poppins(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                        unselectedLabelStyle: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 13,
+                        ),
+                        tabs: const [
+                          Tab(
+                            icon: Icon(Icons.view_week_rounded, size: 18),
+                            text: _studentWeeklyCalendarLabel,
+                          ),
+                          Tab(
+                            icon: Icon(Icons.table_rows_rounded, size: 18),
+                            text: 'Schedule Table',
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 16),
-
+                    const SizedBox(height: 20),
                     scheduleAsync.when(
                       loading: () =>
                           const Center(child: CircularProgressIndicator()),
@@ -679,11 +864,8 @@ class StudentDashboardScreen extends ConsumerWidget {
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        'Some classes do not have an assigned day/time yet. '
-                                        'Ask the admin to set a timeslot in Faculty Loading.',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 12,
-                                        ),
+                                        'Some classes do not have an assigned day/time yet. Ask the admin to set a timeslot in Faculty Loading.',
+                                        style: GoogleFonts.poppins(fontSize: 12),
                                       ),
                                     ),
                                   ],
@@ -691,144 +873,47 @@ class StudentDashboardScreen extends ConsumerWidget {
                               ),
                               const SizedBox(height: 12),
                             ],
-                            Row(
-                              children: [
-                                ElevatedButton.icon(
-                                  onPressed: () async {
-                                    await ScheduleExportService.exportStudentSchedulePdf(
-                                      student: profileAsync.value,
-                                      schedules: schedules,
-                                    );
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: maroonColor,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 12,
-                                    ),
-                                  ),
-                                  icon: const Icon(
-                                    Icons.picture_as_pdf_rounded,
-                                    size: 18,
-                                  ),
-                                  label: const Text('Export PDF'),
-                                ),
-                                const SizedBox(width: 10),
-                                ElevatedButton.icon(
-                                  onPressed: () async {
-                                    final messenger = ScaffoldMessenger.of(context);
-                                    final result =
-                                        await ScheduleExportService.exportStudentScheduleDocx(
-                                          student: profileAsync.value,
-                                          schedules: schedules,
-                                        );
-                                    if (!context.mounted) return;
-                                    messenger.showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          result != null
-                                              ? 'DOCX exported: $result'
-                                              : 'DOCX export canceled.',
+                            SizedBox(
+                              height: 640,
+                              child: TabBarView(
+                                controller: _tabController,
+                                children: [
+                                  CalendarViewCard(
+                                    title: _studentWeeklyCalendarLabel,
+                                    maroonColor: maroonColor,
+                                    cardBg: cardBg,
+                                    isDark: isDark,
+                                    calendarHeight:
+                                        ResponsiveHelper.calendarHeight(context) +
+                                        90,
+                                    onFullScreen: () =>
+                                        Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            FullScreenCalendarScaffold(
+                                          title: _studentWeeklyCalendarLabel,
+                                          backgroundColor: bgColor,
+                                          useMaxWidthConstraint: false,
+                                          child: WeeklyCalendarView(
+                                            schedules: scheduled,
+                                            maroonColor: maroonColor,
+                                            isStudentView: true,
+                                          ),
                                         ),
                                       ),
-                                    );
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blueGrey[700],
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 12,
                                     ),
-                                  ),
-                                  icon: const Icon(
-                                    Icons.description_rounded,
-                                    size: 18,
-                                  ),
-                                  label: const Text('Export DOCX'),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            CalendarViewCard(
-                              title: 'My Weekly Schedule',
-                              maroonColor: maroonColor,
-                              cardBg: cardBg,
-                              isDark: isDark,
-                              calendarHeight:
-                                  ResponsiveHelper.calendarHeight(context) + 90,
-                              onFullScreen: () => Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => FullScreenCalendarScaffold(
-                                    title: 'My Weekly Schedule',
-                                    backgroundColor: bgColor,
-                                    useMaxWidthConstraint: false,
                                     child: WeeklyCalendarView(
                                       schedules: scheduled,
                                       maroonColor: maroonColor,
                                       isStudentView: true,
                                     ),
                                   ),
-                                ),
-                              ),
-                              child: WeeklyCalendarView(
-                                schedules: scheduled,
-                                maroonColor: maroonColor,
-                                isStudentView: true,
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                            Text(
-                              'Subjects (read-only)',
-                              style: GoogleFonts.poppins(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: cardBg,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: ListView.separated(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: schedules.length,
-                                separatorBuilder: (context, index) =>
-                                    const Divider(height: 12),
-                                itemBuilder: (context, index) {
-                                  final info = schedules[index];
-                                  final sched = info.schedule;
-                                  return ListTile(
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 4,
-                                      vertical: 4,
-                                    ),
-                                    title: Text(
-                                      '${sched.subject?.code ?? 'TBA'} - ${sched.subject?.name ?? 'Subject'}',
-                                      style: GoogleFonts.poppins(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    subtitle: Text(
-                                      [
-                                        'Section: ${sched.section}',
-                                        if (sched.timeslot != null)
-                                          '${sched.timeslot!.day.name.toUpperCase()} ${sched.timeslot!.startTime}-${sched.timeslot!.endTime}',
-                                        'Room: ${sched.room?.name ?? 'Room TBD'}',
-                                      ].join(' | '),
-                                      style: GoogleFonts.poppins(fontSize: 13),
-                                    ),
-                                    trailing: Text(
-                                      sched.faculty?.name ?? 'Faculty',
-                                      style: GoogleFonts.poppins(fontSize: 13),
-                                    ),
-                                  );
-                                },
+                                  _StudentScheduleTableCard(
+                                    schedules: schedules,
+                                    cardBg: cardBg,
+                                    maroonColor: maroonColor,
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -871,34 +956,382 @@ class StudentDashboardScreen extends ConsumerWidget {
     }
     return user?.userName?[0] ?? 'S';
   }
+
+  Widget _metricCard({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color color,
+    required Color cardBg,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                Text(
+                  value,
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _StudentDashboardActions extends ConsumerWidget {
-  const _StudentDashboardActions();
+class _StudentScheduleTableCard extends StatelessWidget {
+  const _StudentScheduleTableCard({
+    required this.schedules,
+    required this.cardBg,
+    required this.maroonColor,
+  });
+
+  final List<ScheduleInfo> schedules;
+  final Color cardBg;
+  final Color maroonColor;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(authProvider);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          tooltip: 'Reset password',
-          onPressed: () => showPasswordResetDialog(
-            context,
-            initialEmail: user?.email,
-            lockEmail: user?.email?.isNotEmpty == true,
-            title: 'Reset Password',
-            subtitle:
-                'Use the verification code from your email to update your student password.',
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: maroonColor.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.table_rows_rounded, color: maroonColor, size: 20),
+              const SizedBox(width: 10),
+              Text(
+                'Schedule Table',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
           ),
-          icon: const Icon(Icons.lock_reset_rounded),
+          const SizedBox(height: 16),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final minTableWidth = constraints.maxWidth;
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: minTableWidth),
+                  child: DataTable(
+                    headingRowColor: WidgetStateProperty.all(
+                      maroonColor.withValues(alpha: 0.08),
+                    ),
+                    horizontalMargin: 12,
+                    columnSpacing: 22,
+                    columns: [
+                      _tableHeader('SUBJECT'),
+                      _tableHeader('DAY / TIME'),
+                      _tableHeader('ROOM'),
+                      _tableHeader('FACULTY'),
+                      _tableHeader('SECTION'),
+                    ],
+                    rows: schedules.map((info) {
+                      final sched = info.schedule;
+                      final timeslot = sched.timeslot;
+                      final subjectLabel =
+                          '${sched.subject?.code ?? 'TBA'} - ${sched.subject?.name ?? 'Subject'}';
+                      final dayTimeLabel = timeslot == null
+                          ? 'No assigned timeslot'
+                          : '${timeslot.day.name.toUpperCase()} | ${timeslot.startTime}-${timeslot.endTime}';
+                      return DataRow(
+                        cells: [
+                          DataCell(
+                            SizedBox(
+                              width: 260,
+                              child: Text(
+                                subjectLabel,
+                                style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                          DataCell(
+                            SizedBox(
+                              width: 180,
+                              child: Text(
+                                dayTimeLabel,
+                                style: GoogleFonts.poppins(fontSize: 13),
+                              ),
+                            ),
+                          ),
+                          DataCell(Text(sched.room?.name ?? 'Room TBD')),
+                          DataCell(
+                            SizedBox(
+                              width: 180,
+                              child: Text(
+                                sched.faculty?.name ?? 'Faculty TBD',
+                              ),
+                            ),
+                          ),
+                          DataCell(Text(sched.section)),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EditOwnStudentProfileDialog extends StatefulWidget {
+  const _EditOwnStudentProfileDialog({
+    required this.student,
+    required this.onSaved,
+  });
+
+  final Student student;
+  final VoidCallback onSaved;
+
+  @override
+  State<_EditOwnStudentProfileDialog> createState() =>
+      _EditOwnStudentProfileDialogState();
+}
+
+class _EditOwnStudentProfileDialogState
+    extends State<_EditOwnStudentProfileDialog> {
+  final _formKey = GlobalKey<FormState>();
+  static const List<String> _allowedCourses = ['BSIT', 'BSEMC'];
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _studentNumberCtrl;
+  late final TextEditingController _sectionCtrl;
+  late String _selectedCourse;
+  late int _selectedYearLevel;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: widget.student.name);
+    _studentNumberCtrl = TextEditingController(text: widget.student.studentNumber);
+    _sectionCtrl = TextEditingController(text: widget.student.section ?? '');
+    _selectedCourse =
+        _allowedCourses.contains(widget.student.course.trim().toUpperCase())
+            ? widget.student.course.trim().toUpperCase()
+            : _allowedCourses.first;
+    _selectedYearLevel = widget.student.yearLevel.clamp(1, 4);
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _studentNumberCtrl.dispose();
+    _sectionCtrl.dispose();
+    super.dispose();
+  }
+
+  String _normalizeSectionCode(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return '';
+    final match = RegExp(r'^\s*(\d+)\s*([A-Za-z][A-Za-z0-9]*)\s*$').firstMatch(
+      trimmed,
+    );
+    if (match == null) return trimmed.toUpperCase();
+    return '${match.group(1)!}${match.group(2)!.toUpperCase()}';
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isSaving = true);
+    try {
+      final normalizedSection = _normalizeSectionCode(_sectionCtrl.text);
+      final updated = widget.student.copyWith(
+        name: _nameCtrl.text.trim(),
+        course: _selectedCourse,
+        yearLevel: _selectedYearLevel,
+        section: normalizedSection.isEmpty ? null : normalizedSection,
+        studentNumber: _studentNumberCtrl.text.trim(),
+        updatedAt: DateTime.now(),
+      );
+      await client.student.updateMyProfile(updated);
+      if (!mounted) return;
+      Navigator.pop(context);
+      widget.onSaved();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile updated successfully.'),
+          backgroundColor: Colors.green,
         ),
-        const Padding(
-          padding: EdgeInsets.only(right: 12),
-          child: ThemeModeToggle(compact: true),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update profile: $e'),
+          backgroundColor: Colors.red,
         ),
-      ],
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maroon = const Color(0xFF720045);
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Edit Student Profile',
+                        style: GoogleFonts.poppins(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  widget.student.email,
+                  style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 18),
+                TextFormField(
+                  controller: _nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Full Name'),
+                  validator: (value) =>
+                      value == null || value.trim().isEmpty ? 'Required' : null,
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _studentNumberCtrl,
+                  decoration: const InputDecoration(labelText: 'Student Number'),
+                  validator: (value) =>
+                      value == null || value.trim().isEmpty ? 'Required' : null,
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedCourse,
+                  decoration: const InputDecoration(labelText: 'Program'),
+                  items: _allowedCourses
+                      .map(
+                        (course) => DropdownMenuItem<String>(
+                          value: course,
+                          child: Text(course),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _selectedCourse = value);
+                  },
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<int>(
+                  initialValue: _selectedYearLevel,
+                  decoration: const InputDecoration(labelText: 'Year Level'),
+                  items: const [1, 2, 3, 4]
+                      .map(
+                        (year) => DropdownMenuItem<int>(
+                          value: year,
+                          child: Text('Year $year'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _selectedYearLevel = value);
+                  },
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _sectionCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Section',
+                    hintText: 'e.g. 3A',
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _isSaving
+                            ? null
+                            : () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _isSaving ? null : _submit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: maroon,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: Text(
+                          _isSaving ? 'Saving...' : 'Save Changes',
+                          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
