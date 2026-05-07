@@ -26,8 +26,6 @@ const kFirstSemesterLabel = '1st Semester';
 const kSecondSemesterLabel = '2nd Semester';
 const kSummerClassLabel = 'Summer Class';
 const kSavingLabel = 'Saving...';
-const List<int> _subjectUnitOptions = [1, 2, 3];
-const List<double> _subjectHourOptions = [1.0, 2.0, 3.0];
 const List<int> _semesterOptions = [1, 2, 3];
 
 String _programLabel(Program program) {
@@ -65,84 +63,26 @@ String _formatSubjectLoadValue(double value) {
   return value.toStringAsFixed(1);
 }
 
-int _resolveSubjectUnitOption(int? value) {
-  if (value != null && _subjectUnitOptions.contains(value)) {
-    return value;
-  }
-  if (value == null) return _subjectUnitOptions.last;
-  return _subjectUnitOptions.reduce(
-    (best, candidate) =>
-        (candidate - value).abs() < (best - value).abs() ? candidate : best,
-  );
+int _deriveSubjectUnits(List<SubjectType> types) {
+  final hasLecture = types.contains(SubjectType.lecture);
+  final hasLaboratory = types.contains(SubjectType.laboratory);
+  final hasBlended = types.contains(SubjectType.blended);
+
+  if (hasBlended || (hasLecture && hasLaboratory)) return 3;
+  if (hasLaboratory) return 1;
+  if (hasLecture) return 2;
+  return 3;
 }
 
-double _resolveSubjectHourOption(double? value) {
-  if (value != null && _subjectHourOptions.contains(value)) {
-    return value;
-  }
-  if (value == null) return _subjectHourOptions.last;
-  return _subjectHourOptions.reduce(
-    (best, candidate) =>
-        (candidate - value).abs() < (best - value).abs()
-        ? candidate
-        : best,
-  );
-}
+double _deriveSubjectHours(List<SubjectType> types) {
+  final hasLecture = types.contains(SubjectType.lecture);
+  final hasLaboratory = types.contains(SubjectType.laboratory);
+  final hasBlended = types.contains(SubjectType.blended);
 
-Widget _buildSubjectLoadDropdownField<T>({
-  required String label,
-  required bool isDark,
-  required T initialValue,
-  required List<DropdownMenuItem<T>> items,
-  required ValueChanged<T?> onChanged,
-}) {
-  final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9);
-  final borderColor = isDark
-      ? Colors.white.withValues(alpha: 0.1)
-      : Colors.black.withValues(alpha: 0.05);
-
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        label,
-        style: GoogleFonts.poppins(
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-          color: isDark ? Colors.grey[300] : Colors.grey[700],
-        ),
-      ),
-      const SizedBox(height: 8),
-      DropdownButtonFormField<T>(
-        initialValue: initialValue,
-        isExpanded: true,
-        decoration: InputDecoration(
-          hintStyle: GoogleFonts.poppins(color: Colors.grey[500], fontSize: 13),
-          labelStyle: GoogleFonts.poppins(color: Colors.grey[600]),
-          filled: true,
-          fillColor: bgColor,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: borderColor),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: borderColor),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF880E4F), width: 2),
-          ),
-        ),
-        items: items,
-        onChanged: onChanged,
-      ),
-    ],
-  );
+  if (hasBlended || (hasLecture && hasLaboratory)) return 5.0;
+  if (hasLaboratory) return 3.0;
+  if (hasLecture) return 2.0;
+  return 3.0;
 }
 
 bool _facultyCanHandleSubjectProgram(Faculty faculty, Program subjectProgram) {
@@ -1763,8 +1703,6 @@ class _AddSubjectModalState extends ConsumerState<_AddSubjectModal> {
   final _formKey = GlobalKey<FormState>();
   final _codeController = TextEditingController();
   final _nameController = TextEditingController();
-  final _unitsController = TextEditingController(text: '3');
-  final _hoursController = TextEditingController(text: '3');
   final _studentsCountController = TextEditingController(text: '40');
 
   int? _yearLevel;
@@ -1788,8 +1726,6 @@ class _AddSubjectModalState extends ConsumerState<_AddSubjectModal> {
   void dispose() {
     _codeController.dispose();
     _nameController.dispose();
-    _unitsController.dispose();
-    _hoursController.dispose();
     _studentsCountController.dispose();
     super.dispose();
   }
@@ -1979,57 +1915,6 @@ class _AddSubjectModalState extends ConsumerState<_AddSubjectModal> {
                                   isDark,
                                   hint: kSubjectCodeHint,
                                 ),
-                                const SizedBox(height: 16),
-                                _buildSubjectLoadDropdownField<int>(
-                                  label: 'Units',
-                                  isDark: isDark,
-                                  initialValue: _resolveSubjectUnitOption(
-                                    int.tryParse(_unitsController.text),
-                                  ),
-                                  items: _subjectUnitOptions
-                                      .map(
-                                        (value) => DropdownMenuItem<int>(
-                                          value: value,
-                                          child: Text(
-                                            '$value Unit${value == 1 ? '' : 's'}',
-                                            style: GoogleFonts.poppins(
-                                              color: textPrimary,
-                                            ),
-                                          ),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: (value) {
-                                    if (value == null) return;
-                                    _unitsController.text = value.toString();
-                                  },
-                                ),
-                                const SizedBox(height: 16),
-                                _buildSubjectLoadDropdownField<double>(
-                                  label: 'Hours',
-                                  isDark: isDark,
-                                  initialValue: _resolveSubjectHourOption(
-                                    double.tryParse(_hoursController.text),
-                                  ),
-                                  items: _subjectHourOptions
-                                      .map(
-                                        (value) => DropdownMenuItem<double>(
-                                          value: value,
-                                          child: Text(
-                                            '${_formatSubjectLoadValue(value)} Hour${value == 1 ? '' : 's'}',
-                                            style: GoogleFonts.poppins(
-                                              color: textPrimary,
-                                            ),
-                                          ),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: (value) {
-                                    if (value == null) return;
-                                    _hoursController.text =
-                                        _formatSubjectLoadValue(value);
-                                  },
-                                ),
                               ],
                             )
                           : Row(
@@ -2040,61 +1925,6 @@ class _AddSubjectModalState extends ConsumerState<_AddSubjectModal> {
                                     _codeController,
                                     isDark,
                                     hint: kSubjectCodeHint,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: _buildSubjectLoadDropdownField<int>(
-                                    label: 'Units',
-                                    isDark: isDark,
-                                    initialValue: _resolveSubjectUnitOption(
-                                      int.tryParse(_unitsController.text),
-                                    ),
-                                    items: _subjectUnitOptions
-                                        .map(
-                                          (value) => DropdownMenuItem<int>(
-                                            value: value,
-                                            child: Text(
-                                              '$value Unit${value == 1 ? '' : 's'}',
-                                              style: GoogleFonts.poppins(
-                                                color: textPrimary,
-                                              ),
-                                            ),
-                                          ),
-                                        )
-                                        .toList(),
-                                    onChanged: (value) {
-                                      if (value == null) return;
-                                      _unitsController.text = value.toString();
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: _buildSubjectLoadDropdownField<double>(
-                                    label: 'Hours',
-                                    isDark: isDark,
-                                    initialValue: _resolveSubjectHourOption(
-                                      double.tryParse(_hoursController.text),
-                                    ),
-                                    items: _subjectHourOptions
-                                        .map(
-                                          (value) => DropdownMenuItem<double>(
-                                            value: value,
-                                            child: Text(
-                                              '${_formatSubjectLoadValue(value)} Hour${value == 1 ? '' : 's'}',
-                                              style: GoogleFonts.poppins(
-                                                color: textPrimary,
-                                              ),
-                                            ),
-                                          ),
-                                        )
-                                        .toList(),
-                                    onChanged: (value) {
-                                      if (value == null) return;
-                                      _hoursController.text =
-                                          _formatSubjectLoadValue(value);
-                                    },
                                   ),
                                 ),
                               ],
@@ -2770,36 +2600,6 @@ class _AddSubjectModalState extends ConsumerState<_AddSubjectModal> {
     );
   }
 
-  Widget _buildLoadDropdownField<T>(
-    String label,
-    bool isDark, {
-    required T initialValue,
-    required List<DropdownMenuItem<T>> items,
-    required ValueChanged<T?> onChanged,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.poppins(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: isDark ? Colors.grey[300] : Colors.grey[700],
-          ),
-        ),
-        const SizedBox(height: 8),
-        DropdownButtonFormField<T>(
-          initialValue: initialValue,
-          isExpanded: true,
-          decoration: _inputDecoration(null, isDark),
-          items: items,
-          onChanged: onChanged,
-        ),
-      ],
-    );
-  }
-
   InputDecoration _inputDecoration(String? label, bool isDark, {String? hint}) {
     final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9);
     final borderColor = isDark
@@ -2837,16 +2637,6 @@ class _AddSubjectModalState extends ConsumerState<_AddSubjectModal> {
       _showErrorDialog(context, 'Select at least one subject type.');
       return;
     }
-    final parsedUnits = int.tryParse(_unitsController.text.trim());
-    if (parsedUnits == null || parsedUnits <= 0) {
-      _showErrorDialog(context, 'Units must be a positive number.');
-      return;
-    }
-    final parsedHours = double.tryParse(_hoursController.text.trim());
-    if (parsedHours == null || parsedHours <= 0) {
-      _showErrorDialog(context, 'Hours must be a positive number.');
-      return;
-    }
     final parsedStudents = int.tryParse(_studentsCountController.text.trim());
     if (parsedStudents == null || parsedStudents < 0) {
       _showErrorDialog(context, 'Student count must be 0 or greater.');
@@ -2861,11 +2651,13 @@ class _AddSubjectModalState extends ConsumerState<_AddSubjectModal> {
 
     setState(() => _isLoading = true);
     try {
+      final derivedUnits = _deriveSubjectUnits(_selectedTypes);
+      final derivedHours = _deriveSubjectHours(_selectedTypes);
       final subject = Subject(
         code: _codeController.text.trim(),
         name: _nameController.text,
-        units: parsedUnits,
-        hours: parsedHours,
+        units: derivedUnits,
+        hours: derivedHours,
         studentsCount: parsedStudents,
         yearLevel: _yearLevel,
         term: _term,
@@ -2951,8 +2743,6 @@ class _EditSubjectModalState extends ConsumerState<_EditSubjectModal> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _codeController;
   late TextEditingController _nameController;
-  late TextEditingController _unitsController;
-  late TextEditingController _hoursController;
   late TextEditingController _studentsCountController;
 
   late int _yearLevel;
@@ -2970,14 +2760,6 @@ class _EditSubjectModalState extends ConsumerState<_EditSubjectModal> {
     super.initState();
     _codeController = TextEditingController(text: widget.subject.code);
     _nameController = TextEditingController(text: widget.subject.name);
-    _unitsController = TextEditingController(
-      text: _resolveSubjectUnitOption(widget.subject.units).toString(),
-    );
-    _hoursController = TextEditingController(
-      text: _formatSubjectLoadValue(
-        _resolveSubjectHourOption(widget.subject.hours),
-      ),
-    );
     _studentsCountController = TextEditingController(
       text: widget.subject.studentsCount.toString(),
     );
@@ -2994,8 +2776,6 @@ class _EditSubjectModalState extends ConsumerState<_EditSubjectModal> {
   void dispose() {
     _codeController.dispose();
     _nameController.dispose();
-    _unitsController.dispose();
-    _hoursController.dispose();
     _studentsCountController.dispose();
     super.dispose();
   }
@@ -3236,57 +3016,6 @@ class _EditSubjectModalState extends ConsumerState<_EditSubjectModal> {
                                   isDark,
                                   hint: kSubjectCodeHint,
                                 ),
-                                const SizedBox(height: 12),
-                                _buildSubjectLoadDropdownField<int>(
-                                  label: 'Units',
-                                  isDark: isDark,
-                                  initialValue: _resolveSubjectUnitOption(
-                                    int.tryParse(_unitsController.text),
-                                  ),
-                                  items: _subjectUnitOptions
-                                      .map(
-                                        (value) => DropdownMenuItem<int>(
-                                          value: value,
-                                          child: Text(
-                                            '$value Unit${value == 1 ? '' : 's'}',
-                                            style: GoogleFonts.poppins(
-                                              color: textPrimary,
-                                            ),
-                                          ),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: (value) {
-                                    if (value == null) return;
-                                    _unitsController.text = value.toString();
-                                  },
-                                ),
-                                const SizedBox(height: 12),
-                                _buildSubjectLoadDropdownField<double>(
-                                  label: 'Hours',
-                                  isDark: isDark,
-                                  initialValue: _resolveSubjectHourOption(
-                                    double.tryParse(_hoursController.text),
-                                  ),
-                                  items: _subjectHourOptions
-                                      .map(
-                                        (value) => DropdownMenuItem<double>(
-                                          value: value,
-                                          child: Text(
-                                            '${_formatSubjectLoadValue(value)} Hour${value == 1 ? '' : 's'}',
-                                            style: GoogleFonts.poppins(
-                                              color: textPrimary,
-                                            ),
-                                          ),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: (value) {
-                                    if (value == null) return;
-                                    _hoursController.text =
-                                        _formatSubjectLoadValue(value);
-                                  },
-                                ),
                               ],
                             )
                           : Row(
@@ -3297,61 +3026,6 @@ class _EditSubjectModalState extends ConsumerState<_EditSubjectModal> {
                                     _codeController,
                                     isDark,
                                     hint: kSubjectCodeHint,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: _buildSubjectLoadDropdownField<int>(
-                                    label: 'Units',
-                                    isDark: isDark,
-                                    initialValue: _resolveSubjectUnitOption(
-                                      int.tryParse(_unitsController.text),
-                                    ),
-                                    items: _subjectUnitOptions
-                                        .map(
-                                          (value) => DropdownMenuItem<int>(
-                                            value: value,
-                                            child: Text(
-                                              '$value Unit${value == 1 ? '' : 's'}',
-                                              style: GoogleFonts.poppins(
-                                                color: textPrimary,
-                                              ),
-                                            ),
-                                          ),
-                                        )
-                                        .toList(),
-                                    onChanged: (value) {
-                                      if (value == null) return;
-                                      _unitsController.text = value.toString();
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: _buildSubjectLoadDropdownField<double>(
-                                    label: 'Hours',
-                                    isDark: isDark,
-                                    initialValue: _resolveSubjectHourOption(
-                                      double.tryParse(_hoursController.text),
-                                    ),
-                                    items: _subjectHourOptions
-                                        .map(
-                                          (value) => DropdownMenuItem<double>(
-                                            value: value,
-                                            child: Text(
-                                              '${_formatSubjectLoadValue(value)} Hour${value == 1 ? '' : 's'}',
-                                              style: GoogleFonts.poppins(
-                                                color: textPrimary,
-                                              ),
-                                            ),
-                                          ),
-                                        )
-                                        .toList(),
-                                    onChanged: (value) {
-                                      if (value == null) return;
-                                      _hoursController.text =
-                                          _formatSubjectLoadValue(value);
-                                    },
                                   ),
                                 ),
                               ],
@@ -3906,16 +3580,6 @@ class _EditSubjectModalState extends ConsumerState<_EditSubjectModal> {
       _showErrorDialog(context, 'Select at least one subject type.');
       return;
     }
-    final parsedUnits = int.tryParse(_unitsController.text.trim());
-    if (parsedUnits == null || parsedUnits <= 0) {
-      _showErrorDialog(context, 'Units must be a positive number.');
-      return;
-    }
-    final parsedHours = double.tryParse(_hoursController.text.trim());
-    if (parsedHours == null || parsedHours <= 0) {
-      _showErrorDialog(context, 'Hours must be a positive number.');
-      return;
-    }
     final parsedStudents = int.tryParse(_studentsCountController.text.trim());
     if (parsedStudents == null || parsedStudents < 0) {
       _showErrorDialog(context, 'Student count must be 0 or greater.');
@@ -3930,11 +3594,13 @@ class _EditSubjectModalState extends ConsumerState<_EditSubjectModal> {
 
     setState(() => _isLoading = true);
     try {
+      final derivedUnits = _deriveSubjectUnits(_selectedTypes);
+      final derivedHours = _deriveSubjectHours(_selectedTypes);
       final subject = widget.subject.copyWith(
         code: _codeController.text.trim(),
         name: _nameController.text,
-        units: parsedUnits,
-        hours: parsedHours,
+        units: derivedUnits,
+        hours: derivedHours,
         studentsCount: parsedStudents,
         yearLevel: _yearLevel,
         term: _term,
