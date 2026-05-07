@@ -17,6 +17,29 @@ import '../generated/protocol.dart';
 ///   faculty_unavailable – Timeslot falls outside faculty availability
 class ConflictService {
   static const int _labEarliestStartMinutes = 9 * 60;
+  static const double _geLectureHours = 1.5;
+  static const double _lectureHours = 2.0;
+  static const double _threeHourBlock = 3.0;
+  static const List<(int start, int end)> _preferredLectureWindows = [
+    (8 * 60, 10 * 60),
+    (10 * 60, 12 * 60),
+    (13 * 60, 15 * 60),
+    (15 * 60, 17 * 60),
+    (17 * 60, 19 * 60),
+  ];
+  static const List<(int start, int end)> _preferredThreeHourWindows = [
+    (9 * 60, 12 * 60),
+    (13 * 60, 16 * 60),
+    (16 * 60, 19 * 60),
+  ];
+  static const List<(int start, int end)> _preferredGeLectureWindows = [
+    (8 * 60, 9 * 60 + 30),
+    (9 * 60 + 30, 11 * 60),
+    (13 * 60, 14 * 60 + 30),
+    (14 * 60 + 30, 16 * 60),
+    (16 * 60, 17 * 60 + 30),
+    (17 * 60 + 30, 19 * 60),
+  ];
 
   bool _isLabSubject(Subject subject) {
     return subject.types.contains(SubjectType.laboratory);
@@ -759,6 +782,7 @@ class ConflictService {
     final requiredHours =
         schedule.hours ?? subject.hours ?? subject.units.toDouble();
     if (requiredHours <= 0) return;
+    final requiredMinutes = (requiredHours * 60).round();
 
     final tsMinutes =
         _parseTimeToMinutes(timeslot.endTime) -
@@ -803,14 +827,14 @@ class ConflictService {
     if (!_matchesPreferredWindow(
       startMinutes: startMinutes,
       endMinutes: endMinutes,
-      isLaboratory: isLabSchedule,
+      requiredMinutes: requiredMinutes,
     )) {
       conflicts.add(
         ScheduleConflict(
           type: 'invalid_preferred_window',
-          message: isLabSchedule
-              ? 'Laboratory classes must use 9:00-12:00 PM, 1:00-4:00 PM, or 4:00-7:00 PM'
-              : 'Lecture classes must use 8:00-10:00 AM, 10:00 AM-12:00 PM, 1:00-3:00 PM, 3:00-5:00 PM, or 5:00-7:00 PM',
+          message:
+              _preferredWindowMessage(requiredMinutes) ??
+              'Selected class duration does not fit the allowed scheduling windows',
           scheduleId: schedule.id,
           facultyId: schedule.facultyId,
           subjectId: schedule.subjectId,
@@ -852,20 +876,39 @@ class ConflictService {
     return startMinutes < 13 * 60 && endMinutes > 12 * 60;
   }
 
+  List<(int start, int end)> _preferredWindowsForDuration(int requiredMinutes) {
+    if (requiredMinutes == (_geLectureHours * 60).round()) {
+      return _preferredGeLectureWindows;
+    }
+    if (requiredMinutes == (_lectureHours * 60).round()) {
+      return _preferredLectureWindows;
+    }
+    if (requiredMinutes == (_threeHourBlock * 60).round()) {
+      return _preferredThreeHourWindows;
+    }
+    return const [];
+  }
+
+  String? _preferredWindowMessage(int requiredMinutes) {
+    if (requiredMinutes == (_geLectureHours * 60).round()) {
+      return '1.5-hour classes must use 8:00-9:30 AM, 9:30-11:00 AM, 1:00-2:30 PM, 2:30-4:00 PM, 4:00-5:30 PM, or 5:30-7:00 PM';
+    }
+    if (requiredMinutes == (_lectureHours * 60).round()) {
+      return '2-hour classes must use 8:00-10:00 AM, 10:00 AM-12:00 PM, 1:00-3:00 PM, 3:00-5:00 PM, or 5:00-7:00 PM';
+    }
+    if (requiredMinutes == (_threeHourBlock * 60).round()) {
+      return '3-hour classes must use 9:00-12:00 PM, 1:00-4:00 PM, or 4:00-7:00 PM';
+    }
+    return null;
+  }
+
   bool _matchesPreferredWindow({
     required int startMinutes,
     required int endMinutes,
-    required bool isLaboratory,
+    required int requiredMinutes,
   }) {
-    final allowed = isLaboratory
-        ? const [(9 * 60, 12 * 60), (13 * 60, 16 * 60), (16 * 60, 19 * 60)]
-        : const [
-            (8 * 60, 10 * 60),
-            (10 * 60, 12 * 60),
-            (13 * 60, 15 * 60),
-            (15 * 60, 17 * 60),
-            (17 * 60, 19 * 60),
-          ];
+    final allowed = _preferredWindowsForDuration(requiredMinutes);
+    if (allowed.isEmpty) return true;
     return allowed.any(
       (window) => startMinutes == window.$1 && endMinutes == window.$2,
     );

@@ -304,6 +304,9 @@ class AdminEndpoint extends Endpoint {
     if (schedule.hours != null && schedule.hours! > 0) {
       return (schedule.hours! * 60).round();
     }
+    if (subject.hours != null && subject.hours! > 0) {
+      return (subject.hours! * 60).round();
+    }
 
     final loadTypes = schedule.loadTypes ?? const <SubjectType>[];
     if (loadTypes.contains(SubjectType.laboratory) &&
@@ -1489,6 +1492,12 @@ class AdminEndpoint extends Endpoint {
     // Normalize sentinel values from frontend
     if (schedule.roomId == -1) schedule.roomId = null;
     if (schedule.timeslotId == -1) schedule.timeslotId = null;
+    final subject = await Subject.db.findById(session, schedule.subjectId);
+    if (subject == null) {
+      throw Exception('Subject not found with ID: ${schedule.subjectId}');
+    }
+    schedule.units ??= subject.units.toDouble();
+    schedule.hours ??= subject.hours;
     await _syncScheduleSectionReference(session, schedule);
     if (schedule.roomId == null || schedule.timeslotId == null) {
       schedule.timeslotId = null;
@@ -1651,6 +1660,12 @@ class AdminEndpoint extends Endpoint {
     if (existing == null) {
       throw Exception('Schedule not found with ID: ${schedule.id}');
     }
+    final subject = await Subject.db.findById(session, schedule.subjectId);
+    if (subject == null) {
+      throw Exception('Subject not found with ID: ${schedule.subjectId}');
+    }
+    schedule.units ??= subject.units.toDouble();
+    schedule.hours ??= subject.hours;
 
     final isArchiving = existing.isActive && !schedule.isActive;
     await _syncScheduleSectionReference(session, schedule);
