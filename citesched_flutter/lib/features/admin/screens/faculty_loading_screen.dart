@@ -415,6 +415,13 @@ String _formatLoadValue(double value) {
   return value.toStringAsFixed(1);
 }
 
+int _timeOfDayToMinutes(TimeOfDay value) => value.hour * 60 + value.minute;
+
+TimeOfDay _timeOfDayFromMinutes(int totalMinutes) {
+  final normalized = totalMinutes.clamp(0, (24 * 60) - 1);
+  return TimeOfDay(hour: normalized ~/ 60, minute: normalized % 60);
+}
+
 const List<double> _manualUnitOptions = [1.0, 2.0, 3.0];
 const List<double> _manualHourOptions = [1.0, 2.0, 3.0];
 
@@ -5347,6 +5354,66 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
     onValueAdded(_normalizeLoadOption(result));
   }
 
+  Future<void> _removeSelectedLoadOption({
+    required String label,
+    required double? selectedValue,
+    required List<double> currentItems,
+    required ValueChanged<List<double>> onItemsUpdated,
+    required ValueChanged<double?> onSelectionUpdated,
+  }) async {
+    if (selectedValue == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Select a $label option to remove.')),
+      );
+      return;
+    }
+    if (currentItems.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('At least one $label option must remain available.'),
+        ),
+      );
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Remove $label Option',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          'Remove ${_formatLoadValue(selectedValue)} $label${selectedValue == 1 ? '' : 's'} from this dropdown?',
+          style: GoogleFonts.poppins(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text('Cancel', style: GoogleFonts.poppins()),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Remove', style: GoogleFonts.poppins()),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    final updatedItems = List<double>.from(currentItems)
+      ..remove(_normalizeLoadOption(selectedValue));
+    updatedItems.sort();
+    onItemsUpdated(updatedItems);
+    onSelectionUpdated(updatedItems.isEmpty ? null : updatedItems.first);
+  }
+
   Widget _buildLoadDropdownField({
     required String label,
     required IconData icon,
@@ -5354,6 +5421,7 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
     required List<double> items,
     required ValueChanged<double?> onChanged,
     required VoidCallback onAddPressed,
+    required VoidCallback onRemovePressed,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -5368,19 +5436,33 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
           validator: (selected) => selected == null ? 'Required' : null,
         ),
         const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton.icon(
-            onPressed: onAddPressed,
-            icon: Icon(icon, size: 18, color: widget.maroonColor),
-            label: Text(
-              'Add $label option',
-              style: GoogleFonts.poppins(
-                color: widget.maroonColor,
-                fontWeight: FontWeight.w600,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton.icon(
+              onPressed: onAddPressed,
+              icon: Icon(icon, size: 18, color: widget.maroonColor),
+              label: Text(
+                'Add $label option',
+                style: GoogleFonts.poppins(
+                  color: widget.maroonColor,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
+            const SizedBox(width: 8),
+            TextButton.icon(
+              onPressed: onRemovePressed,
+              icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+              label: Text(
+                'Remove selected',
+                style: GoogleFonts.poppins(
+                  color: Colors.red,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -5443,6 +5525,12 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
     return '$hour:$minute';
   }
 
+  int? _requiredAssignmentMinutes() {
+    final selectedHours = _selectedHours;
+    if (selectedHours == null || selectedHours <= 0) return null;
+    return (selectedHours * 60).round();
+  }
+
   void _syncMissingTimeslots(List<_TimeslotWindow> windows) {
     if (windows.isEmpty) return;
     final key = _timeslotWindowsKey(windows);
@@ -5489,6 +5577,10 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
       builder: (dialogContext) {
         var startTime = _timeOfDayFromHHmm(slot.startTime);
         var endTime = _timeOfDayFromHHmm(slot.endTime);
+        final requiredMinutes = _requiredAssignmentMinutes();
+        final requiredHoursLabel = _selectedHours == null
+            ? null
+            : _formatLoadValue(_selectedHours!);
 
         return StatefulBuilder(
           builder: (context, setDialogState) {
@@ -5498,6 +5590,25 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                 initialTime: startTime,
               );
               if (picked != null) {
+                if (requiredMinutes != null) {
+                  final computedEndMinutes =
+                      _timeOfDayToMinutes(picked) + requiredMinutes;
+                  if (computedEndMinutes >= 24 * 60) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Selected $requiredHoursLabel-hour duration does not fit in the day.',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+                  setDialogState(() {
+                    startTime = picked;
+                    endTime = _timeOfDayFromMinutes(computedEndMinutes);
+                  });
+                  return;
+                }
                 setDialogState(() => startTime = picked);
               }
             }
@@ -5508,6 +5619,25 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                 initialTime: endTime,
               );
               if (picked != null) {
+                if (requiredMinutes != null) {
+                  final computedStartMinutes =
+                      _timeOfDayToMinutes(picked) - requiredMinutes;
+                  if (computedStartMinutes < 0) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Selected $requiredHoursLabel-hour duration does not fit in the day.',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+                  setDialogState(() {
+                    endTime = picked;
+                    startTime = _timeOfDayFromMinutes(computedStartMinutes);
+                  });
+                  return;
+                }
                 setDialogState(() => endTime = picked);
               }
             }
@@ -5525,6 +5655,16 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                     _getDayAbbr(slot.day),
                     style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
                   ),
+                  if (requiredHoursLabel != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Duration is linked to the selected subject load: $requiredHoursLabel hour${_selectedHours == 1 ? '' : 's'}.',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -5555,12 +5695,23 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    final startMinutes = startTime.hour * 60 + startTime.minute;
-                    final endMinutes = endTime.hour * 60 + endTime.minute;
+                    final startMinutes = _timeOfDayToMinutes(startTime);
+                    final endMinutes = _timeOfDayToMinutes(endTime);
                     if (endMinutes <= startMinutes) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('End time must be after start time.'),
+                        ),
+                      );
+                      return;
+                    }
+                    if (requiredMinutes != null &&
+                        (endMinutes - startMinutes) != requiredMinutes) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Timeslot must match the selected $requiredHoursLabel-hour load.',
+                          ),
                         ),
                       );
                       return;
@@ -6339,6 +6490,21 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                             });
                           },
                         ),
+                        onRemovePressed: () => _removeSelectedLoadOption(
+                          label: 'Unit',
+                          selectedValue: _selectedUnits,
+                          currentItems: _unitOptions,
+                          onItemsUpdated: (items) {
+                            setState(() {
+                              _unitOptions = items;
+                            });
+                          },
+                          onSelectionUpdated: (value) {
+                            setState(() {
+                              _selectedUnits = value;
+                            });
+                          },
+                        ),
                       ),
                       const SizedBox(height: 16),
 
@@ -6361,6 +6527,22 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                                 _hourOptions,
                                 value,
                               );
+                              _selectedHours = value;
+                              _selectedTimeslotId = null;
+                            });
+                          },
+                        ),
+                        onRemovePressed: () => _removeSelectedLoadOption(
+                          label: 'Hour',
+                          selectedValue: _selectedHours,
+                          currentItems: _hourOptions,
+                          onItemsUpdated: (items) {
+                            setState(() {
+                              _hourOptions = items;
+                            });
+                          },
+                          onSelectionUpdated: (value) {
+                            setState(() {
                               _selectedHours = value;
                               _selectedTimeslotId = null;
                             });
@@ -7003,6 +7185,66 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
     onValueAdded(_normalizeLoadOption(result));
   }
 
+  Future<void> _removeSelectedLoadOption({
+    required String label,
+    required double? selectedValue,
+    required List<double> currentItems,
+    required ValueChanged<List<double>> onItemsUpdated,
+    required ValueChanged<double?> onSelectionUpdated,
+  }) async {
+    if (selectedValue == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Select a $label option to remove.')),
+      );
+      return;
+    }
+    if (currentItems.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('At least one $label option must remain available.'),
+        ),
+      );
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Remove $label Option',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          'Remove ${_formatLoadValue(selectedValue)} $label${selectedValue == 1 ? '' : 's'} from this dropdown?',
+          style: GoogleFonts.poppins(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text('Cancel', style: GoogleFonts.poppins()),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Remove', style: GoogleFonts.poppins()),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    final updatedItems = List<double>.from(currentItems)
+      ..remove(_normalizeLoadOption(selectedValue));
+    updatedItems.sort();
+    onItemsUpdated(updatedItems);
+    onSelectionUpdated(updatedItems.isEmpty ? null : updatedItems.first);
+  }
+
   Widget _buildLoadDropdownField({
     required String label,
     required IconData icon,
@@ -7010,6 +7252,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
     required List<double> items,
     required ValueChanged<double?> onChanged,
     required VoidCallback onAddPressed,
+    required VoidCallback onRemovePressed,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -7024,19 +7267,33 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
           validator: (selected) => selected == null ? 'Required' : null,
         ),
         const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton.icon(
-            onPressed: onAddPressed,
-            icon: Icon(icon, size: 18, color: widget.maroonColor),
-            label: Text(
-              'Add $label option',
-              style: GoogleFonts.poppins(
-                color: widget.maroonColor,
-                fontWeight: FontWeight.w600,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton.icon(
+              onPressed: onAddPressed,
+              icon: Icon(icon, size: 18, color: widget.maroonColor),
+              label: Text(
+                'Add $label option',
+                style: GoogleFonts.poppins(
+                  color: widget.maroonColor,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
+            const SizedBox(width: 8),
+            TextButton.icon(
+              onPressed: onRemovePressed,
+              icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+              label: Text(
+                'Remove selected',
+                style: GoogleFonts.poppins(
+                  color: Colors.red,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -7102,6 +7359,12 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
     return '$hour:$minute';
   }
 
+  int? _requiredAssignmentMinutes() {
+    final selectedHours = _selectedHours;
+    if (selectedHours == null || selectedHours <= 0) return null;
+    return (selectedHours * 60).round();
+  }
+
   void _syncMissingTimeslots(List<_TimeslotWindow> windows) {
     if (windows.isEmpty) return;
     final key = _timeslotWindowsKey(windows);
@@ -7145,6 +7408,10 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
     final slot = option.slot;
     var startTime = _timeOfDayFromHHmm(slot.startTime);
     var endTime = _timeOfDayFromHHmm(slot.endTime);
+    final requiredMinutes = _requiredAssignmentMinutes();
+    final requiredHoursLabel = _selectedHours == null
+        ? null
+        : _formatLoadValue(_selectedHours!);
     final result = await showDialog<Timeslot>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -7155,6 +7422,25 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
               initialTime: startTime,
             );
             if (picked != null) {
+              if (requiredMinutes != null) {
+                final int computedEndMinutes =
+                    _timeOfDayToMinutes(picked) + requiredMinutes;
+                if (computedEndMinutes >= 24 * 60) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Selected $requiredHoursLabel-hour duration does not fit in the day.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+                setDialogState(() {
+                  startTime = picked;
+                  endTime = _timeOfDayFromMinutes(computedEndMinutes);
+                });
+                return;
+              }
               setDialogState(() => startTime = picked);
             }
           }
@@ -7165,6 +7451,25 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
               initialTime: endTime,
             );
             if (picked != null) {
+              if (requiredMinutes != null) {
+                final int computedStartMinutes =
+                    _timeOfDayToMinutes(picked) - requiredMinutes;
+                if (computedStartMinutes < 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Selected $requiredHoursLabel-hour duration does not fit in the day.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+                setDialogState(() {
+                  endTime = picked;
+                  startTime = _timeOfDayFromMinutes(computedStartMinutes);
+                });
+                return;
+              }
               setDialogState(() => endTime = picked);
             }
           }
@@ -7182,6 +7487,16 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                   _getDayAbbr(slot.day),
                   style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
                 ),
+                if (requiredHoursLabel != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Duration is linked to the selected subject load: $requiredHoursLabel hour${_selectedHours == 1 ? '' : 's'}.',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -7212,12 +7527,23 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
               ),
               ElevatedButton(
                 onPressed: () {
-                  final startMinutes = startTime.hour * 60 + startTime.minute;
-                  final endMinutes = endTime.hour * 60 + endTime.minute;
+                  final startMinutes = _timeOfDayToMinutes(startTime);
+                  final endMinutes = _timeOfDayToMinutes(endTime);
                   if (endMinutes <= startMinutes) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('End time must be after start time.'),
+                      ),
+                    );
+                    return;
+                  }
+                  if (requiredMinutes != null &&
+                      (endMinutes - startMinutes) != requiredMinutes) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Timeslot must match the selected $requiredHoursLabel-hour load.',
+                        ),
                       ),
                     );
                     return;
@@ -8052,6 +8378,21 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                             });
                           },
                         ),
+                        onRemovePressed: () => _removeSelectedLoadOption(
+                          label: 'Unit',
+                          selectedValue: _selectedUnits,
+                          currentItems: _unitOptions,
+                          onItemsUpdated: (items) {
+                            setState(() {
+                              _unitOptions = items;
+                            });
+                          },
+                          onSelectionUpdated: (value) {
+                            setState(() {
+                              _selectedUnits = value;
+                            });
+                          },
+                        ),
                       ),
                       const SizedBox(height: 16),
 
@@ -8074,6 +8415,22 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                                 _hourOptions,
                                 value,
                               );
+                              _selectedHours = value;
+                              _selectedTimeslotId = null;
+                            });
+                          },
+                        ),
+                        onRemovePressed: () => _removeSelectedLoadOption(
+                          label: 'Hour',
+                          selectedValue: _selectedHours,
+                          currentItems: _hourOptions,
+                          onItemsUpdated: (items) {
+                            setState(() {
+                              _hourOptions = items;
+                            });
+                          },
+                          onSelectionUpdated: (value) {
+                            setState(() {
                               _selectedHours = value;
                               _selectedTimeslotId = null;
                             });
