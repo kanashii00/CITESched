@@ -411,6 +411,31 @@ String _formatLoadValue(double value) {
   return value.toStringAsFixed(1);
 }
 
+const List<double> _manualUnitOptions = [1.0, 2.0, 3.0];
+const List<double> _manualHourOptions = [1.0, 2.0, 3.0];
+
+double _nearestLoadOption(double value, List<double> options) {
+  if (options.isEmpty) return value;
+  return options.reduce(
+    (best, candidate) =>
+        (candidate - value).abs() < (best - value).abs() ? candidate : best,
+  );
+}
+
+double _resolveSelectedLoadValue(
+  double? currentValue,
+  double suggestedValue,
+  List<double> options,
+) {
+  if (currentValue != null && options.contains(currentValue)) {
+    return currentValue;
+  }
+  if (options.contains(suggestedValue)) {
+    return suggestedValue;
+  }
+  return _nearestLoadOption(suggestedValue, options);
+}
+
 class _FacultySummaryStats {
   final Faculty faculty;
   final int assignedSubjects;
@@ -5084,14 +5109,14 @@ class _NewAssignmentModal extends ConsumerStatefulWidget {
 
 class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
   final _formKey = GlobalKey<FormState>();
-  final _unitsController = TextEditingController();
-  final _hoursController = TextEditingController();
 
   int? _selectedFacultyId;
   int? _selectedSubjectId;
   int? _selectedSectionId;
   int? _selectedRoomId;
   int? _selectedTimeslotId;
+  double? _selectedUnits;
+  double? _selectedHours;
   bool _isAutoAssign = false;
   bool _isLoading = false;
   SubjectType? _selectedLoadType;
@@ -5103,10 +5128,10 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
       _selectedRoomId != null &&
       (_isAutoAssign || _selectedTimeslotId != null);
 
-  void _applySubjectDefaults(Subject? subject) {
+  void _applySubjectDefaults(Subject? subject, {bool preserveSelection = false}) {
     if (subject == null) {
-      _unitsController.clear();
-      _hoursController.clear();
+      _selectedUnits = null;
+      _selectedHours = null;
       _selectedLoadType = null;
       _showLoadTypeRequired = false;
       return;
@@ -5121,11 +5146,18 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
       subject.types,
       _selectedLoadType,
     );
-    _unitsController.text = _formatLoadValue(
-      _requiredUnitsForSubject(subject, effectiveTypes),
+    final suggestedUnits = subject.units.toDouble();
+    final suggestedHours =
+        subject.hours ?? _requiredHoursForSubject(subject, effectiveTypes);
+    _selectedUnits = _resolveSelectedLoadValue(
+      preserveSelection ? _selectedUnits : null,
+      suggestedUnits,
+      _manualUnitOptions,
     );
-    _hoursController.text = _formatLoadValue(
-      _requiredHoursForSubject(subject, effectiveTypes),
+    _selectedHours = _resolveSelectedLoadValue(
+      preserveSelection ? _selectedHours : null,
+      suggestedHours,
+      _manualHourOptions,
     );
   }
 
@@ -5419,13 +5451,6 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
     }
   }
 
-  @override
-  void dispose() {
-    _unitsController.dispose();
-    _hoursController.dispose();
-    super.dispose();
-  }
-
   Widget _buildTimeslotSearchField({
     required String label,
     required List<_TimeslotOption> options,
@@ -5606,6 +5631,9 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
       if (selectedFaculty == null) {
         throw Exception('Please select a valid faculty member.');
       }
+      if (_selectedUnits == null || _selectedHours == null) {
+        throw Exception('Please select both units and hours.');
+      }
       if (_isBlendedSubject(selectedSubject.types) && _selectedLoadType == null) {
         setState(() => _showLoadTypeRequired = true);
         return;
@@ -5656,8 +5684,8 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
         section: section.sectionCode,
         sectionId: _selectedSectionId,
         loadTypes: effectiveTypes,
-        units: _requiredUnitsForSubject(selectedSubject, effectiveTypes),
-        hours: _requiredHoursForSubject(selectedSubject, effectiveTypes),
+        units: _selectedUnits,
+        hours: _selectedHours,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -5918,7 +5946,10 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                                 _showLoadTypeRequired = false;
                                 _selectedTimeslotId = null;
                                 if (selectedSubject != null) {
-                                  _applySubjectDefaults(selectedSubject);
+                                  _applySubjectDefaults(
+                                    selectedSubject,
+                                    preserveSelection: true,
+                                  );
                                 }
                               });
                             },
@@ -6059,22 +6090,22 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                       const SizedBox(height: 16),
 
                       // Units
-                      _buildTextField(
-                        controller: _unitsController,
+                      _buildReadOnlyLoadField(
                         label: 'Units',
                         icon: Icons.numbers,
-                        keyboardType: TextInputType.number,
-                        readOnly: true,
+                        value: _selectedUnits == null
+                            ? ''
+                            : '${_formatLoadValue(_selectedUnits!)} Unit${_selectedUnits == 1 ? '' : 's'}',
                       ),
                       const SizedBox(height: 16),
 
                       // Hours
-                      _buildTextField(
-                        controller: _hoursController,
+                      _buildReadOnlyLoadField(
                         label: 'Hours',
                         icon: Icons.access_time,
-                        keyboardType: TextInputType.number,
-                        readOnly: true,
+                        value: _selectedHours == null
+                            ? ''
+                            : '${_formatLoadValue(_selectedHours!)} Hour${_selectedHours == 1 ? '' : 's'}',
                       ),
                       const SizedBox(height: 24),
 
@@ -6264,10 +6295,12 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                                     _sectionAvailabilityRequiredMessage(
                                       selectedSection?.sectionCode ?? '',
                                     );
-                                final requiredHours = _requiredHoursForSubject(
-                                  selectedSubject,
-                                  effectiveTypes,
-                                );
+                                final requiredHours =
+                                    _selectedHours ??
+                                    _requiredHoursForSubject(
+                                      selectedSubject,
+                                      effectiveTypes,
+                                    );
                                 final typeLabel =
                                     effectiveTypes.contains(
                                       SubjectType.laboratory,
@@ -6509,6 +6542,31 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
     );
   }
 
+  Widget _buildReadOnlyLoadField({
+    required String label,
+    required IconData icon,
+    required String value,
+  }) {
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: GoogleFonts.poppins(),
+        prefixIcon: Icon(icon, color: widget.maroonColor),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: widget.maroonColor, width: 2),
+        ),
+      ),
+      child: Text(value, style: GoogleFonts.poppins()),
+    );
+  }
+
   Widget _buildDropdown<T>({
     required String label,
     required T? value,
@@ -6575,14 +6633,14 @@ class _EditAssignmentModal extends ConsumerStatefulWidget {
 
 class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
   final _formKey = GlobalKey<FormState>();
-  late TextEditingController _unitsController;
-  late TextEditingController _hoursController;
 
   late int _selectedFacultyId;
   late int _selectedSubjectId;
   int? _selectedSectionId;
   int? _selectedRoomId;
   int? _selectedTimeslotId;
+  double? _selectedUnits;
+  double? _selectedHours;
   bool _isAutoAssign = false;
   bool _isLoading = false;
   SubjectType? _selectedLoadType;
@@ -6594,7 +6652,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
       _selectedRoomId != null &&
       (_isAutoAssign || _selectedTimeslotId != null);
 
-  void _applySubjectDefaults(Subject? subject) {
+  void _applySubjectDefaults(Subject? subject, {bool preserveSelection = false}) {
     if (subject == null) return;
     _selectedLoadType = _isBlendedSubject(subject.types)
         ? _selectedLoadType
@@ -6606,11 +6664,18 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
       subject.types,
       _selectedLoadType,
     );
-    _unitsController.text = _formatLoadValue(
-      _requiredUnitsForSubject(subject, effectiveTypes),
+    final suggestedUnits = subject.units.toDouble();
+    final suggestedHours =
+        subject.hours ?? _requiredHoursForSubject(subject, effectiveTypes);
+    _selectedUnits = _resolveSelectedLoadValue(
+      preserveSelection ? _selectedUnits : null,
+      suggestedUnits,
+      _manualUnitOptions,
     );
-    _hoursController.text = _formatLoadValue(
-      _requiredHoursForSubject(subject, effectiveTypes),
+    _selectedHours = _resolveSelectedLoadValue(
+      preserveSelection ? _selectedHours : null,
+      suggestedHours,
+      _manualHourOptions,
     );
   }
 
@@ -6906,11 +6971,15 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
   @override
   void initState() {
     super.initState();
-    _unitsController = TextEditingController(
-      text: widget.schedule.units?.toString() ?? '',
+    _selectedUnits = _resolveSelectedLoadValue(
+      widget.schedule.units,
+      widget.schedule.units ?? 2.0,
+      _manualUnitOptions,
     );
-    _hoursController = TextEditingController(
-      text: widget.schedule.hours?.toString() ?? '',
+    _selectedHours = _resolveSelectedLoadValue(
+      widget.schedule.hours,
+      widget.schedule.hours ?? 2.0,
+      _manualHourOptions,
     );
     _selectedSectionId = widget.schedule.sectionId;
     _selectedFacultyId = widget.schedule.facultyId;
@@ -6932,17 +7001,10 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
         );
     for (final subject in subjects) {
       if (subject.id == _selectedSubjectId) {
-        _applySubjectDefaults(subject);
+        _applySubjectDefaults(subject, preserveSelection: true);
         break;
       }
     }
-  }
-
-  @override
-  void dispose() {
-    _unitsController.dispose();
-    _hoursController.dispose();
-    super.dispose();
   }
 
   Widget _buildTimeslotSearchField({
@@ -7122,6 +7184,9 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
           'Please select a valid subject assigned to this faculty.',
         );
       }
+      if (_selectedUnits == null || _selectedHours == null) {
+        throw Exception('Please select both units and hours.');
+      }
       if (_isBlendedSubject(selectedSubject.types) && _selectedLoadType == null) {
         setState(() => _showLoadTypeRequired = true);
         return;
@@ -7171,8 +7236,8 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
         section: section.sectionCode,
         sectionId: _selectedSectionId ?? widget.schedule.sectionId,
         loadTypes: effectiveTypes,
-        units: _requiredUnitsForSubject(selectedSubject, effectiveTypes),
-        hours: _requiredHoursForSubject(selectedSubject, effectiveTypes),
+        units: _selectedUnits,
+        hours: _selectedHours,
         createdAt: widget.schedule.createdAt,
         updatedAt: DateTime.now(),
       );
@@ -7440,7 +7505,10 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                                 _showLoadTypeRequired = false;
                                 _selectedTimeslotId = null;
                                 if (selectedSubject != null) {
-                                  _applySubjectDefaults(selectedSubject);
+                                  _applySubjectDefaults(
+                                    selectedSubject,
+                                    preserveSelection: true,
+                                  );
                                 }
                               });
                             },
@@ -7587,22 +7655,22 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                       const SizedBox(height: 16),
 
                       // Units
-                      _buildTextField(
-                        controller: _unitsController,
+                      _buildReadOnlyLoadField(
                         label: 'Units',
                         icon: Icons.numbers,
-                        keyboardType: TextInputType.number,
-                        readOnly: true,
+                        value: _selectedUnits == null
+                            ? ''
+                            : '${_formatLoadValue(_selectedUnits!)} Unit${_selectedUnits == 1 ? '' : 's'}',
                       ),
                       const SizedBox(height: 16),
 
                       // Hours
-                      _buildTextField(
-                        controller: _hoursController,
+                      _buildReadOnlyLoadField(
                         label: 'Hours',
                         icon: Icons.access_time,
-                        keyboardType: TextInputType.number,
-                        readOnly: true,
+                        value: _selectedHours == null
+                            ? ''
+                            : '${_formatLoadValue(_selectedHours!)} Hour${_selectedHours == 1 ? '' : 's'}',
                       ),
                       const SizedBox(height: 24),
 
@@ -7788,10 +7856,12 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                                     _sectionAvailabilityRequiredMessage(
                                       selectedSection?.sectionCode ?? '',
                                     );
-                                final requiredHours = _requiredHoursForSubject(
-                                  selectedSubject,
-                                  effectiveTypes,
-                                );
+                                final requiredHours =
+                                    _selectedHours ??
+                                    _requiredHoursForSubject(
+                                      selectedSubject,
+                                      effectiveTypes,
+                                    );
                                 final typeLabel =
                                     effectiveTypes.contains(
                                       SubjectType.laboratory,
@@ -8030,6 +8100,31 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
         ),
       ),
       style: GoogleFonts.poppins(),
+    );
+  }
+
+  Widget _buildReadOnlyLoadField({
+    required String label,
+    required IconData icon,
+    required String value,
+  }) {
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: GoogleFonts.poppins(),
+        prefixIcon: Icon(icon, color: widget.maroonColor),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: widget.maroonColor, width: 2),
+        ),
+      ),
+      child: Text(value, style: GoogleFonts.poppins()),
     );
   }
 

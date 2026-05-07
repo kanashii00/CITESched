@@ -1257,6 +1257,18 @@ class AdminEndpoint extends Endpoint {
       throw Exception('Subject units must be greater than 0');
     }
 
+    // Validate hours when provided
+    if (subject.hours != null && subject.hours! <= 0) {
+      throw Exception('Subject hours must be greater than 0');
+    }
+
+    // Validate term when provided
+    if (subject.term != null && (subject.term! < 1 || subject.term! > 3)) {
+      throw Exception(
+        'Subject term must be 1 (1st Semester), 2 (2nd Semester), or 3 (Summer Class)',
+      );
+    }
+
     // Validate student count
     if (subject.studentsCount < 0) {
       throw Exception('Student count cannot be negative');
@@ -1300,6 +1312,18 @@ class AdminEndpoint extends Endpoint {
     // Validate units
     if (subject.units <= 0) {
       throw Exception('Subject units must be greater than 0');
+    }
+
+    // Validate hours when provided
+    if (subject.hours != null && subject.hours! <= 0) {
+      throw Exception('Subject hours must be greater than 0');
+    }
+
+    // Validate term when provided
+    if (subject.term != null && (subject.term! < 1 || subject.term! > 3)) {
+      throw Exception(
+        'Subject term must be 1 (1st Semester), 2 (2nd Semester), or 3 (Summer Class)',
+      );
     }
 
     // Validate student count
