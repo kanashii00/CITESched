@@ -9,6 +9,7 @@ import 'package:citesched_flutter/features/admin/screens/faculty_load_details_sc
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:citesched_flutter/core/providers/conflict_provider.dart';
 import 'package:citesched_flutter/core/providers/admin_providers.dart';
 import 'package:citesched_flutter/core/providers/schedule_sync_provider.dart';
@@ -424,6 +425,12 @@ TimeOfDay _timeOfDayFromMinutes(int totalMinutes) {
 
 const List<double> _manualUnitOptions = [1.0, 2.0, 3.0];
 const List<double> _manualHourOptions = [1.0, 2.0, 3.0];
+const String _facultyLoadUnitOptionsPrefsKey =
+    'faculty_loading_unit_options_v1';
+const String _facultyLoadHourOptionsPrefsKey =
+    'faculty_loading_hour_options_v1';
+const String _deleteSelectedLoadOptionAction =
+    '__delete_selected_load_option__';
 
 double _normalizeLoadOption(double value) {
   if (value == value.roundToDouble()) {
@@ -439,6 +446,47 @@ List<double> _mergeLoadOptions(List<double> currentOptions, double value) {
     normalizedValue,
   }.toList()..sort();
   return merged;
+}
+
+Future<List<double>> _loadPersistedLoadOptions(
+  String key,
+  List<double> fallback,
+) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(key);
+    if (raw == null || raw.trim().isEmpty) {
+      return List<double>.from(fallback);
+    }
+    final decoded = jsonDecode(raw);
+    if (decoded is! List) {
+      return List<double>.from(fallback);
+    }
+    final parsed = decoded
+        .map((value) => (value as num?)?.toDouble())
+        .whereType<double>()
+        .map(_normalizeLoadOption)
+        .toSet()
+        .toList()
+      ..sort();
+    if (parsed.isEmpty) {
+      return List<double>.from(fallback);
+    }
+    return parsed;
+  } catch (_) {
+    return List<double>.from(fallback);
+  }
+}
+
+Future<void> _persistLoadOptions(String key, List<double> options) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final normalized = options.map(_normalizeLoadOption).toSet().toList()
+      ..sort();
+    await prefs.setString(key, jsonEncode(normalized));
+  } catch (_) {
+    // Local persistence is best-effort only.
+  }
 }
 
 double _nearestLoadOption(double value, List<double> options) {
@@ -5231,6 +5279,39 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
     super.initState();
     _unitOptions = List<double>.from(_manualUnitOptions);
     _hourOptions = List<double>.from(_manualHourOptions);
+    unawaited(_loadSavedLoadOptions());
+  }
+
+  Future<void> _loadSavedLoadOptions() async {
+    final savedUnits = await _loadPersistedLoadOptions(
+      _facultyLoadUnitOptionsPrefsKey,
+      _manualUnitOptions,
+    );
+    final savedHours = await _loadPersistedLoadOptions(
+      _facultyLoadHourOptionsPrefsKey,
+      _manualHourOptions,
+    );
+    if (!mounted) return;
+    setState(() {
+      _unitOptions = savedUnits;
+      _hourOptions = savedHours;
+      final subject = _findSubject(
+        ref.read(subjectsProvider).maybeWhen(
+          data: (subjects) => subjects,
+          orElse: () => <Subject>[],
+        ),
+      );
+      if (subject != null) {
+        _applySubjectDefaults(subject, preserveSelection: true);
+      } else {
+        if (_selectedUnits != null) {
+          _unitOptions = _mergeLoadOptions(_unitOptions, _selectedUnits!);
+        }
+        if (_selectedHours != null) {
+          _hourOptions = _mergeLoadOptions(_hourOptions, _selectedHours!);
+        }
+      }
+    });
   }
 
   void _applySubjectDefaults(
@@ -5358,6 +5439,7 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
     required String label,
     required double? selectedValue,
     required List<double> currentItems,
+    required List<double> protectedItems,
     required ValueChanged<List<double>> onItemsUpdated,
     required ValueChanged<double?> onSelectionUpdated,
   }) async {
@@ -5371,6 +5453,16 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('At least one $label option must remain available.'),
+        ),
+      );
+      return;
+    }
+    if (protectedItems.contains(_normalizeLoadOption(selectedValue))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Default ${label.toLowerCase()} options cannot be deleted.',
+          ),
         ),
       );
       return;
@@ -5419,50 +5511,87 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
     required IconData icon,
     required double? value,
     required List<double> items,
+    required List<double> protectedItems,
     required ValueChanged<double?> onChanged,
     required VoidCallback onAddPressed,
-    required VoidCallback onRemovePressed,
+    required VoidCallback onRemoveSelected,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final dropdownBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final uniqueItems = items.toSet().toList()..sort();
+    final safeValue = uniqueItems.contains(value) ? value : null;
+    final canDeleteSelected =
+        value != null && !protectedItems.contains(_normalizeLoadOption(value));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildDropdown<double>(
-          label: label,
-          value: value,
-          items: items,
-          itemLabel: (item) =>
-              '${_formatLoadValue(item)} $label${item == 1 ? '' : 's'}',
-          onChanged: onChanged,
+        DropdownButtonFormField<Object>(
+          initialValue: safeValue,
+          dropdownColor: dropdownBg,
+          decoration: InputDecoration(
+            labelText: label,
+            labelStyle: GoogleFonts.poppins(color: textColor),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: widget.maroonColor, width: 2),
+            ),
+          ),
+          items: [
+            ...uniqueItems.map(
+              (item) => DropdownMenuItem<Object>(
+                value: item,
+                child: Text(
+                  '${_formatLoadValue(item)} $label${item == 1 ? '' : 's'}',
+                  style: GoogleFonts.poppins(color: textColor),
+                ),
+              ),
+            ),
+            if (canDeleteSelected)
+              DropdownMenuItem<Object>(
+                value: _deleteSelectedLoadOptionAction,
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                      color: Colors.red,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Delete ${_formatLoadValue(value!)} $label${value == 1 ? '' : 's'}',
+                      style: GoogleFonts.poppins(color: Colors.red),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+          onChanged: (selected) {
+            if (selected == _deleteSelectedLoadOptionAction) {
+              onRemoveSelected();
+              return;
+            }
+            onChanged(selected as double?);
+          },
           validator: (selected) => selected == null ? 'Required' : null,
+          style: GoogleFonts.poppins(color: textColor),
         ),
         const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            TextButton.icon(
-              onPressed: onAddPressed,
-              icon: Icon(icon, size: 18, color: widget.maroonColor),
-              label: Text(
-                'Add $label option',
-                style: GoogleFonts.poppins(
-                  color: widget.maroonColor,
-                  fontWeight: FontWeight.w600,
-                ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: onAddPressed,
+            icon: Icon(icon, size: 18, color: widget.maroonColor),
+            label: Text(
+              'Add $label option',
+              style: GoogleFonts.poppins(
+                color: widget.maroonColor,
+                fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(width: 8),
-            TextButton.icon(
-              onPressed: onRemovePressed,
-              icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
-              label: Text(
-                'Remove selected',
-                style: GoogleFonts.poppins(
-                  color: Colors.red,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ],
     );
@@ -6473,6 +6602,7 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                         icon: Icons.numbers,
                         value: _selectedUnits,
                         items: _unitOptions,
+                        protectedItems: _manualUnitOptions,
                         onChanged: (value) => setState(() {
                           _selectedUnits = value;
                         }),
@@ -6488,16 +6618,29 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                               );
                               _selectedUnits = value;
                             });
+                            unawaited(
+                              _persistLoadOptions(
+                                _facultyLoadUnitOptionsPrefsKey,
+                                _unitOptions,
+                              ),
+                            );
                           },
                         ),
-                        onRemovePressed: () => _removeSelectedLoadOption(
+                        onRemoveSelected: () => _removeSelectedLoadOption(
                           label: 'Unit',
                           selectedValue: _selectedUnits,
                           currentItems: _unitOptions,
+                          protectedItems: _manualUnitOptions,
                           onItemsUpdated: (items) {
                             setState(() {
                               _unitOptions = items;
                             });
+                            unawaited(
+                              _persistLoadOptions(
+                                _facultyLoadUnitOptionsPrefsKey,
+                                items,
+                              ),
+                            );
                           },
                           onSelectionUpdated: (value) {
                             setState(() {
@@ -6513,6 +6656,7 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                         icon: Icons.access_time,
                         value: _selectedHours,
                         items: _hourOptions,
+                        protectedItems: _manualHourOptions,
                         onChanged: (value) => setState(() {
                           _selectedHours = value;
                           _selectedTimeslotId = null;
@@ -6530,16 +6674,29 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                               _selectedHours = value;
                               _selectedTimeslotId = null;
                             });
+                            unawaited(
+                              _persistLoadOptions(
+                                _facultyLoadHourOptionsPrefsKey,
+                                _hourOptions,
+                              ),
+                            );
                           },
                         ),
-                        onRemovePressed: () => _removeSelectedLoadOption(
+                        onRemoveSelected: () => _removeSelectedLoadOption(
                           label: 'Hour',
                           selectedValue: _selectedHours,
                           currentItems: _hourOptions,
+                          protectedItems: _manualHourOptions,
                           onItemsUpdated: (items) {
                             setState(() {
                               _hourOptions = items;
                             });
+                            unawaited(
+                              _persistLoadOptions(
+                                _facultyLoadHourOptionsPrefsKey,
+                                items,
+                              ),
+                            );
                           },
                           onSelectionUpdated: (value) {
                             setState(() {
@@ -7189,6 +7346,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
     required String label,
     required double? selectedValue,
     required List<double> currentItems,
+    required List<double> protectedItems,
     required ValueChanged<List<double>> onItemsUpdated,
     required ValueChanged<double?> onSelectionUpdated,
   }) async {
@@ -7202,6 +7360,16 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('At least one $label option must remain available.'),
+        ),
+      );
+      return;
+    }
+    if (protectedItems.contains(_normalizeLoadOption(selectedValue))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Default ${label.toLowerCase()} options cannot be deleted.',
+          ),
         ),
       );
       return;
@@ -7250,50 +7418,88 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
     required IconData icon,
     required double? value,
     required List<double> items,
+    required List<double> protectedItems,
     required ValueChanged<double?> onChanged,
     required VoidCallback onAddPressed,
-    required VoidCallback onRemovePressed,
+    required VoidCallback onRemoveSelected,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final dropdownBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final uniqueItems = items.toSet().toList()..sort();
+    final safeValue = uniqueItems.contains(value) ? value : null;
+    final canDeleteSelected =
+        value != null && !protectedItems.contains(_normalizeLoadOption(value));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildDropdown<double>(
-          label: label,
-          value: value,
-          items: items,
-          itemLabel: (item) =>
-              '${_formatLoadValue(item)} $label${item == 1 ? '' : 's'}',
-          onChanged: onChanged,
+        DropdownButtonFormField<Object>(
+          initialValue: safeValue,
+          isExpanded: true,
+          dropdownColor: dropdownBg,
+          decoration: InputDecoration(
+            labelText: label,
+            labelStyle: GoogleFonts.poppins(color: textColor),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: widget.maroonColor, width: 2),
+            ),
+          ),
+          items: [
+            ...uniqueItems.map(
+              (item) => DropdownMenuItem<Object>(
+                value: item,
+                child: Text(
+                  '${_formatLoadValue(item)} $label${item == 1 ? '' : 's'}',
+                  style: GoogleFonts.poppins(color: textColor),
+                ),
+              ),
+            ),
+            if (canDeleteSelected)
+              DropdownMenuItem<Object>(
+                value: _deleteSelectedLoadOptionAction,
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                      color: Colors.red,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Delete ${_formatLoadValue(value!)} $label${value == 1 ? '' : 's'}',
+                      style: GoogleFonts.poppins(color: Colors.red),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+          onChanged: (selected) {
+            if (selected == _deleteSelectedLoadOptionAction) {
+              onRemoveSelected();
+              return;
+            }
+            onChanged(selected as double?);
+          },
           validator: (selected) => selected == null ? 'Required' : null,
+          style: GoogleFonts.poppins(color: textColor),
         ),
         const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            TextButton.icon(
-              onPressed: onAddPressed,
-              icon: Icon(icon, size: 18, color: widget.maroonColor),
-              label: Text(
-                'Add $label option',
-                style: GoogleFonts.poppins(
-                  color: widget.maroonColor,
-                  fontWeight: FontWeight.w600,
-                ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: onAddPressed,
+            icon: Icon(icon, size: 18, color: widget.maroonColor),
+            label: Text(
+              'Add $label option',
+              style: GoogleFonts.poppins(
+                color: widget.maroonColor,
+                fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(width: 8),
-            TextButton.icon(
-              onPressed: onRemovePressed,
-              icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
-              label: Text(
-                'Remove selected',
-                style: GoogleFonts.poppins(
-                  color: Colors.red,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ],
     );
@@ -7704,6 +7910,38 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
         break;
       }
     }
+    unawaited(_loadSavedLoadOptions());
+  }
+
+  Future<void> _loadSavedLoadOptions() async {
+    final savedUnits = await _loadPersistedLoadOptions(
+      _facultyLoadUnitOptionsPrefsKey,
+      _manualUnitOptions,
+    );
+    final savedHours = await _loadPersistedLoadOptions(
+      _facultyLoadHourOptionsPrefsKey,
+      _manualHourOptions,
+    );
+    if (!mounted) return;
+    setState(() {
+      _unitOptions = savedUnits;
+      _hourOptions = savedHours;
+      if (widget.schedule.units != null) {
+        _unitOptions = _mergeLoadOptions(_unitOptions, widget.schedule.units!);
+      }
+      if (widget.schedule.hours != null) {
+        _hourOptions = _mergeLoadOptions(_hourOptions, widget.schedule.hours!);
+      }
+      final subject = _findSubject(
+        ref.read(subjectsProvider).maybeWhen(
+          data: (subjects) => subjects,
+          orElse: () => <Subject>[],
+        ),
+      );
+      if (subject != null) {
+        _applySubjectDefaults(subject, preserveSelection: true);
+      }
+    });
   }
 
   Widget _buildTimeslotSearchField({
@@ -8361,6 +8599,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                         icon: Icons.numbers,
                         value: _selectedUnits,
                         items: _unitOptions,
+                        protectedItems: _manualUnitOptions,
                         onChanged: (value) => setState(() {
                           _selectedUnits = value;
                         }),
@@ -8376,16 +8615,29 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                               );
                               _selectedUnits = value;
                             });
+                            unawaited(
+                              _persistLoadOptions(
+                                _facultyLoadUnitOptionsPrefsKey,
+                                _unitOptions,
+                              ),
+                            );
                           },
                         ),
-                        onRemovePressed: () => _removeSelectedLoadOption(
+                        onRemoveSelected: () => _removeSelectedLoadOption(
                           label: 'Unit',
                           selectedValue: _selectedUnits,
                           currentItems: _unitOptions,
+                          protectedItems: _manualUnitOptions,
                           onItemsUpdated: (items) {
                             setState(() {
                               _unitOptions = items;
                             });
+                            unawaited(
+                              _persistLoadOptions(
+                                _facultyLoadUnitOptionsPrefsKey,
+                                items,
+                              ),
+                            );
                           },
                           onSelectionUpdated: (value) {
                             setState(() {
@@ -8401,6 +8653,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                         icon: Icons.access_time,
                         value: _selectedHours,
                         items: _hourOptions,
+                        protectedItems: _manualHourOptions,
                         onChanged: (value) => setState(() {
                           _selectedHours = value;
                           _selectedTimeslotId = null;
@@ -8418,16 +8671,29 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                               _selectedHours = value;
                               _selectedTimeslotId = null;
                             });
+                            unawaited(
+                              _persistLoadOptions(
+                                _facultyLoadHourOptionsPrefsKey,
+                                _hourOptions,
+                              ),
+                            );
                           },
                         ),
-                        onRemovePressed: () => _removeSelectedLoadOption(
+                        onRemoveSelected: () => _removeSelectedLoadOption(
                           label: 'Hour',
                           selectedValue: _selectedHours,
                           currentItems: _hourOptions,
+                          protectedItems: _manualHourOptions,
                           onItemsUpdated: (items) {
                             setState(() {
                               _hourOptions = items;
                             });
+                            unawaited(
+                              _persistLoadOptions(
+                                _facultyLoadHourOptionsPrefsKey,
+                                items,
+                              ),
+                            );
                           },
                           onSelectionUpdated: (value) {
                             setState(() {
