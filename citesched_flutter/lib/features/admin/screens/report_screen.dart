@@ -63,6 +63,8 @@ class _ReportScreenState extends ConsumerState<ReportScreen>
   late TabController _tabController;
   final maroonColor = const Color(0xFF720045);
   String _scheduleExportGrouping = 'section';
+  int? _selectedScheduleExportFacultyId;
+  ScheduleExportLayout _scheduleExportLayout = ScheduleExportLayout.table;
 
   @override
   void initState() {
@@ -414,7 +416,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen>
           Text('Schedule Export Center', style: titleStyle),
           const SizedBox(height: 6),
           Text(
-            'Export all schedules in organized CSV, PDF, or DOCX format grouped by section, year, or room.',
+            'Choose the export file first, then choose whether to export calendar view or table view.',
             style: subtitleStyle,
           ),
           const SizedBox(height: 16),
@@ -446,10 +448,104 @@ class _ReportScreenState extends ConsumerState<ReportScreen>
                       ),
                       DropdownMenuItem(value: 'year', child: Text('By Year')),
                       DropdownMenuItem(value: 'room', child: Text('By Room')),
+                      DropdownMenuItem(
+                        value: 'faculty',
+                        child: Text('By Faculty'),
+                      ),
                     ],
                     onChanged: (value) {
                       if (value == null) return;
-                      setState(() => _scheduleExportGrouping = value);
+                      setState(() {
+                        _scheduleExportGrouping = value;
+                        if (value != 'faculty') {
+                          _selectedScheduleExportFacultyId = null;
+                        }
+                      });
+                    },
+                  ),
+                ),
+              ),
+              if (_scheduleExportGrouping == 'faculty')
+                facultyAsync.when(
+                  loading: () => const SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  error: (error, _) => Text(
+                    'Unable to load faculty list.',
+                    style: subtitleStyle.copyWith(color: Colors.red),
+                  ),
+                  data: (faculty) {
+                    final sortedFaculty = [...faculty]
+                      ..sort(
+                        (a, b) => a.name.toLowerCase().compareTo(
+                          b.name.toLowerCase(),
+                        ),
+                      );
+
+                    return DropdownButtonHideUnderline(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: maroonColor.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: DropdownButton<int?>(
+                          value: _selectedScheduleExportFacultyId,
+                          hint: const Text('All Faculty'),
+                          borderRadius: BorderRadius.circular(12),
+                          items: [
+                            const DropdownMenuItem<int?>(
+                              value: null,
+                              child: Text('All Faculty'),
+                            ),
+                            ...sortedFaculty.map(
+                              (item) => DropdownMenuItem<int?>(
+                                value: item.id,
+                                child: Text(item.name),
+                              ),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedScheduleExportFacultyId = value;
+                            });
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              DropdownButtonHideUnderline(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: maroonColor.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: DropdownButton<ScheduleExportLayout>(
+                    value: _scheduleExportLayout,
+                    borderRadius: BorderRadius.circular(12),
+                    items: const [
+                      DropdownMenuItem(
+                        value: ScheduleExportLayout.calendar,
+                        child: Text('Calendar View'),
+                      ),
+                      DropdownMenuItem(
+                        value: ScheduleExportLayout.table,
+                        child: Text('Table View'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() {
+                        _scheduleExportLayout = value;
+                      });
                     },
                   ),
                 ),
@@ -479,23 +575,25 @@ class _ReportScreenState extends ConsumerState<ReportScreen>
                     runSpacing: 8,
                     children: [
                       _buildExportButton(
-                        label: 'CSV',
-                        icon: Icons.table_chart_rounded,
-                        onPressed: hydratedSchedules.isEmpty
-                            ? null
-                            : () => _exportSchedules(
-                                hydratedSchedules,
-                                format: 'csv',
-                              ),
-                      ),
-                      _buildExportButton(
                         label: 'PDF',
                         icon: Icons.picture_as_pdf_rounded,
                         onPressed: hydratedSchedules.isEmpty
                             ? null
-                            : () => _exportSchedules(
+                            : () => _confirmAndExportSchedules(
                                 hydratedSchedules,
+                                faculty: _asyncListValue(facultyAsync),
                                 format: 'pdf',
+                              ),
+                      ),
+                      _buildExportButton(
+                        label: 'CSV',
+                        icon: Icons.table_chart_rounded,
+                        onPressed: hydratedSchedules.isEmpty
+                            ? null
+                            : () => _confirmAndExportSchedules(
+                                hydratedSchedules,
+                                faculty: _asyncListValue(facultyAsync),
+                                format: 'csv',
                               ),
                       ),
                       _buildExportButton(
@@ -503,8 +601,9 @@ class _ReportScreenState extends ConsumerState<ReportScreen>
                         icon: Icons.description_rounded,
                         onPressed: hydratedSchedules.isEmpty
                             ? null
-                            : () => _exportSchedules(
+                            : () => _confirmAndExportSchedules(
                                 hydratedSchedules,
+                                faculty: _asyncListValue(facultyAsync),
                                 format: 'docx',
                               ),
                       ),
@@ -540,34 +639,205 @@ class _ReportScreenState extends ConsumerState<ReportScreen>
     );
   }
 
-  Future<void> _exportSchedules(
+  Future<void> _confirmAndExportSchedules(
     List<Schedule> schedules, {
+    required List<Faculty> faculty,
     required String format,
   }) async {
+    Faculty? selectedFaculty;
+    if (_selectedScheduleExportFacultyId != null) {
+      for (final item in faculty) {
+        if (item.id == _selectedScheduleExportFacultyId) {
+          selectedFaculty = item;
+          break;
+        }
+      }
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Confirm Export'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('File type: ${format.toUpperCase()}'),
+            Text(
+              'View type: ${_scheduleExportLayout == ScheduleExportLayout.calendar ? 'Calendar View' : 'Table View'}',
+            ),
+            Text(
+              'Grouping: ${_scheduleGroupingLabel(_scheduleExportGrouping)}',
+            ),
+            if (_scheduleExportGrouping == 'faculty')
+              Text(
+                'Faculty: ${selectedFaculty?.name ?? 'All Faculty'}',
+              ),
+            Text('Schedules included: ${schedules.length}'),
+            const SizedBox(height: 12),
+            Text(
+              _scheduleExportLayout == ScheduleExportLayout.calendar
+                  ? 'This will open a calendar-style export preview before download.'
+                  : 'This will open a table-style export preview before download.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await _exportSchedules(
+        schedules,
+        faculty: faculty,
+        format: format,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Export failed: $error'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  String _scheduleGroupingLabel(String grouping) {
+    switch (grouping) {
+      case 'section':
+        return 'By Section';
+      case 'year':
+        return 'By Year';
+      case 'room':
+        return 'By Room';
+      case 'faculty':
+        return 'By Faculty';
+      default:
+        return 'All Schedules';
+    }
+  }
+
+  Future<void> _exportSchedules(
+    List<Schedule> schedules, {
+    required List<Faculty> faculty,
+    required String format,
+  }) async {
+    Faculty? selectedFaculty;
+    if (_selectedScheduleExportFacultyId != null) {
+      for (final item in faculty) {
+        if (item.id == _selectedScheduleExportFacultyId) {
+          selectedFaculty = item;
+          break;
+        }
+      }
+    }
+    final filteredSchedules =
+        _scheduleExportGrouping == 'faculty' &&
+            _selectedScheduleExportFacultyId != null
+        ? schedules
+              .where(
+                (schedule) =>
+                    schedule.facultyId == _selectedScheduleExportFacultyId,
+              )
+              .toList()
+        : schedules;
+    final isAllFacultyCalendarExport =
+        _scheduleExportGrouping == 'faculty' &&
+        _selectedScheduleExportFacultyId == null &&
+        _scheduleExportLayout == ScheduleExportLayout.calendar;
+
     final title = switch (_scheduleExportGrouping) {
       'section' => 'Schedules_By_Section',
       'year' => 'Schedules_By_Year',
       'room' => 'Schedules_By_Room',
+      'faculty' =>
+        selectedFaculty == null
+            ? 'Schedules_By_Faculty'
+            : 'Schedule_${selectedFaculty.name.replaceAll(' ', '_')}',
       _ => 'All_Schedules',
     };
+
+    if (isAllFacultyCalendarExport) {
+      if (format == 'csv') {
+        await ScheduleExportService.exportSchedulesCsv(
+          title: 'All_Faculty_Calendar_View',
+          schedules: filteredSchedules,
+          layout: ScheduleExportLayout.calendar,
+        );
+      } else if (format == 'pdf') {
+        await ScheduleExportService.exportAllFacultyCalendarPdf(
+          title: 'All Faculty Calendar View',
+          schedules: filteredSchedules,
+          subtitle: 'Combined faculty calendar export',
+        );
+      } else {
+        await ScheduleExportService.exportSchedulesDocx(
+          title: 'All Faculty Calendar View',
+          schedules: filteredSchedules,
+          subtitle: 'Combined faculty calendar export',
+          layout: ScheduleExportLayout.calendar,
+        );
+      }
+      return;
+    }
 
     if (_scheduleExportGrouping == 'all') {
       if (format == 'csv') {
         await ScheduleExportService.exportSchedulesCsv(
           title: title,
-          schedules: schedules,
+          schedules: filteredSchedules,
+          layout: _scheduleExportLayout,
         );
       } else if (format == 'pdf') {
         await ScheduleExportService.exportSchedulesPdf(
           title: title.replaceAll('_', ' '),
-          schedules: schedules,
+          schedules: filteredSchedules,
           subtitle: 'Administrative schedule export',
+          layout: _scheduleExportLayout,
         );
       } else {
         await ScheduleExportService.exportSchedulesDocx(
           title: title.replaceAll('_', ' '),
-          schedules: schedules,
+          schedules: filteredSchedules,
           subtitle: 'Administrative schedule export',
+          layout: _scheduleExportLayout,
+        );
+      }
+      return;
+    }
+
+    if (_scheduleExportGrouping == 'faculty' && selectedFaculty != null) {
+      if (format == 'csv') {
+        await ScheduleExportService.exportSchedulesCsv(
+          title: title,
+          schedules: filteredSchedules,
+          layout: _scheduleExportLayout,
+        );
+      } else if (format == 'pdf') {
+        await ScheduleExportService.exportSchedulesPdf(
+          title: 'Schedule for ${selectedFaculty.name}',
+          schedules: filteredSchedules,
+          subtitle: 'Faculty schedule export',
+          layout: _scheduleExportLayout,
+        );
+      } else {
+        await ScheduleExportService.exportSchedulesDocx(
+          title: 'Schedule for ${selectedFaculty.name}',
+          schedules: filteredSchedules,
+          subtitle: 'Faculty schedule export',
+          layout: _scheduleExportLayout,
         );
       }
       return;
@@ -576,20 +846,23 @@ class _ReportScreenState extends ConsumerState<ReportScreen>
     if (format == 'csv') {
       await ScheduleExportService.exportGroupedSchedulesCsv(
         title: title,
-        schedules: schedules,
+        schedules: filteredSchedules,
         grouping: _scheduleExportGrouping,
+        layout: _scheduleExportLayout,
       );
     } else if (format == 'pdf') {
       await ScheduleExportService.exportGroupedSchedulesPdf(
         title: title.replaceAll('_', ' '),
-        schedules: schedules,
+        schedules: filteredSchedules,
         grouping: _scheduleExportGrouping,
+        layout: _scheduleExportLayout,
       );
     } else {
       await ScheduleExportService.exportGroupedSchedulesDocx(
         title: title.replaceAll('_', ' '),
-        schedules: schedules,
+        schedules: filteredSchedules,
         grouping: _scheduleExportGrouping,
+        layout: _scheduleExportLayout,
       );
     }
   }
@@ -1872,7 +2145,8 @@ class _ScheduleOverviewTab extends ConsumerWidget {
                                     final timeslot = schedule.timeslotId != null
                                         ? timeslotMap[schedule.timeslotId!]
                                         : null;
-                                    final hasConflict = info.conflicts.isNotEmpty;
+                                    final hasConflict =
+                                        info.conflicts.isNotEmpty;
 
                                     return DataRow(
                                       color: WidgetStateProperty.all(
@@ -1919,21 +2193,30 @@ class _ScheduleOverviewTab extends ConsumerWidget {
                                                   Row(
                                                     children: [
                                                       Icon(
-                                                        Icons.warning_amber_rounded,
+                                                        Icons
+                                                            .warning_amber_rounded,
                                                         size: 14,
                                                         color: Colors.red[700],
                                                       ),
                                                       const SizedBox(width: 4),
                                                       Expanded(
                                                         child: Text(
-                                                          info.conflicts.first.message,
+                                                          info
+                                                              .conflicts
+                                                              .first
+                                                              .message,
                                                           maxLines: 2,
-                                                          overflow: TextOverflow.ellipsis,
-                                                          style: GoogleFonts.poppins(
-                                                            fontSize: 10,
-                                                            fontWeight: FontWeight.w600,
-                                                            color: Colors.red[700],
-                                                          ),
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                          style:
+                                                              GoogleFonts.poppins(
+                                                                fontSize: 10,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                color: Colors
+                                                                    .red[700],
+                                                              ),
                                                         ),
                                                       ),
                                                     ],
@@ -1955,32 +2238,36 @@ class _ScheduleOverviewTab extends ConsumerWidget {
                                                     const SizedBox(width: 6),
                                                     Text(
                                                       'Conflict',
-                                                      style: GoogleFonts.poppins(
-                                                        fontSize: 11,
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                        color: Colors.red[700],
-                                                      ),
+                                                      style:
+                                                          GoogleFonts.poppins(
+                                                            fontSize: 11,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                            color:
+                                                                Colors.red[700],
+                                                          ),
                                                     ),
                                                   ],
                                                 )
                                               : Row(
                                                   children: [
                                                     Icon(
-                                                      Icons.check_circle_rounded,
+                                                      Icons
+                                                          .check_circle_rounded,
                                                       color: Colors.green[700],
                                                       size: 16,
                                                     ),
                                                     const SizedBox(width: 6),
                                                     Text(
                                                       'Clear',
-                                                      style: GoogleFonts.poppins(
-                                                        fontSize: 11,
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                        color:
-                                                            Colors.green[700],
-                                                      ),
+                                                      style:
+                                                          GoogleFonts.poppins(
+                                                            fontSize: 11,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                            color: Colors
+                                                                .green[700],
+                                                          ),
                                                     ),
                                                   ],
                                                 ),
