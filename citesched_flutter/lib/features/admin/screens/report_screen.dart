@@ -1804,6 +1804,8 @@ class _ScheduleOverviewTab extends ConsumerWidget {
               ],
               const SizedBox(height: 24),
               _buildSectionSubjectsBreakdown(context, ref),
+              const SizedBox(height: 24),
+              _buildFacultyLoadingSchedulesBreakdown(context, ref),
             ],
           ),
         );
@@ -2293,6 +2295,486 @@ class _ScheduleOverviewTab extends ConsumerWidget {
     );
   }
 
+  Widget _buildFacultyLoadingSchedulesBreakdown(
+    BuildContext context,
+    WidgetRef ref,
+  ) {
+    final schedulesAsync = ref.watch(schedulesProvider);
+    final subjectsAsync = ref.watch(subjectsProvider);
+    final facultyAsync = ref.watch(facultyListProvider);
+    final roomsAsync = ref.watch(roomListProvider);
+    final timeslotsAsync = ref.watch(timeslotsProvider);
+    final conflictsAsync = ref.watch(allConflictsProvider);
+
+    final schedules = schedulesAsync.maybeWhen(
+      data: (value) => value,
+      orElse: () => null,
+    );
+    final subjects = subjectsAsync.maybeWhen(
+      data: (value) => value,
+      orElse: () => null,
+    );
+    final faculty = facultyAsync.maybeWhen(
+      data: (value) => value,
+      orElse: () => null,
+    );
+    final rooms = roomsAsync.maybeWhen(
+      data: (value) => value,
+      orElse: () => null,
+    );
+    final timeslots = timeslotsAsync.maybeWhen(
+      data: (value) => value,
+      orElse: () => null,
+    );
+    final conflicts = conflictsAsync.maybeWhen(
+      data: (value) => value,
+      orElse: () => null,
+    );
+
+    if (schedules == null ||
+        subjects == null ||
+        faculty == null ||
+        rooms == null ||
+        timeslots == null ||
+        conflicts == null) {
+      final error =
+          schedulesAsync.error ??
+          subjectsAsync.error ??
+          facultyAsync.error ??
+          roomsAsync.error ??
+          timeslotsAsync.error ??
+          conflictsAsync.error;
+      if (error != null) {
+        return Center(child: Text('Error loading faculty schedules: $error'));
+      }
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = isDark ? Colors.white : Colors.black87;
+    final textMuted = isDark ? Colors.grey[300]! : Colors.grey[700]!;
+    const maroonColor = Color(0xFF720045);
+    final rowBgA = isDark ? const Color(0xFF0F172A) : Colors.white;
+    final rowBgB = isDark ? const Color(0xFF111827) : const Color(0xFFF9FAFB);
+    final rowConflictA = isDark
+        ? const Color(0xFF2A1215)
+        : const Color(0xFFFFF1F2);
+    final rowConflictB = isDark
+        ? const Color(0xFF341519)
+        : const Color(0xFFFFE4E6);
+
+    final subjectMap = {for (final subject in subjects) subject.id!: subject};
+    final facultyMap = {for (final item in faculty) item.id!: item};
+    final roomMap = {for (final room in rooms) room.id!: room};
+    final timeslotMap = {for (final slot in timeslots) slot.id!: slot};
+
+    final Map<String, Map<String, List<Schedule>>> schedulesByProgram = {};
+    for (final schedule in schedules) {
+      final assignedFaculty = facultyMap[schedule.facultyId];
+      final subject = subjectMap[schedule.subjectId];
+      final program =
+          assignedFaculty?.program ?? subject?.program ?? Program.both;
+      final programLabel = _reportProgramLabel(program);
+      final facultyName = assignedFaculty?.name.trim().isNotEmpty == true
+          ? assignedFaculty!.name.trim()
+          : 'Faculty #${schedule.facultyId}';
+
+      schedulesByProgram
+          .putIfAbsent(programLabel, () => {})
+          .putIfAbsent(facultyName, () => [])
+          .add(schedule);
+    }
+
+    final programNames = schedulesByProgram.keys.toList()..sort();
+    final totalFaculty = schedulesByProgram.values.fold<int>(
+      0,
+      (total, facultyMap) => total + facultyMap.length,
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: const Border(left: BorderSide(color: maroonColor, width: 4)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            decoration: BoxDecoration(
+              color: maroonColor.withValues(alpha: 0.05),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.badge_rounded,
+                  color: maroonColor,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Faculty Loading Schedules',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: maroonColor,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: maroonColor,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '$totalFaculty Faculty',
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            itemCount: programNames.length,
+            itemBuilder: (context, index) {
+              final program = programNames[index];
+              final facultyForProgram = schedulesByProgram[program]!;
+              final facultyNames = facultyForProgram.keys.toList()..sort();
+              final facultyCount = facultyNames.length;
+              final scheduleCount = facultyForProgram.values.fold<int>(
+                0,
+                (total, items) => total + items.length,
+              );
+
+              return ExpansionTile(
+                tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+                title: Text(
+                  program,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.bold,
+                    color: maroonColor,
+                  ),
+                ),
+                subtitle: Text(
+                  '$facultyCount Faculty'
+                  ' | '
+                  '$scheduleCount Schedule${scheduleCount == 1 ? '' : 's'}',
+                  style: GoogleFonts.poppins(fontSize: 12, color: textMuted),
+                ),
+                children: facultyNames.map((facultyName) {
+                  final facultySchedules =
+                      List<Schedule>.from(
+                        facultyForProgram[facultyName]!,
+                      )..sort((a, b) {
+                        final slotA =
+                            a.timeslot ?? (a.timeslotId != null
+                                ? timeslotMap[a.timeslotId!]
+                                : null);
+                        final slotB =
+                            b.timeslot ?? (b.timeslotId != null
+                                ? timeslotMap[b.timeslotId!]
+                                : null);
+                        if (slotA != null && slotB != null) {
+                          final dayOrder = slotA.day.index.compareTo(
+                            slotB.day.index,
+                          );
+                          if (dayOrder != 0) return dayOrder;
+                          final timeOrder = slotA.startTime.compareTo(
+                            slotB.startTime,
+                          );
+                          if (timeOrder != 0) return timeOrder;
+                        }
+                        if (slotA != null) return -1;
+                        if (slotB != null) return 1;
+                        final subjectA = subjectMap[a.subjectId]?.code ?? '';
+                        final subjectB = subjectMap[b.subjectId]?.code ?? '';
+                        return subjectA.compareTo(subjectB);
+                      });
+
+                  final facultyScheduleInfos = facultySchedules
+                      .map((schedule) {
+                        final subject = subjectMap[schedule.subjectId];
+                        final assignedFaculty = facultyMap[schedule.facultyId];
+                        final room = schedule.roomId != null
+                            ? roomMap[schedule.roomId!]
+                            : null;
+                        final timeslot =
+                            schedule.timeslot ??
+                            (schedule.timeslotId != null
+                                ? timeslotMap[schedule.timeslotId!]
+                                : null);
+
+                        return ScheduleInfo(
+                          schedule: schedule.copyWith(
+                            subject: subject,
+                            faculty: assignedFaculty,
+                            room: room,
+                            timeslot: timeslot,
+                          ),
+                          conflicts: conflicts
+                              .where(
+                                (conflict) =>
+                                    conflict.scheduleId == schedule.id ||
+                                    conflict.conflictingScheduleId ==
+                                        schedule.id,
+                              )
+                              .toList(),
+                        );
+                      })
+                      .toList();
+
+                  final totalUnits = facultySchedules.fold<double>(
+                    0,
+                    (sum, schedule) => sum + (schedule.units ?? 0),
+                  );
+
+                  return ExpansionTile(
+                    tilePadding: const EdgeInsets.symmetric(horizontal: 24),
+                    title: Text(
+                      facultyName,
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.bold,
+                        color: maroonColor,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '${facultySchedules.length} Assigned Subject${facultySchedules.length == 1 ? '' : 's'}'
+                      ' | '
+                      '${totalUnits.toStringAsFixed(totalUnits % 1 == 0 ? 0 : 1)} Units',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: textMuted,
+                      ),
+                    ),
+                    children: [
+                      _FacultyScheduleSwitcher(
+                        facultyLabel: '$program - $facultyName',
+                        maroonColor: maroonColor,
+                        cardBg: Theme.of(context).cardColor,
+                        isDark: isDark,
+                        backgroundColor: isDark
+                            ? const Color(0xFF0F172A)
+                            : const Color(0xFFF8F9FA),
+                        facultyScheduleInfos: facultyScheduleInfos,
+                        tableChild: LayoutBuilder(
+                          builder: (context, constraints) {
+                            return SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  minWidth: constraints.maxWidth,
+                                ),
+                                child: DataTable(
+                                  headingRowColor: WidgetStateProperty.all(
+                                    maroonColor,
+                                  ),
+                                  headingTextStyle: GoogleFonts.poppins(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    letterSpacing: 0.5,
+                                  ),
+                                  dataTextStyle: GoogleFonts.poppins(
+                                    color: textPrimary,
+                                    fontSize: 12,
+                                  ),
+                                  dataRowMinHeight: 65,
+                                  dataRowMaxHeight: 88,
+                                  columnSpacing: 28,
+                                  horizontalMargin: 24,
+                                  columns: const [
+                                    DataColumn(label: Text('CODE')),
+                                    DataColumn(label: Text('DESCRIPTION')),
+                                    DataColumn(label: Text('SECTION')),
+                                    DataColumn(label: Text('ROOM')),
+                                    DataColumn(label: Text('SCHEDULE')),
+                                    DataColumn(label: Text('STATUS')),
+                                  ],
+                                  rows: facultyScheduleInfos.asMap().entries.map((
+                                    entry,
+                                  ) {
+                                    final rowIndex = entry.key;
+                                    final info = entry.value;
+                                    final schedule = info.schedule;
+                                    final subject =
+                                        subjectMap[schedule.subjectId];
+                                    final room = schedule.roomId != null
+                                        ? roomMap[schedule.roomId!]
+                                        : null;
+                                    final timeslot =
+                                        schedule.timeslot ??
+                                        (schedule.timeslotId != null
+                                            ? timeslotMap[schedule.timeslotId!]
+                                            : null);
+                                    final hasConflict =
+                                        info.conflicts.isNotEmpty;
+
+                                    return DataRow(
+                                      color: WidgetStateProperty.all(
+                                        hasConflict
+                                            ? (rowIndex.isEven
+                                                  ? rowConflictA
+                                                  : rowConflictB)
+                                            : (rowIndex.isEven
+                                                  ? rowBgA
+                                                  : rowBgB),
+                                      ),
+                                      cells: [
+                                        DataCell(Text(subject?.code ?? 'N/A')),
+                                        DataCell(
+                                          SizedBox(
+                                            width: 220,
+                                            child: Text(
+                                              subject?.name ?? 'Unknown',
+                                            ),
+                                          ),
+                                        ),
+                                        DataCell(Text(schedule.section)),
+                                        DataCell(Text(room?.name ?? 'TBA')),
+                                        DataCell(
+                                          SizedBox(
+                                            width: 220,
+                                            child: Column(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  _formatScheduleDisplay(
+                                                    timeslot,
+                                                    schedule.loadTypes ??
+                                                        subject?.types,
+                                                  ),
+                                                ),
+                                                if (hasConflict) ...[
+                                                  const SizedBox(height: 4),
+                                                  Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons
+                                                            .warning_amber_rounded,
+                                                        size: 14,
+                                                        color: Colors.red[700],
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      Expanded(
+                                                        child: Text(
+                                                          info
+                                                              .conflicts
+                                                              .first
+                                                              .message,
+                                                          maxLines: 2,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                          style:
+                                                              GoogleFonts.poppins(
+                                                                fontSize: 10,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                color: Colors
+                                                                    .red[700],
+                                                              ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        DataCell(
+                                          hasConflict
+                                              ? Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons.error_rounded,
+                                                      color: Colors.red[700],
+                                                      size: 16,
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Text(
+                                                      'Conflict',
+                                                      style:
+                                                          GoogleFonts.poppins(
+                                                            fontSize: 11,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                            color:
+                                                                Colors.red[700],
+                                                          ),
+                                                    ),
+                                                  ],
+                                                )
+                                              : Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons
+                                                          .check_circle_rounded,
+                                                      color: Colors.green[700],
+                                                      size: 16,
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Text(
+                                                      'Clear',
+                                                      style:
+                                                          GoogleFonts.poppins(
+                                                            fontSize: 11,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                            color: Colors
+                                                                .green[700],
+                                                          ),
+                                                    ),
+                                                  ],
+                                                ),
+                                        ),
+                                      ],
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   String _formatScheduleDisplay(
     Timeslot? timeslot,
     List<SubjectType>? loadTypes,
@@ -2548,6 +3030,158 @@ class _SectionScheduleSwitcher extends StatefulWidget {
   @override
   State<_SectionScheduleSwitcher> createState() =>
       _SectionScheduleSwitcherState();
+}
+
+enum _FacultyScheduleView { table, calendar }
+
+class _FacultyScheduleSwitcher extends StatefulWidget {
+  final String facultyLabel;
+  final Color maroonColor;
+  final Color cardBg;
+  final bool isDark;
+  final Color backgroundColor;
+  final List<ScheduleInfo> facultyScheduleInfos;
+  final Widget tableChild;
+
+  const _FacultyScheduleSwitcher({
+    required this.facultyLabel,
+    required this.maroonColor,
+    required this.cardBg,
+    required this.isDark,
+    required this.backgroundColor,
+    required this.facultyScheduleInfos,
+    required this.tableChild,
+  });
+
+  @override
+  State<_FacultyScheduleSwitcher> createState() =>
+      _FacultyScheduleSwitcherState();
+}
+
+class _FacultyScheduleSwitcherState extends State<_FacultyScheduleSwitcher> {
+  _FacultyScheduleView _view = _FacultyScheduleView.table;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasCalendarData = widget.facultyScheduleInfos.any(
+      (info) => info.schedule.timeslot != null,
+    );
+    final isTableView = _view == _FacultyScheduleView.table || !hasCalendarData;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              ChoiceChip(
+                label: const Text('Table View'),
+                selected: _view == _FacultyScheduleView.table,
+                selectedColor: widget.maroonColor,
+                backgroundColor: widget.cardBg,
+                checkmarkColor: Colors.white,
+                side: BorderSide(
+                  color: _view == _FacultyScheduleView.table
+                      ? widget.maroonColor
+                      : widget.maroonColor.withValues(alpha: 0.25),
+                ),
+                labelStyle: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  color: _view == _FacultyScheduleView.table
+                      ? Colors.white
+                      : (widget.isDark ? Colors.white70 : widget.maroonColor),
+                ),
+                onSelected: (_) {
+                  setState(() => _view = _FacultyScheduleView.table);
+                },
+              ),
+              ChoiceChip(
+                label: const Text('Calendar View'),
+                selected: _view == _FacultyScheduleView.calendar,
+                selectedColor: widget.maroonColor,
+                backgroundColor: widget.cardBg,
+                checkmarkColor: Colors.white,
+                side: BorderSide(
+                  color: _view == _FacultyScheduleView.calendar
+                      ? widget.maroonColor
+                      : widget.maroonColor.withValues(alpha: 0.25),
+                ),
+                labelStyle: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  color: _view == _FacultyScheduleView.calendar
+                      ? Colors.white
+                      : (widget.isDark ? Colors.white70 : widget.maroonColor),
+                ),
+                onSelected: hasCalendarData
+                    ? (_) {
+                        setState(() => _view = _FacultyScheduleView.calendar);
+                      }
+                    : null,
+              ),
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => FullScreenCalendarScaffold(
+                        title:
+                            '${widget.facultyLabel} ${isTableView ? 'Table View' : 'Calendar View'}',
+                        backgroundColor: widget.backgroundColor,
+                        useMaxWidthConstraint: false,
+                        child: isTableView
+                            ? widget.tableChild
+                            : CalendarViewCard(
+                                title: 'Weekly Faculty Schedule',
+                                maroonColor: widget.maroonColor,
+                                cardBg: widget.cardBg,
+                                isDark: widget.isDark,
+                                calendarHeight:
+                                    ResponsiveHelper.isMobile(context)
+                                    ? 620
+                                    : 820,
+                                child: WeeklyCalendarView(
+                                  schedules: widget.facultyScheduleInfos,
+                                  maroonColor: widget.maroonColor,
+                                  isStudentView: true,
+                                ),
+                              ),
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.fullscreen_rounded, size: 18),
+                label: Text(
+                  'Full Screen',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                ),
+                style: TextButton.styleFrom(
+                  foregroundColor: widget.maroonColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (isTableView)
+          widget.tableChild
+        else
+          CalendarViewCard(
+            title: 'Weekly Faculty Schedule',
+            maroonColor: widget.maroonColor,
+            cardBg: widget.cardBg,
+            isDark: widget.isDark,
+            calendarHeight: ResponsiveHelper.isMobile(context) ? 520 : 700,
+            child: WeeklyCalendarView(
+              schedules: widget.facultyScheduleInfos,
+              maroonColor: widget.maroonColor,
+              isStudentView: true,
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 class _SectionScheduleSwitcherState extends State<_SectionScheduleSwitcher> {
