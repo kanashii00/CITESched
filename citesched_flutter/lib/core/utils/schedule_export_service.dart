@@ -178,6 +178,16 @@ class ScheduleExportService {
       _groupSchedules(schedules, grouping),
       grouping,
     );
+
+    if (layout == ScheduleExportLayout.calendar) {
+      await _exportGroupedCalendarSchedulesPdf(
+        title: title,
+        groups: groups,
+        grouping: grouping,
+      );
+      return;
+    }
+
     final pdf = pw.Document();
     final pageFormat = layout == ScheduleExportLayout.table
         ? PdfPageFormat.a4.landscape
@@ -228,6 +238,78 @@ class ScheduleExportService {
         },
       ),
     );
+
+    await Printing.layoutPdf(
+      name: '${_safeFileName(title)}.pdf',
+      onLayout: (format) => pdf.save(),
+    );
+  }
+
+  static Future<void> _exportGroupedCalendarSchedulesPdf({
+    required String title,
+    required List<MapEntry<String, List<Schedule>>> groups,
+    required String grouping,
+  }) async {
+    final pdf = pw.Document();
+
+    if (groups.isEmpty) {
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a3.landscape,
+          margin: const pw.EdgeInsets.all(24),
+          build: (context) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                title,
+                style: pw.TextStyle(
+                  fontSize: 18,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 8),
+              pw.Text('Grouped by ${grouping.toUpperCase()}'),
+              pw.SizedBox(height: 16),
+              pw.Text('No schedules available.'),
+            ],
+          ),
+        ),
+      );
+    } else {
+      for (final entry in groups) {
+        final sortedSchedules = _sortedSchedules(entry.value);
+        pdf.addPage(
+          pw.Page(
+            pageFormat: PdfPageFormat.a3.landscape,
+            margin: const pw.EdgeInsets.all(24),
+            build: (context) => pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  title,
+                  style: pw.TextStyle(
+                    fontSize: 18,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 8),
+                pw.Text('Grouped by ${grouping.toUpperCase()}'),
+                pw.SizedBox(height: 16),
+                pw.Text(
+                  entry.key,
+                  style: pw.TextStyle(
+                    fontSize: 14,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 8),
+                _buildPdfWeeklyCalendar(sortedSchedules),
+              ],
+            ),
+          ),
+        );
+      }
+    }
 
     await Printing.layoutPdf(
       name: '${_safeFileName(title)}.pdf',
