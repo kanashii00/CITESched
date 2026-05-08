@@ -207,7 +207,7 @@ class ScheduleExportService {
             final entry = groups[i];
             final sortedSchedules = _sortedSchedules(entry.value);
             if (i > 0) {
-              widgets.add(pw.NewPage());
+              widgets.add(pw.SizedBox(height: 10));
             }
             widgets.add(
               pw.Text(
