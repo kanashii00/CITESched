@@ -463,6 +463,16 @@ class AdminEndpoint extends Endpoint {
     final parsedYearLevel = _yearLevelFromSectionCode(rawSection, fallback: 0);
     final yearLevel = _resolveYearLevel(parsedYearLevel, student.yearLevel);
 
+    if (student.sectionId != null) {
+      final currentSection = await Section.db.findById(session, student.sectionId!);
+      if (currentSection != null &&
+          currentSection.sectionCode == rawSection &&
+          currentSection.yearLevel == yearLevel &&
+          currentSection.program == program) {
+        return currentSection.id;
+      }
+    }
+
     final existingSection = await Section.db.findFirstRow(
       session,
       where: (t) =>
@@ -987,6 +997,7 @@ class AdminEndpoint extends Endpoint {
     final students = await Student.db.find(
       session,
       where: (t) => t.isActive.equals(isActive),
+      include: Student.include(sectionRef: Section.include()),
     );
 
     for (final student in students) {

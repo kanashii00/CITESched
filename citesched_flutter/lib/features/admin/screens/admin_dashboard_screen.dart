@@ -60,6 +60,28 @@ const _yearLevelDistributionTitle = 'Year Level Distribution';
 const _sectionDistributionTitle = 'Section Distribution';
 const _defaultSectionCapacity = 40;
 
+enum _StudentUpdateOperation { yearLevel, semester }
+
+class _StudentUpdateSelection {
+  final List<Student> students;
+  final _StudentUpdateOperation operation;
+
+  const _StudentUpdateSelection({
+    required this.students,
+    required this.operation,
+  });
+}
+
+class _AcademicTermTarget {
+  final int yearLevel;
+  final int semester;
+
+  const _AcademicTermTarget({
+    required this.yearLevel,
+    required this.semester,
+  });
+}
+
 class _StatCardConfig {
   final String label;
   final String value;
@@ -143,6 +165,19 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }
 
   String _normalizeSectionCode(String value) => value.trim().toUpperCase();
+
+  String _semesterLabel(int semester) {
+    switch (semester) {
+      case 1:
+        return '1st Semester';
+      case 2:
+        return '2nd Semester';
+      case 3:
+        return 'Summer Class';
+      default:
+        return 'Term $semester';
+    }
+  }
 
   String? _sectionSuffix(String? sectionCode) {
     final match = RegExp(
@@ -231,6 +266,177 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     return maxYear <= 0 ? 4 : maxYear;
   }
 
+  int _maxSemesterForYearLevel(int yearLevel) {
+    return yearLevel == 4 ? 2 : 2;
+  }
+
+  bool _sectionMatchesStudentProgram(Section section, Student student) {
+    final studentProgram = _programFromCourse(student.course);
+    if (studentProgram == null) return true;
+    return section.program == studentProgram || section.program == Program.both;
+  }
+
+  Section? _currentStudentSection(Student student, List<Section> sections) {
+    if (student.sectionRef != null) {
+      return student.sectionRef;
+    }
+
+    if (student.sectionId != null) {
+      for (final section in sections) {
+        if (section.id == student.sectionId) return section;
+      }
+    }
+
+    final sectionCode = student.section?.trim();
+    if (sectionCode == null || sectionCode.isEmpty) return null;
+
+    final matches = sections.where((section) {
+      return section.isActive &&
+          section.yearLevel == student.yearLevel &&
+          _normalizeSectionCode(section.sectionCode) ==
+              _normalizeSectionCode(sectionCode) &&
+          _sectionMatchesStudentProgram(section, student);
+    }).toList()
+      ..sort((a, b) => a.semester.compareTo(b.semester));
+
+    if (matches.length == 1) return matches.first;
+    return null;
+  }
+
+  _AcademicTermTarget? _nextAcademicTermTarget(Section currentSection) {
+    if (currentSection.semester == 1) {
+      return _AcademicTermTarget(
+        yearLevel: currentSection.yearLevel,
+        semester: 2,
+      );
+    }
+    if (currentSection.yearLevel == 3 && currentSection.semester == 2) {
+      return const _AcademicTermTarget(yearLevel: 4, semester: 3);
+    }
+    if (currentSection.yearLevel == 4 && currentSection.semester == 3) {
+      return const _AcademicTermTarget(yearLevel: 4, semester: 1);
+    }
+    if (currentSection.yearLevel < 4 &&
+        currentSection.semester ==
+            _maxSemesterForYearLevel(currentSection.yearLevel)) {
+      return _AcademicTermTarget(
+        yearLevel: currentSection.yearLevel + 1,
+        semester: 1,
+      );
+    }
+    return null;
+  }
+
+  String _progressedSectionCode(Section currentSection, int targetYearLevel) {
+    final suffix = _sectionSuffix(currentSection.sectionCode);
+    if (suffix != null && suffix.isNotEmpty) {
+      return '$targetYearLevel$suffix';
+    }
+    return currentSection.sectionCode.trim();
+  }
+
+  Section? _nextSemesterSection(Student student, List<Section> sections) {
+    final currentSection = _currentStudentSection(student, sections);
+    if (currentSection == null) return null;
+    final target = _nextAcademicTermTarget(currentSection);
+    if (target == null) return null;
+    final targetSectionCode = _progressedSectionCode(
+      currentSection,
+      target.yearLevel,
+    );
+
+    final exactMatches = sections.where((section) {
+      return section.isActive &&
+          section.yearLevel == target.yearLevel &&
+          section.semester == target.semester &&
+          section.academicYear == currentSection.academicYear &&
+          _normalizeSectionCode(section.sectionCode) ==
+              _normalizeSectionCode(targetSectionCode) &&
+          _sectionMatchesStudentProgram(section, student);
+    }).toList();
+    if (exactMatches.isNotEmpty) return exactMatches.first;
+
+    final relaxedMatches = sections.where((section) {
+      return section.isActive &&
+          section.yearLevel == target.yearLevel &&
+          section.semester == target.semester &&
+          _normalizeSectionCode(section.sectionCode) ==
+              _normalizeSectionCode(targetSectionCode) &&
+          _sectionMatchesStudentProgram(section, student);
+    }).toList();
+    if (relaxedMatches.isNotEmpty) return relaxedMatches.first;
+
+    return null;
+  }
+
+  Future<Section?> _ensureNextSemesterSection(
+    Student student,
+    List<Section> sections,
+  ) async {
+    final currentSection = _currentStudentSection(student, sections);
+    if (currentSection == null) return null;
+
+    final target = _nextAcademicTermTarget(currentSection);
+    if (target == null) return null;
+
+    final existing = _nextSemesterSection(student, sections);
+    if (existing != null) return existing;
+
+    final created = await client.admin.createSection(
+      Section(
+        program: currentSection.program,
+        yearLevel: target.yearLevel,
+        sectionCode: _progressedSectionCode(currentSection, target.yearLevel),
+        availabilityJson: currentSection.availabilityJson,
+        academicYear: currentSection.academicYear,
+        semester: target.semester,
+        isActive: true,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    );
+    sections.add(created);
+    return created;
+  }
+
+  bool _isAtFinalAcademicTerm(Student student, List<Section> sections) {
+    final currentSection = _currentStudentSection(student, sections);
+    if (currentSection == null) return false;
+
+    return _nextAcademicTermTarget(currentSection) == null;
+  }
+
+  bool _isEligibleForYearLevelPromotion(
+    Student student,
+    List<Section> sections,
+  ) {
+    if (student.academicStatus != StudentAcademicStatus.active) return false;
+    final currentSection = _currentStudentSection(student, sections);
+    if (currentSection == null) return false;
+    return currentSection.semester ==
+        _maxSemesterForYearLevel(currentSection.yearLevel);
+  }
+
+  bool _isEligibleForSemesterUpdate(Student student, List<Section> sections) {
+    if (student.academicStatus != StudentAcademicStatus.active) return false;
+    final currentSection = _currentStudentSection(student, sections);
+    if (currentSection == null) return false;
+    return _nextAcademicTermTarget(currentSection) != null;
+  }
+
+  bool _isEligibleForOperation(
+    Student student,
+    List<Section> sections,
+    _StudentUpdateOperation operation,
+  ) {
+    switch (operation) {
+      case _StudentUpdateOperation.yearLevel:
+        return _isEligibleForYearLevelPromotion(student, sections);
+      case _StudentUpdateOperation.semester:
+        return _isEligibleForSemesterUpdate(student, sections);
+    }
+  }
+
   String? _nextSectionCode(
     Student student,
     int nextYearLevel,
@@ -305,15 +511,17 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     return candidates;
   }
 
-  Future<List<Student>?> _showPromotionSelectionDialog(
+  Future<_StudentUpdateSelection?> _showPromotionSelectionDialog(
     List<Student> students,
     List<Student> candidates,
+    List<Section> sections,
   ) async {
     final selectedKeys = candidates.map(_studentPromotionKey).toSet();
-    final eligibleKeys = candidates.map(_studentPromotionKey).toSet();
     int? selectedYearLevel;
     String selectedProgram = 'All Programs';
     String selectedSection = 'All Sections';
+    _StudentUpdateOperation selectedOperation =
+        _StudentUpdateOperation.yearLevel;
 
     final yearOptions = <int>[1, 2, 3, 4];
     final programOptions = <String>{
@@ -326,12 +534,22 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         if ((student.section ?? '').trim().isNotEmpty) student.section!.trim(),
     }.toList()..sort();
 
-    return showDialog<List<Student>>(
+    return showDialog<_StudentUpdateSelection>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final eligibleKeys = candidates
+                .where(
+                  (student) => _isEligibleForOperation(
+                    student,
+                    sections,
+                    selectedOperation,
+                  ),
+                )
+                .map(_studentPromotionKey)
+                .toSet();
             final filtered = students.where((student) {
               final matchesProgram =
                   selectedProgram == 'All Programs' ||
@@ -377,8 +595,39 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Manually select which active students will be updated. Year 1 to Year 3 students will proceed to the next year level and section. Year 4 students will be moved to the graduated student list. Students already marked as failed or graduated will appear but cannot be processed here. Subject prerequisite failures are not auto-detected yet, so students who should stay back must be left unselected.',
+                      'Manually select which active students will be updated. Use Year Level Update for direct promotion or graduation, or Semester Update to follow the academic path: 1st Sem -> 2nd Sem -> next Year 1st Sem, with 3rd Year 2nd Sem progressing to 4th Year Summer Class, then 4th Year 1st Sem, then 4th Year 2nd Sem. Semester progression keeps the same section identity, while Year Level Update may rebalance sections when needed.',
                       style: GoogleFonts.poppins(height: 1.45),
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        ChoiceChip(
+                          label: const Text('Year Level Update'),
+                          selected:
+                              selectedOperation ==
+                              _StudentUpdateOperation.yearLevel,
+                          onSelected: (_) {
+                            setDialogState(() {
+                              selectedOperation =
+                                  _StudentUpdateOperation.yearLevel;
+                            });
+                          },
+                        ),
+                        ChoiceChip(
+                          label: const Text('Semester Update'),
+                          selected:
+                              selectedOperation ==
+                              _StudentUpdateOperation.semester,
+                          onSelected: (_) {
+                            setDialogState(() {
+                              selectedOperation =
+                                  _StudentUpdateOperation.semester;
+                            });
+                          },
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     Wrap(
@@ -500,7 +749,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      '${selectedKeys.length} selected of ${candidates.length} eligible student(s) • ${students.length} active student(s) shown in filters',
+                      '${selectedKeys.where(eligibleKeys.contains).length} selected of ${eligibleKeys.length} eligible student(s) • ${filtered.length} active student(s) shown in filters',
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -541,6 +790,16 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                       (student.section ?? '').trim().isNotEmpty
                                       ? student.section!.trim()
                                       : 'No Section';
+                                  final currentSection = _currentStudentSection(
+                                    student,
+                                    sections,
+                                  );
+                                  final currentSemesterLabel =
+                                      currentSection == null
+                                      ? 'Semester N/A'
+                                      : _semesterLabel(
+                                          currentSection.semester,
+                                        );
                                   final academicStatusLabel = student
                                       .academicStatus
                                       .name
@@ -554,16 +813,48 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                       student.academicStatus ==
                                           StudentAcademicStatus.active &&
                                       student.yearLevel >= 4;
-                                  final eligibilityNote = isEligible
-                                      ? canGraduate
-                                            ? 'Eligible for graduation'
+                                  final finalSemesterForYear = currentSection ==
+                                          null
+                                      ? _maxSemesterForYearLevel(
+                                          student.yearLevel,
+                                        )
+                                      : _maxSemesterForYearLevel(
+                                          currentSection.yearLevel,
+                                        );
+                                  final nextSemesterSection =
+                                      selectedOperation ==
+                                          _StudentUpdateOperation.semester
+                                      ? _nextSemesterSection(student, sections)
+                                      : null;
+                                  final isAtFinalAcademicTerm =
+                                      selectedOperation ==
+                                          _StudentUpdateOperation.semester &&
+                                      _isAtFinalAcademicTerm(student, sections);
+                                  final eligibilityNote =
+                                      selectedOperation ==
+                                          _StudentUpdateOperation.yearLevel
+                                      ? student.academicStatus !=
+                                                StudentAcademicStatus.active
+                                            ? 'Not eligible: $academicStatusLabel'
+                                            : currentSection == null
+                                            ? 'Not eligible: section semester is not linked'
+                                            : !isEligible
+                                            ? 'Current term: $currentSemesterLabel. Not eligible: Year Level Update is only allowed after Year ${student.yearLevel} ${_semesterLabel(finalSemesterForYear)}'
+                                            : canGraduate
+                                            ? 'Current term: $currentSemesterLabel. Eligible for graduation'
                                             : canAdvanceYear
-                                            ? 'Eligible for promotion'
-                                            : 'Eligible for update'
+                                            ? 'Current term: $currentSemesterLabel. Eligible for promotion'
+                                            : 'Current term: $currentSemesterLabel. Eligible for update'
                                       : student.academicStatus !=
                                             StudentAcademicStatus.active
                                       ? 'Not eligible: $academicStatusLabel'
-                                      : 'Not eligible';
+                                      : currentSection == null
+                                      ? 'Not eligible: section semester is not linked'
+                                      : nextSemesterSection == null
+                                      ? isAtFinalAcademicTerm
+                                            ? 'Current term: $currentSemesterLabel. Not eligible: already at the final academic term.'
+                                            : 'Current term: $currentSemesterLabel. Eligible for semester progression.'
+                                      : 'Current term: $currentSemesterLabel. Eligible to proceed to Year ${nextSemesterSection.yearLevel} ${_semesterLabel(nextSemesterSection.semester)}';
 
                                   return CheckboxListTile(
                                     value: isSelected,
@@ -605,23 +896,38 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                   child: Text('Cancel', style: GoogleFonts.poppins()),
                 ),
                 ElevatedButton(
-                  onPressed: selectedKeys.isEmpty
+                  onPressed: selectedKeys.where(eligibleKeys.contains).isEmpty
                       ? null
                       : () {
                           final selectedStudents = candidates
                               .where(
-                                (student) => selectedKeys.contains(
-                                  _studentPromotionKey(student),
-                                ),
+                                (student) =>
+                                    selectedKeys.contains(
+                                      _studentPromotionKey(student),
+                                    ) &&
+                                    eligibleKeys.contains(
+                                      _studentPromotionKey(student),
+                                    ),
                               )
                               .toList();
-                          Navigator.pop(dialogContext, selectedStudents);
+                          Navigator.pop(
+                            dialogContext,
+                            _StudentUpdateSelection(
+                              students: selectedStudents,
+                              operation: selectedOperation,
+                            ),
+                          );
                         },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF720045),
                     foregroundColor: Colors.white,
                   ),
-                  child: Text('Proceed', style: GoogleFonts.poppins()),
+                  child: Text(
+                    selectedOperation == _StudentUpdateOperation.yearLevel
+                        ? 'Proceed Year Update'
+                        : 'Proceed Semester Update',
+                    style: GoogleFonts.poppins(),
+                  ),
                 ),
               ],
             );
@@ -1016,73 +1322,98 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'No active students are available for year level updates.',
+              'No active students are available for year level or semester updates.',
             ),
           ),
         );
         return;
       }
 
-      final selectedStudents = await _showPromotionSelectionDialog(
+      final selection = await _showPromotionSelectionDialog(
         students,
         candidates,
+        sections,
       );
 
-      if (selectedStudents == null || selectedStudents.isEmpty || !mounted) {
+      if (selection == null || selection.students.isEmpty || !mounted) {
         return;
       }
 
+      final selectedStudents = selection.students;
       final backup = <Student>[];
       var promotedCount = 0;
       var graduatedCount = 0;
+      var semesterAdvancedCount = 0;
 
       final orderedStudents = [...selectedStudents]
         ..sort((a, b) => b.yearLevel.compareTo(a.yearLevel));
 
-      for (final student in orderedStudents) {
-        backup.add(student.copyWith());
+      if (selection.operation == _StudentUpdateOperation.yearLevel) {
+        for (final student in orderedStudents) {
+          backup.add(student.copyWith());
 
-        final currentSection = student.section?.trim();
-        if (currentSection != null && currentSection.isNotEmpty) {
-          final currentKey = _sectionCountKey(
-            _programFromCourse(student.course),
-            student.yearLevel,
-            currentSection,
-          );
-          final currentCount = projectedCounts[currentKey] ?? 0;
-          if (currentCount > 0) {
-            projectedCounts[currentKey] = currentCount - 1;
+          final currentSection = student.section?.trim();
+          if (currentSection != null && currentSection.isNotEmpty) {
+            final currentKey = _sectionCountKey(
+              _programFromCourse(student.course),
+              student.yearLevel,
+              currentSection,
+            );
+            final currentCount = projectedCounts[currentKey] ?? 0;
+            if (currentCount > 0) {
+              projectedCounts[currentKey] = currentCount - 1;
+            }
           }
-        }
 
-        if (student.yearLevel >= 4) {
+          if (student.yearLevel >= 4) {
+            await client.admin.updateStudent(
+              student.copyWith(
+                academicStatus: StudentAcademicStatus.graduated,
+                isActive: false,
+                updatedAt: DateTime.now(),
+              ),
+            );
+            graduatedCount++;
+            continue;
+          }
+
+          final nextYearLevel = student.yearLevel + 1;
+          final updatedSection = _nextSectionCode(
+            student,
+            nextYearLevel,
+            sections,
+            projectedCounts,
+          );
+
           await client.admin.updateStudent(
             student.copyWith(
-              academicStatus: StudentAcademicStatus.graduated,
-              isActive: false,
+              yearLevel: nextYearLevel,
+              section: updatedSection,
               updatedAt: DateTime.now(),
             ),
           );
-          graduatedCount++;
-          continue;
+          promotedCount++;
         }
+      } else {
+        for (final student in orderedStudents) {
+          final nextSection = await _ensureNextSemesterSection(
+            student,
+            sections,
+          );
+          if (nextSection == null) continue;
 
-        final nextYearLevel = student.yearLevel + 1;
-        final updatedSection = _nextSectionCode(
-          student,
-          nextYearLevel,
-          sections,
-          projectedCounts,
-        );
-
-        await client.admin.updateStudent(
-          student.copyWith(
-            yearLevel: nextYearLevel,
-            section: updatedSection,
-            updatedAt: DateTime.now(),
-          ),
-        );
-        promotedCount++;
+          backup.add(student.copyWith());
+          await client.admin.updateStudent(
+            student.copyWith(
+              yearLevel: nextSection.yearLevel,
+              section: nextSection.sectionCode.trim(),
+              sectionId: nextSection.id,
+              sectionRef: nextSection,
+              updatedAt: DateTime.now(),
+            ),
+          );
+          semesterAdvancedCount++;
+        }
       }
 
       await _refreshStudentDashboardData();
@@ -1094,17 +1425,24 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            promotedCount == 0 && graduatedCount == 0
+            promotedCount == 0 &&
+                    graduatedCount == 0 &&
+                    semesterAdvancedCount == 0
                 ? 'No students were updated.'
                 : [
                         if (promotedCount > 0)
                           '$promotedCount student(s) promoted successfully',
                         if (graduatedCount > 0)
                           '$graduatedCount student(s) moved to the graduated list',
+                        if (semesterAdvancedCount > 0)
+                          '$semesterAdvancedCount student(s) progressed to the next academic term',
                       ].join('. ') +
                       '.',
           ),
-          backgroundColor: promotedCount == 0 && graduatedCount == 0
+          backgroundColor:
+              promotedCount == 0 &&
+                  graduatedCount == 0 &&
+                  semesterAdvancedCount == 0
               ? Colors.orange
               : Colors.green,
         ),
@@ -1113,7 +1451,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to update year levels: $e'),
+          content: Text('Failed to update students: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -1138,11 +1476,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           borderRadius: BorderRadius.circular(18),
         ),
         title: Text(
-          'Restore Previous Promotion',
+          'Restore Previous Update',
           style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
         ),
         content: Text(
-          'This will restore ${backups.length} student record(s) to their previous year level and section. Do you want to continue?',
+          'This will restore ${backups.length} student record(s) to their previous year level, section, and semester assignment. Do you want to continue?',
           style: GoogleFonts.poppins(height: 1.5),
         ),
         actions: [
@@ -1180,7 +1518,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Previous student promotion restored successfully.'),
+          content: Text('Previous student update restored successfully.'),
           backgroundColor: Colors.green,
         ),
       );
@@ -1188,7 +1526,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to restore student promotion: $e'),
+          content: Text('Failed to restore student update: $e'),
           backgroundColor: Colors.red,
         ),
       );
