@@ -71,10 +71,9 @@ class ScheduleExportService {
   }) async {
     final sorted = _sortedSchedules(schedules);
     final pdf = pw.Document();
-    final pageFormat =
-        layout == ScheduleExportLayout.calendar && sorted.length > 40
-        ? PdfPageFormat.a3.landscape
-        : PdfPageFormat.a4.landscape;
+    final pageFormat = layout == ScheduleExportLayout.table
+        ? PdfPageFormat.a4.landscape
+        : PdfPageFormat.a3.landscape;
 
     pdf.addPage(
       pw.MultiPage(
@@ -180,10 +179,9 @@ class ScheduleExportService {
       grouping,
     );
     final pdf = pw.Document();
-    final pageFormat =
-        layout == ScheduleExportLayout.calendar && schedules.length > 40
-        ? PdfPageFormat.a3.landscape
-        : PdfPageFormat.a4.landscape;
+    final pageFormat = layout == ScheduleExportLayout.table
+        ? PdfPageFormat.a4.landscape
+        : PdfPageFormat.a3.landscape;
 
     pdf.addPage(
       pw.MultiPage(
@@ -771,10 +769,10 @@ class ScheduleExportService {
 
     final startHour = earliestHour < 7 ? earliestHour : 7;
     final endHour = latestHour > 21 ? latestHour : 21;
-    final timeColumnWidth = summaryMode ? 60.0 : (compact ? 50.0 : 56.0);
-    final dayWidth = summaryMode ? 188.0 : (compact ? 110.0 : 118.0);
+    final timeColumnWidth = summaryMode ? 60.0 : (compact ? 48.0 : 52.0);
+    final dayWidth = summaryMode ? 188.0 : (compact ? 96.0 : 104.0);
     final headerHeight = compact ? 26.0 : 30.0;
-    final hourHeight = summaryMode ? 48.0 : (compact ? 28.0 : 34.0);
+    final hourHeight = summaryMode ? 48.0 : (compact ? 24.0 : 28.0);
     final gridHeight = (endHour - startHour) * hourHeight;
     final totalWidth = timeColumnWidth + (dayWidth * days.length);
     final totalHeight = headerHeight + gridHeight;
@@ -1181,9 +1179,14 @@ class ScheduleExportService {
         hourHeight;
     final left = timeColumnWidth + (dayIndex * dayWidth) + 4;
     final width = dayWidth - 8;
-    final cardHeight = (height - 4) < (compact ? 92.0 : 108.0)
-        ? (compact ? 92.0 : 108.0)
-        : (height - 4);
+    final cardHeight = (height - 4) < 44.0 ? 44.0 : (height - 4);
+    final isDenseCard = compact || cardHeight < 78.0;
+    final cardPadding = isDenseCard ? 3.0 : 5.0;
+    final titleFont = isDenseCard ? 6.4 : 8.2;
+    final typeFont = isDenseCard ? 4.9 : 6.0;
+    final labelFont = isDenseCard ? 4.6 : 5.6;
+    final bodyFont = isDenseCard ? 4.3 : 5.2;
+    final sectionFont = isDenseCard ? 4.1 : 5.0;
     final row = _scheduleRowData(schedule);
     final isLab = _isLaboratorySchedule(schedule);
     final fillColor = isLab
@@ -1200,7 +1203,7 @@ class ScheduleExportService {
       child: pw.Container(
         width: width,
         height: cardHeight,
-        padding: pw.EdgeInsets.all(compact ? 4.5 : 6),
+        padding: pw.EdgeInsets.all(cardPadding),
         decoration: pw.BoxDecoration(
           color: fillColor,
           borderRadius: const pw.BorderRadius.all(pw.Radius.circular(10)),
@@ -1215,28 +1218,28 @@ class ScheduleExportService {
                 textAlign: pw.TextAlign.center,
                 style: pw.TextStyle(
                   color: PdfColors.white,
-                  fontSize: compact ? 8 : 9.5,
+                  fontSize: titleFont,
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
             ),
-            pw.SizedBox(height: compact ? 1 : 2),
+            pw.SizedBox(height: isDenseCard ? 0.5 : 1.5),
             pw.Center(
               child: pw.Text(
                 classType,
                 style: pw.TextStyle(
                   color: PdfColors.white,
-                  fontSize: compact ? 5.8 : 6.8,
+                  fontSize: typeFont,
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
             ),
-            pw.SizedBox(height: compact ? 2 : 3),
+            pw.SizedBox(height: isDenseCard ? 1 : 2),
             pw.Text(
               'Faculty: ${_truncateForPdf(row.faculty, compact ? 22 : 24)}',
               style: pw.TextStyle(
                 color: PdfColors.white,
-                fontSize: compact ? 6 : 6.8,
+                fontSize: labelFont,
                 fontWeight: pw.FontWeight.bold,
               ),
             ),
@@ -1244,7 +1247,7 @@ class ScheduleExportService {
               'Code: ${_truncateForPdf(row.code, compact ? 18 : 20)}',
               style: pw.TextStyle(
                 color: PdfColors.white,
-                fontSize: compact ? 5.8 : 6.5,
+                fontSize: labelFont,
                 fontWeight: pw.FontWeight.bold,
               ),
             ),
@@ -1252,28 +1255,28 @@ class ScheduleExportService {
               'Subject: ${_truncateForPdf(row.subject, compact ? 22 : 28)}',
               style: pw.TextStyle(
                 color: PdfColors.white,
-                fontSize: compact ? 5.6 : 6.2,
+                fontSize: bodyFont,
               ),
             ),
             pw.Text(
               'Room: ${_truncateForPdf(row.room, compact ? 18 : 20)}',
               style: pw.TextStyle(
                 color: PdfColors.white,
-                fontSize: compact ? 5.6 : 6.2,
+                fontSize: bodyFont,
               ),
             ),
             pw.Text(
               'Section: ${_truncateForPdf(row.section, compact ? 18 : 20)}',
               style: pw.TextStyle(
                 color: PdfColors.white,
-                fontSize: compact ? 5.6 : 6.2,
+                fontSize: sectionFont,
               ),
             ),
             pw.Text(
               'Type: $classType',
               style: pw.TextStyle(
                 color: PdfColors.white,
-                fontSize: compact ? 5.6 : 6.2,
+                fontSize: sectionFont,
               ),
             ),
           ],
