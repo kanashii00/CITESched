@@ -5439,6 +5439,7 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
   int? _selectedSectionId;
   int? _selectedRoomId;
   int? _selectedTimeslotId;
+  Timeslot? _selectedTimeslotOverride;
   double? _selectedUnits;
   double? _selectedHours;
   late List<double> _unitOptions;
@@ -6086,6 +6087,7 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
       if (mounted) {
         setState(() {
           _selectedTimeslotId = resolvedTimeslot.id;
+          _selectedTimeslotOverride = resolvedTimeslot;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -6176,7 +6178,16 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
               .where((o) => o.slot.id == _selectedTimeslotId)
               .cast<_TimeslotOption?>()
               .firstWhere((o) => o != null, orElse: () => null);
-    final selectedLabel = selectedOption?.label;
+    final selectedLabel =
+        selectedOption?.label ??
+        (_selectedTimeslotOverride != null &&
+                _selectedTimeslotOverride!.id == _selectedTimeslotId
+            ? CITESchedDateUtils.formatTimeslot(
+                _selectedTimeslotOverride!.day,
+                _selectedTimeslotOverride!.startTime,
+                _selectedTimeslotOverride!.endTime,
+              )
+            : null);
 
     return Autocomplete<_TimeslotOption>(
       key: ValueKey(
@@ -6197,14 +6208,19 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
       },
       onSelected: (option) {
         if (!option.isEnabled) return;
-        setState(() => _selectedTimeslotId = option.slot.id);
+        setState(() {
+          _selectedTimeslotId = option.slot.id;
+          _selectedTimeslotOverride = option.slot;
+        });
       },
       fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-        if (!focusNode.hasFocus &&
-            selectedLabel != null &&
+        if (selectedLabel != null &&
             selectedLabel.isNotEmpty &&
             controller.text != selectedLabel) {
-          controller.text = selectedLabel;
+          controller.value = TextEditingValue(
+            text: selectedLabel,
+            selection: TextSelection.collapsed(offset: selectedLabel.length),
+          );
         }
         return TextFormField(
           controller: controller,
@@ -6226,13 +6242,20 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                 : null,
           ),
           onChanged: (value) {
-            final match = options.any(
+            final normalizedValue = value.toLowerCase().trim();
+            final matchesSelectedLabel =
+                selectedLabel != null &&
+                selectedLabel.toLowerCase().trim() == normalizedValue;
+            final match = matchesSelectedLabel || options.any(
               (option) =>
                   option.label.toLowerCase().trim() ==
-                  value.toLowerCase().trim(),
+                  normalizedValue,
             );
             if (!match && _selectedTimeslotId != null) {
-              setState(() => _selectedTimeslotId = null);
+              setState(() {
+                _selectedTimeslotId = null;
+                _selectedTimeslotOverride = null;
+              });
             }
           },
           validator: (_) =>
@@ -7429,6 +7452,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
   int? _selectedSectionId;
   int? _selectedRoomId;
   int? _selectedTimeslotId;
+  Timeslot? _selectedTimeslotOverride;
   double? _selectedUnits;
   double? _selectedHours;
   late List<double> _unitOptions;
@@ -8031,6 +8055,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
       if (mounted) {
         setState(() {
           _selectedTimeslotId = resolvedTimeslot.id;
+          _selectedTimeslotOverride = resolvedTimeslot;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -8140,6 +8165,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
     _selectedTimeslotId = widget.schedule.timeslotId == -1
         ? null
         : widget.schedule.timeslotId;
+    _selectedTimeslotOverride = widget.schedule.timeslot;
     _isAutoAssign =
         widget.schedule.timeslotId == null || widget.schedule.timeslotId == -1;
 
@@ -8199,7 +8225,16 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
               .where((o) => o.slot.id == _selectedTimeslotId)
               .cast<_TimeslotOption?>()
               .firstWhere((o) => o != null, orElse: () => null);
-    final selectedLabel = selectedOption?.label;
+    final selectedLabel =
+        selectedOption?.label ??
+        (_selectedTimeslotOverride != null &&
+                _selectedTimeslotOverride!.id == _selectedTimeslotId
+            ? CITESchedDateUtils.formatTimeslot(
+                _selectedTimeslotOverride!.day,
+                _selectedTimeslotOverride!.startTime,
+                _selectedTimeslotOverride!.endTime,
+              )
+            : null);
 
     return Autocomplete<_TimeslotOption>(
       key: ValueKey(
@@ -8220,14 +8255,19 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
       },
       onSelected: (option) {
         if (!option.isEnabled) return;
-        setState(() => _selectedTimeslotId = option.slot.id);
+        setState(() {
+          _selectedTimeslotId = option.slot.id;
+          _selectedTimeslotOverride = option.slot;
+        });
       },
       fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-        if (!focusNode.hasFocus &&
-            selectedLabel != null &&
+        if (selectedLabel != null &&
             selectedLabel.isNotEmpty &&
             controller.text != selectedLabel) {
-          controller.text = selectedLabel;
+          controller.value = TextEditingValue(
+            text: selectedLabel,
+            selection: TextSelection.collapsed(offset: selectedLabel.length),
+          );
         }
         return TextFormField(
           controller: controller,
@@ -8247,13 +8287,20 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                 : null,
           ),
           onChanged: (value) {
-            final match = options.any(
+            final normalizedValue = value.toLowerCase().trim();
+            final matchesSelectedLabel =
+                selectedLabel != null &&
+                selectedLabel.toLowerCase().trim() == normalizedValue;
+            final match = matchesSelectedLabel || options.any(
               (option) =>
                   option.label.toLowerCase().trim() ==
-                  value.toLowerCase().trim(),
+                  normalizedValue,
             );
             if (!match && _selectedTimeslotId != null) {
-              setState(() => _selectedTimeslotId = null);
+              setState(() {
+                _selectedTimeslotId = null;
+                _selectedTimeslotOverride = null;
+              });
             }
           },
           validator: (_) => _selectedTimeslotId == null ? 'Required' : null,
