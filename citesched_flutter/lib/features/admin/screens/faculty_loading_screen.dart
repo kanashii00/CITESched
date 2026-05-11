@@ -779,6 +779,25 @@ bool _windowFitsSectionAvailability(
   return false;
 }
 
+bool _windowFitsFacultyAvailability(
+  _TimeslotWindow window,
+  List<FacultyAvailability> availability,
+) {
+  if (availability.isEmpty) return true;
+  final start = _timeToMinutes(window.startTime);
+  final end = _timeToMinutes(window.endTime);
+
+  for (final entry in availability) {
+    if (entry.dayOfWeek != window.day) continue;
+    final entryStart = _timeToMinutes(entry.startTime);
+    final entryEnd = _timeToMinutes(entry.endTime);
+    if (start >= entryStart && end <= entryEnd) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool _hasConfiguredSectionAvailability(Section? section) {
   return _sectionAvailabilityFromJson(section?.availabilityJson).isNotEmpty;
 }
@@ -803,8 +822,26 @@ List<_TimeslotWindow> _windowsFromAvailability({
     if (end - start < requiredMinutes) continue;
 
     if (preferredWindows.isNotEmpty) {
+      final eligibleWindows = <(int start, int end)>[];
       for (final window in preferredWindows) {
         if (window.$1 < start || window.$2 > end) continue;
+        eligibleWindows.add(window);
+      }
+      final trailingStart = end - requiredMinutes;
+      final trailingFits =
+          trailingStart >= start &&
+          !(trailingStart < 13 * 60 && end > 12 * 60);
+      final replacesLastPreferred =
+          trailingFits &&
+          eligibleWindows.isNotEmpty &&
+          (eligibleWindows.last.$1 != trailingStart ||
+              eligibleWindows.last.$2 != end);
+
+      if (replacesLastPreferred) {
+        eligibleWindows.removeLast();
+      }
+
+      for (final window in eligibleWindows) {
         final key =
             '${avail.dayOfWeek.name}|${_formatMinutes(window.$1)}|${_formatMinutes(window.$2)}';
         if (!seen.add(key)) continue;
@@ -816,9 +853,8 @@ List<_TimeslotWindow> _windowsFromAvailability({
           ),
         );
       }
-      final trailingStart = end - requiredMinutes;
-      if (trailingStart >= start &&
-          !(trailingStart < 13 * 60 && end > 12 * 60)) {
+
+      if (trailingFits) {
         final key =
             '${avail.dayOfWeek.name}|${_formatMinutes(trailingStart)}|${_formatMinutes(end)}';
         if (seen.add(key)) {
@@ -910,6 +946,8 @@ _TimeslotOptionsResult _buildTimeslotOptionsFromAvailability({
       selectedFacultyId: facultyId,
       selectedRoomId: roomId,
       timeslotId: match.id,
+      candidateTimeslot: match,
+      timeslots: timeslots,
       effectiveTypes: effectiveTypes,
     );
     options.add(
@@ -1012,6 +1050,20 @@ Future<Timeslot> _findOrCreateMatchingTimeslot(Timeslot draft) async {
     }
     rethrow;
   }
+}
+
+Future<List<FacultyAvailability>> _loadFacultyAvailability(
+  WidgetRef ref,
+  int? facultyId,
+) async {
+  if (facultyId == null) return const <FacultyAvailability>[];
+  final cached = ref.read(facultyAvailabilityProvider(facultyId));
+  final cachedList = cached.maybeWhen(
+    data: (list) => list,
+    orElse: () => null,
+  );
+  if (cachedList != null) return cachedList;
+  return client.admin.getFacultyAvailability(facultyId);
 }
 
 String _timeslotWindowsKey(List<_TimeslotWindow> windows) {
@@ -1206,6 +1258,8 @@ String? _timeslotOccupancyMessage({
   required int? selectedFacultyId,
   required int? selectedRoomId,
   required int? timeslotId,
+  required Timeslot candidateTimeslot,
+  required List<Timeslot> timeslots,
   required List<SubjectType> effectiveTypes,
 }) {
   if (timeslotId == null) {
@@ -1215,12 +1269,17 @@ String? _timeslotOccupancyMessage({
   final isLaboratory = effectiveTypes.contains(SubjectType.laboratory);
   final sameInstructorOccupants = <Schedule>[];
   final sameRoomOccupants = <Schedule>[];
+  final timeslotById = {for (final timeslot in timeslots) timeslot.id!: timeslot};
 
   for (final schedule in schedules) {
     if (_isCurrentSchedule(schedule, currentScheduleId)) {
       continue;
     }
-    if (schedule.timeslotId != timeslotId) {
+    final scheduleTimeslot =
+        schedule.timeslot ??
+        (schedule.timeslotId != null ? timeslotById[schedule.timeslotId!] : null);
+    if (scheduleTimeslot == null ||
+        !_timeslotsOverlap(scheduleTimeslot, candidateTimeslot)) {
       continue;
     }
     if (!schedule.isActive) {
@@ -1257,6 +1316,15 @@ String? _timeslotOccupancyMessage({
   }
 
   return 'Taken by ${facultyNames.join(', ')}.';
+}
+
+bool _timeslotsOverlap(Timeslot a, Timeslot b) {
+  if (a.day != b.day) return false;
+  final aStart = _timeToMinutes(a.startTime);
+  final aEnd = _timeToMinutes(a.endTime);
+  final bStart = _timeToMinutes(b.startTime);
+  final bEnd = _timeToMinutes(b.endTime);
+  return aStart < bEnd && bStart < aEnd;
 }
 
 bool _facultyMatchesSearch(Faculty faculty, String searchQuery) {
@@ -5876,13 +5944,13 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                   onPressed: () => Navigator.pop(context),
                   child: Text('Cancel', style: GoogleFonts.poppins()),
                 ),
-                ElevatedButton(
-                  onPressed: () {
-                    final startMinutes = _timeOfDayToMinutes(startTime);
-                    final endMinutes = _timeOfDayToMinutes(endTime);
-                    if (endMinutes <= startMinutes) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
+              ElevatedButton(
+                onPressed: () async {
+                  final startMinutes = _timeOfDayToMinutes(startTime);
+                  final endMinutes = _timeOfDayToMinutes(endTime);
+                  if (endMinutes <= startMinutes) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
                           content: Text('End time must be after start time.'),
                         ),
                       );
@@ -5897,12 +5965,37 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                           ),
                         ),
                       );
-                      return;
-                    }
+                    return;
+                  }
 
-                    Navigator.pop(
-                      context,
-                      Timeslot(
+                  final availabilityList = await _loadFacultyAvailability(
+                    ref,
+                    _selectedFacultyId,
+                  );
+                  final editedWindow = _TimeslotWindow(
+                    day: slot.day,
+                    startTime: _timeOfDayToHHmm(startTime),
+                    endTime: _timeOfDayToHHmm(endTime),
+                  );
+                  if (!_windowFitsFacultyAvailability(
+                    editedWindow,
+                    availabilityList,
+                  )) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Timeslot must stay within the selected faculty availability.',
+                          ),
+                        ),
+                      );
+                    }
+                    return;
+                  }
+
+                  Navigator.pop(
+                    context,
+                    Timeslot(
                         id: slot.id,
                         day: slot.day,
                         startTime: _timeOfDayToHHmm(startTime),
@@ -7797,7 +7890,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                 child: Text('Cancel', style: GoogleFonts.poppins()),
               ),
               ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
                   final startMinutes = _timeOfDayToMinutes(startTime);
                   final endMinutes = _timeOfDayToMinutes(endTime);
                   if (endMinutes <= startMinutes) {
@@ -7816,7 +7909,32 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                           'Timeslot must match the selected $requiredHoursLabel-hour load.',
                         ),
                       ),
-                    );
+                      );
+                    return;
+                  }
+
+                  final availabilityList = await _loadFacultyAvailability(
+                    ref,
+                    _selectedFacultyId,
+                  );
+                  final editedWindow = _TimeslotWindow(
+                    day: slot.day,
+                    startTime: _timeOfDayToHHmm(startTime),
+                    endTime: _timeOfDayToHHmm(endTime),
+                  );
+                  if (!_windowFitsFacultyAvailability(
+                    editedWindow,
+                    availabilityList,
+                  )) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Timeslot must stay within the selected faculty availability.',
+                          ),
+                        ),
+                      );
+                    }
                     return;
                   }
 

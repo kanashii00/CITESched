@@ -765,6 +765,7 @@ class SchedulingService {
   }) sync* {
     final fixedWindows = _preferredWindowsForDuration(requiredMinutes);
     if (fixedWindows.isNotEmpty) {
+      final eligibleWindows = <(int start, int end)>[];
       for (final window in fixedWindows) {
         final start = window.$1;
         final end = window.$2;
@@ -775,16 +776,31 @@ class SchedulingService {
           continue;
         }
         if (start >= rangeStart && end <= rangeEnd) {
-          yield (start, end);
+          eligibleWindows.add((start, end));
         }
       }
       final trailingStart = rangeEnd - requiredMinutes;
-      if (trailingStart >= rangeStart) {
-        if (!(requireLabStartAfterNine &&
-                trailingStart < _labEarliestStartMinutes) &&
-            !_overlapsLunchWindow(trailingStart, rangeEnd)) {
-          yield (trailingStart, rangeEnd);
-        }
+      final trailingFits =
+          trailingStart >= rangeStart &&
+          !(requireLabStartAfterNine &&
+              trailingStart < _labEarliestStartMinutes) &&
+          !_overlapsLunchWindow(trailingStart, rangeEnd);
+      final replacesLastPreferred =
+          trailingFits &&
+          eligibleWindows.isNotEmpty &&
+          (eligibleWindows.last.$1 != trailingStart ||
+              eligibleWindows.last.$2 != rangeEnd);
+
+      if (replacesLastPreferred) {
+        eligibleWindows.removeLast();
+      }
+
+      for (final window in eligibleWindows) {
+        yield window;
+      }
+
+      if (trailingFits) {
+        yield (trailingStart, rangeEnd);
       }
       return;
     }
