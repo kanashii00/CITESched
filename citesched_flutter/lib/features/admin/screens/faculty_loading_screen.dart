@@ -980,6 +980,40 @@ Future<void> _createTimeslotsFromWindows({
   }
 }
 
+Future<Timeslot> _findOrCreateMatchingTimeslot(Timeslot draft) async {
+  final existing = await client.admin.getAllTimeslots();
+  for (final timeslot in existing) {
+    if (timeslot.day == draft.day &&
+        timeslot.startTime == draft.startTime &&
+        timeslot.endTime == draft.endTime) {
+      return timeslot;
+    }
+  }
+
+  try {
+    return await client.admin.createTimeslot(
+      Timeslot(
+        day: draft.day,
+        startTime: draft.startTime,
+        endTime: draft.endTime,
+        label: draft.label,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    );
+  } catch (_) {
+    final refreshed = await client.admin.getAllTimeslots();
+    for (final timeslot in refreshed) {
+      if (timeslot.day == draft.day &&
+          timeslot.startTime == draft.startTime &&
+          timeslot.endTime == draft.endTime) {
+        return timeslot;
+      }
+    }
+    rethrow;
+  }
+}
+
 String _timeslotWindowsKey(List<_TimeslotWindow> windows) {
   return windows
       .map(
@@ -5896,12 +5930,15 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
     if (result == null) return;
 
     try {
-      await client.admin.updateTimeslot(result);
+      final resolvedTimeslot = await _findOrCreateMatchingTimeslot(result);
       ref.invalidate(timeslotsProvider);
       if (mounted) {
+        setState(() {
+          _selectedTimeslotId = resolvedTimeslot.id;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Timeslot updated successfully.'),
+            content: Text('Timeslot selected successfully.'),
             backgroundColor: Colors.green,
           ),
         );
@@ -7812,12 +7849,15 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
     if (result == null) return;
 
     try {
-      await client.admin.updateTimeslot(result);
+      final resolvedTimeslot = await _findOrCreateMatchingTimeslot(result);
       ref.invalidate(timeslotsProvider);
       if (mounted) {
+        setState(() {
+          _selectedTimeslotId = resolvedTimeslot.id;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Timeslot updated successfully.'),
+            content: Text('Timeslot selected successfully.'),
             backgroundColor: Colors.green,
           ),
         );
