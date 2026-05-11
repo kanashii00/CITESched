@@ -111,6 +111,11 @@ class AdminEndpoint extends Endpoint {
     return _compactSubjectCode(subject.code).startsWith('GE');
   }
 
+  bool _isStudentAvailabilityExemptSubject(Subject subject) {
+    final normalized = _compactSubjectCode(subject.code);
+    return normalized.startsWith('GE') || normalized.startsWith('SF');
+  }
+
   Future<void> _validateSubjectCodeUniqueness(
     Session session,
     Subject subject, {
@@ -362,6 +367,8 @@ class AdminEndpoint extends Endpoint {
     final sectionAvailability = _parseSectionAvailability(
       sectionRecord?.availabilityJson,
     );
+    final bypassSectionAvailability =
+        _isStudentAvailabilityExemptSubject(subject);
 
     final requiredMinutes = _requiredScheduleMinutes(subject, schedule);
     final candidateTimeslots =
@@ -371,10 +378,11 @@ class AdminEndpoint extends Endpoint {
               _parseTimeToMinutes(timeslot.startTime);
           return slotMinutes == requiredMinutes &&
               _timeslotMatchesAvailability(timeslot, availability) &&
-              _timeslotMatchesSectionAvailability(
-                timeslot,
-                sectionAvailability,
-              );
+              (bypassSectionAvailability ||
+                  _timeslotMatchesSectionAvailability(
+                    timeslot,
+                    sectionAvailability,
+                  ));
         }).toList()..sort((a, b) {
           final dayCompare = _dayOrder(a.day).compareTo(_dayOrder(b.day));
           if (dayCompare != 0) return dayCompare;

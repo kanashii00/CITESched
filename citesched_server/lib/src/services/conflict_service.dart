@@ -17,32 +17,18 @@ import '../generated/protocol.dart';
 ///   faculty_unavailable – Timeslot falls outside faculty availability
 class ConflictService {
   static const int _labEarliestStartMinutes = 9 * 60;
-  static const double _geLectureHours = 1.5;
-  static const double _lectureHours = 2.0;
-  static const double _threeHourBlock = 3.0;
-  static const List<(int start, int end)> _preferredLectureWindows = [
-    (8 * 60, 10 * 60),
-    (10 * 60, 12 * 60),
-    (13 * 60, 15 * 60),
-    (15 * 60, 17 * 60),
-    (17 * 60, 19 * 60),
-  ];
-  static const List<(int start, int end)> _preferredThreeHourWindows = [
-    (9 * 60, 12 * 60),
-    (13 * 60, 16 * 60),
-    (16 * 60, 19 * 60),
-  ];
-  static const List<(int start, int end)> _preferredGeLectureWindows = [
-    (8 * 60, 9 * 60 + 30),
-    (9 * 60 + 30, 11 * 60),
-    (13 * 60, 14 * 60 + 30),
-    (14 * 60 + 30, 16 * 60),
-    (16 * 60, 17 * 60 + 30),
-    (17 * 60 + 30, 19 * 60),
-  ];
 
   bool _isLabSubject(Subject subject) {
     return subject.types.contains(SubjectType.laboratory);
+  }
+
+  String _normalizeSubjectCode(String code) {
+    return code.trim().replaceAll(RegExp(r'\s+'), '').toUpperCase();
+  }
+
+  bool _isStudentAvailabilityExemptSubject(Subject subject) {
+    final normalized = _normalizeSubjectCode(subject.code);
+    return normalized.startsWith('GE') || normalized.startsWith('SF');
   }
 
   bool _isBlendedSubject(Subject subject) {
@@ -189,8 +175,8 @@ class ConflictService {
     existing = deduped.values.toList();
 
     for (final other in existing) {
-      final otherSubject = other.subject ??
-          await Subject.db.findById(session, other.subjectId);
+      final otherSubject =
+          other.subject ?? await Subject.db.findById(session, other.subjectId);
       if (otherSubject == null) continue;
       if (_normalizeSubjectCode(otherSubject.code) != normalizedSubjectCode) {
         continue;
@@ -476,7 +462,9 @@ class ConflictService {
           continue;
         }
 
-        final day = DayOfWeek.values.where((value) => value.name == dayValue).firstOrNull;
+        final day = DayOfWeek.values
+            .where((value) => value.name == dayValue)
+            .firstOrNull;
         if (day == null) continue;
 
         entries.add(
@@ -520,6 +508,10 @@ class ConflictService {
     List<ScheduleConflict> conflicts,
   ) async {
     if (schedule.timeslotId == null) return;
+    final subject = await Subject.db.findById(session, schedule.subjectId);
+    if (subject != null && _isStudentAvailabilityExemptSubject(subject)) {
+      return;
+    }
 
     Section? sectionRecord;
     if (schedule.sectionId != null) {
@@ -809,7 +801,8 @@ class ConflictService {
       conflicts.add(
         ScheduleConflict(
           type: 'lunch_break_overlap',
-          message: 'Scheduled classes cannot overlap lunch time (12:00 PM-1:00 PM)',
+          message:
+              'Scheduled classes cannot overlap lunch time (12:00 PM-1:00 PM)',
           scheduleId: schedule.id,
           facultyId: schedule.facultyId,
           subjectId: schedule.subjectId,
@@ -824,27 +817,6 @@ class ConflictService {
         ? await Room.db.findById(session, schedule.roomId!)
         : null;
     final isLabSchedule = _isLabSchedule(subject, schedule, room);
-    if (!_matchesPreferredWindow(
-      startMinutes: startMinutes,
-      endMinutes: endMinutes,
-      requiredMinutes: requiredMinutes,
-    )) {
-      conflicts.add(
-        ScheduleConflict(
-          type: 'invalid_preferred_window',
-          message:
-              _preferredWindowMessage(requiredMinutes) ??
-              'Selected class duration does not fit the allowed scheduling windows',
-          scheduleId: schedule.id,
-          facultyId: schedule.facultyId,
-          subjectId: schedule.subjectId,
-          roomId: schedule.roomId,
-          details:
-              'Timeslot ${timeslot.day.name} ${timeslot.startTime}-${timeslot.endTime} is outside the allowed class windows.',
-        ),
-      );
-    }
-
     if (isLabSchedule) {
       if (startMinutes < _labEarliestStartMinutes) {
         conflicts.add(
@@ -874,44 +846,6 @@ class ConflictService {
 
   bool _overlapsLunchWindow(int startMinutes, int endMinutes) {
     return startMinutes < 13 * 60 && endMinutes > 12 * 60;
-  }
-
-  List<(int start, int end)> _preferredWindowsForDuration(int requiredMinutes) {
-    if (requiredMinutes == (_geLectureHours * 60).round()) {
-      return _preferredGeLectureWindows;
-    }
-    if (requiredMinutes == (_lectureHours * 60).round()) {
-      return _preferredLectureWindows;
-    }
-    if (requiredMinutes == (_threeHourBlock * 60).round()) {
-      return _preferredThreeHourWindows;
-    }
-    return const [];
-  }
-
-  String? _preferredWindowMessage(int requiredMinutes) {
-    if (requiredMinutes == (_geLectureHours * 60).round()) {
-      return '1.5-hour classes must use 8:00-9:30 AM, 9:30-11:00 AM, 1:00-2:30 PM, 2:30-4:00 PM, 4:00-5:30 PM, or 5:30-7:00 PM';
-    }
-    if (requiredMinutes == (_lectureHours * 60).round()) {
-      return '2-hour classes must use 8:00-10:00 AM, 10:00 AM-12:00 PM, 1:00-3:00 PM, 3:00-5:00 PM, or 5:00-7:00 PM';
-    }
-    if (requiredMinutes == (_threeHourBlock * 60).round()) {
-      return '3-hour classes must use 9:00-12:00 PM, 1:00-4:00 PM, or 4:00-7:00 PM';
-    }
-    return null;
-  }
-
-  bool _matchesPreferredWindow({
-    required int startMinutes,
-    required int endMinutes,
-    required int requiredMinutes,
-  }) {
-    final allowed = _preferredWindowsForDuration(requiredMinutes);
-    if (allowed.isEmpty) return true;
-    return allowed.any(
-      (window) => startMinutes == window.$1 && endMinutes == window.$2,
-    );
   }
 
   bool _timeslotsOverlap(Timeslot a, Timeslot b) {
@@ -1328,6 +1262,10 @@ class ConflictService {
           ? sectionById[schedule.sectionId!]
           : sectionByNormalizedCode[schedule.section.trim().toLowerCase()];
       if (section == null) continue;
+      final subject = context.subjectMap[schedule.subjectId];
+      if (subject != null && _isStudentAvailabilityExemptSubject(subject)) {
+        continue;
+      }
 
       final sectionAvailability = _parseSectionAvailability(
         section.availabilityJson,

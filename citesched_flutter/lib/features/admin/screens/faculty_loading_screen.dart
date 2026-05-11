@@ -78,6 +78,11 @@ bool _isGeneralEducationSubject(Subject subject) {
   return _normalizeSubjectCode(subject.code).startsWith('GE');
 }
 
+bool _isStudentAvailabilityExemptSubject(Subject subject) {
+  final normalized = _normalizeSubjectCode(subject.code);
+  return normalized.startsWith('GE') || normalized.startsWith('SF');
+}
+
 double _hoursForSubjectTypes(List<SubjectType> types) {
   final hasLecture = types.contains(SubjectType.lecture);
   final hasLaboratory = types.contains(SubjectType.laboratory);
@@ -810,6 +815,21 @@ List<_TimeslotWindow> _windowsFromAvailability({
             endTime: _formatMinutes(window.$2),
           ),
         );
+      }
+      final trailingStart = end - requiredMinutes;
+      if (trailingStart >= start &&
+          !(trailingStart < 13 * 60 && end > 12 * 60)) {
+        final key =
+            '${avail.dayOfWeek.name}|${_formatMinutes(trailingStart)}|${_formatMinutes(end)}';
+        if (seen.add(key)) {
+          windows.add(
+            _TimeslotWindow(
+              day: avail.dayOfWeek,
+              startTime: _formatMinutes(trailingStart),
+              endTime: _formatMinutes(end),
+            ),
+          );
+        }
       }
       continue;
     }
@@ -5899,7 +5919,8 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
     required Section section,
     required List<Room> roomList,
   }) {
-    if (!_hasConfiguredSectionAvailability(section)) {
+    if (!_isStudentAvailabilityExemptSubject(subject) &&
+        !_hasConfiguredSectionAvailability(section)) {
       throw Exception(_sectionAvailabilityRequiredMessage(section.sectionCode));
     }
 
@@ -6886,6 +6907,9 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                                 }
                               }
                               final hasSectionAvailability =
+                                  _isStudentAvailabilityExemptSubject(
+                                    selectedSubject,
+                                  ) ||
                                   _hasConfiguredSectionAvailability(
                                     selectedSection,
                                   );
@@ -6909,9 +6933,13 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                                   _buildTimeslotOptionsFromAvailability(
                                     availability: availabilityList,
                                     sectionAvailability:
-                                        _sectionAvailabilityFromJson(
-                                          selectedSection?.availabilityJson,
-                                        ),
+                                        _isStudentAvailabilityExemptSubject(
+                                          selectedSubject,
+                                        )
+                                        ? const <_SectionAvailabilityWindow>[]
+                                        : _sectionAvailabilityFromJson(
+                                            selectedSection?.availabilityJson,
+                                          ),
                                     timeslots: timeslotList,
                                     requiredHours: requiredHours,
                                     typeLabel: typeLabel,
@@ -8879,6 +8907,9 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                                 }
                               }
                               final hasSectionAvailability =
+                                  _isStudentAvailabilityExemptSubject(
+                                    selectedSubject,
+                                  ) ||
                                   _hasConfiguredSectionAvailability(
                                     selectedSection,
                                   );
@@ -8902,9 +8933,13 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                                   _buildTimeslotOptionsFromAvailability(
                                     availability: availabilityList,
                                     sectionAvailability:
-                                        _sectionAvailabilityFromJson(
-                                          selectedSection?.availabilityJson,
-                                        ),
+                                        _isStudentAvailabilityExemptSubject(
+                                          selectedSubject,
+                                        )
+                                        ? const <_SectionAvailabilityWindow>[]
+                                        : _sectionAvailabilityFromJson(
+                                            selectedSection?.availabilityJson,
+                                          ),
                                     timeslots: timeslotList,
                                     requiredHours: requiredHours,
                                     typeLabel: typeLabel,

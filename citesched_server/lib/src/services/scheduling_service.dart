@@ -49,6 +49,11 @@ class SchedulingService {
     return _normalizeSubjectCode(subject.code).startsWith('GE');
   }
 
+  bool _isStudentAvailabilityExemptSubject(Subject subject) {
+    final normalized = _normalizeSubjectCode(subject.code);
+    return normalized.startsWith('GE') || normalized.startsWith('SF');
+  }
+
   /// Generate schedules using a greedy algorithm.
   /// Attempts to assign each subject to available timeslots while respecting
   /// all constraints including faculty day/time availability.
@@ -442,7 +447,10 @@ class SchedulingService {
         session: session,
         allTimeslots: data.validTimeslots,
         availability: data.facultyAvailMap[faculty.id!] ?? const [],
-        sectionAvailability: section.availability,
+        sectionAvailability:
+            _isStudentAvailabilityExemptSubject(subject)
+            ? const []
+            : section.availability,
         requiredHours: component.hours,
         cache: data.timeslotCache,
         requireLabStartAfterNine: component.types.contains(
@@ -669,7 +677,10 @@ class SchedulingService {
       session: session,
       allTimeslots: data.validTimeslots,
       availability: lockedAvailability,
-      sectionAvailability: section.availability,
+      sectionAvailability:
+          _isStudentAvailabilityExemptSubject(subject)
+          ? const []
+          : section.availability,
       requiredHours: maxComponentHours > 0
           ? maxComponentHours
           : _requiredHours(subject),
@@ -765,6 +776,14 @@ class SchedulingService {
         }
         if (start >= rangeStart && end <= rangeEnd) {
           yield (start, end);
+        }
+      }
+      final trailingStart = rangeEnd - requiredMinutes;
+      if (trailingStart >= rangeStart) {
+        if (!(requireLabStartAfterNine &&
+                trailingStart < _labEarliestStartMinutes) &&
+            !_overlapsLunchWindow(trailingStart, rangeEnd)) {
+          yield (trailingStart, rangeEnd);
         }
       }
       return;
