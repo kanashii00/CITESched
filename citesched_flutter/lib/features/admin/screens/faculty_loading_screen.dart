@@ -898,6 +898,7 @@ _TimeslotOptionsResult _buildTimeslotOptionsFromAvailability({
   required int? currentScheduleId,
   required int? facultyId,
   required int? roomId,
+  required int? selectedTimeslotId,
   required List<Faculty> facultyList,
   required List<SubjectType> effectiveTypes,
 }) {
@@ -958,6 +959,63 @@ _TimeslotOptionsResult _buildTimeslotOptionsFromAvailability({
         disabledReason: conflictMessage,
       ),
     );
+  }
+
+  if (selectedTimeslotId != null &&
+      !options.any((option) => option.slot.id == selectedTimeslotId)) {
+    Timeslot? selectedTimeslot;
+    for (final timeslot in timeslots) {
+      if (timeslot.id == selectedTimeslotId) {
+        selectedTimeslot = timeslot;
+        break;
+      }
+    }
+
+    if (selectedTimeslot != null) {
+      final selectedWindow = _TimeslotWindow(
+        day: selectedTimeslot.day,
+        startTime: selectedTimeslot.startTime,
+        endTime: selectedTimeslot.endTime,
+      );
+      final slotMinutes =
+          _timeToMinutes(selectedTimeslot.endTime) -
+          _timeToMinutes(selectedTimeslot.startTime);
+      final fitsAvailability = _windowFitsFacultyAvailability(
+        selectedWindow,
+        availability,
+      );
+      final fitsSection = _windowFitsSectionAvailability(
+        selectedWindow,
+        sectionAvailability,
+      );
+
+      if (slotMinutes == requiredMinutes && fitsAvailability && fitsSection) {
+        final baseLabel = CITESchedDateUtils.formatTimeslot(
+          selectedTimeslot.day,
+          selectedTimeslot.startTime,
+          selectedTimeslot.endTime,
+        );
+        final conflictMessage = _timeslotOccupancyMessage(
+          schedules: schedules,
+          facultyList: facultyList,
+          currentScheduleId: currentScheduleId,
+          selectedFacultyId: facultyId,
+          selectedRoomId: roomId,
+          timeslotId: selectedTimeslot.id,
+          candidateTimeslot: selectedTimeslot,
+          timeslots: timeslots,
+          effectiveTypes: effectiveTypes,
+        );
+        options.add(
+          _TimeslotOption(
+            slot: selectedTimeslot,
+            label: '$baseLabel - $typeLabel',
+            isEnabled: conflictMessage == null,
+            disabledReason: conflictMessage,
+          ),
+        );
+      }
+    }
   }
 
   return _TimeslotOptionsResult(options: options, missing: missing);
@@ -7077,6 +7135,7 @@ class _NewAssignmentModalState extends ConsumerState<_NewAssignmentModal> {
                                     currentScheduleId: null,
                                     facultyId: _selectedFacultyId,
                                     roomId: _selectedRoomId,
+                                    selectedTimeslotId: _selectedTimeslotId,
                                     facultyList: facultyList,
                                     effectiveTypes: effectiveTypes,
                                   );
@@ -9105,6 +9164,7 @@ class _EditAssignmentModalState extends ConsumerState<_EditAssignmentModal> {
                                     currentScheduleId: widget.schedule.id,
                                     facultyId: _selectedFacultyId,
                                     roomId: _selectedRoomId,
+                                    selectedTimeslotId: _selectedTimeslotId,
                                     facultyList: facultyList,
                                     effectiveTypes: effectiveTypes,
                                   );
