@@ -92,7 +92,7 @@ class ConflictService {
     return const ['lecture'];
   }
 
-  String _normalizeSubjectCode(String? value) {
+  String _normalizeSubjectCodeForComparison(String? value) {
     return (value ?? '').trim().toLowerCase();
   }
 
@@ -134,7 +134,9 @@ class ConflictService {
     final sectionId = schedule.sectionId;
     final sectionCode = schedule.section.trim();
     if (sectionId == null && sectionCode.isEmpty) return;
-    final normalizedSubjectCode = _normalizeSubjectCode(subject.code);
+    final normalizedSubjectCode = _normalizeSubjectCodeForComparison(
+      subject.code,
+    );
 
     final whereClause = sectionId != null
         ? (Schedule.t.subjectId.equals(subject.id!) &
@@ -178,7 +180,8 @@ class ConflictService {
       final otherSubject =
           other.subject ?? await Subject.db.findById(session, other.subjectId);
       if (otherSubject == null) continue;
-      if (_normalizeSubjectCode(otherSubject.code) != normalizedSubjectCode) {
+      if (_normalizeSubjectCodeForComparison(otherSubject.code) !=
+          normalizedSubjectCode) {
         continue;
       }
       final otherTags = _componentTagsForSchedule(otherSubject, other).toSet();
